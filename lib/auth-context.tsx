@@ -17,7 +17,7 @@ interface AuthContextValue {
   user: UserProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (data: LoginData) => Promise<any>;
+  login: (data: LoginData) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -112,7 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cookie) {
         await storeToken("session_cookie", cookie);
       }
-      return result;
     } catch (error) {
       console.error("Login error:", error instanceof Error ? error.message : error);
       throw error;
