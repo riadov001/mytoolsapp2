@@ -136,6 +136,12 @@ export default function ReservationsScreen() {
         ]}
       >
         <Text style={styles.headerTitle}>Mes Réservations</Text>
+        <Pressable
+          style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+          onPress={() => router.push("/(main)/request-reservation")}
+        >
+          <Ionicons name="add" size={22} color="#fff" />
+        </Pressable>
       </View>
 
       {isLoading ? (
@@ -203,6 +209,17 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontFamily: "Inter_700Bold",
     color: Colors.text,
+  },
+  addBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addBtnPressed: {
+    backgroundColor: Colors.primaryDark,
   },
   loader: {
     flex: 1,

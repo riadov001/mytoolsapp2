@@ -189,7 +189,7 @@ export default function ReservationDetailScreen() {
           {
             text: "Contacter le support",
             style: "primary",
-            onPress: () => router.push("/(main)/chat-detail" as any),
+            onPress: () => router.push("/(main)/(tabs)/messages"),
           },
         ],
       });
@@ -217,7 +217,7 @@ export default function ReservationDetailScreen() {
           {
             text: "Contacter le support",
             style: "primary",
-            onPress: () => router.push("/(main)/chat-detail" as any),
+            onPress: () => router.push("/(main)/(tabs)/messages"),
           },
         ],
       });
