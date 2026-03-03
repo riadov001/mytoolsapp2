@@ -108,6 +108,10 @@ export default function ReservationDetailScreen() {
   const allServices = Array.isArray(allServicesRaw) ? allServicesRaw : [];
   const reservation = allReservations.find((r) => r.id === id);
 
+  if (reservation) {
+    console.log("[RESERVATION DEBUG] reservation keys:", Object.keys(reservation), "data:", JSON.stringify(reservation).substring(0, 1000));
+  }
+
   if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -231,10 +235,16 @@ export default function ReservationDetailScreen() {
           onPress: async () => {
             setCancelling(true);
             try {
-              await apiCall(`/api/reservations/${id}/cancel`, { method: "POST" });
+              try {
+                await apiCall(`/api/reservations/${id}/cancel`, { method: "POST" });
+              } catch (e1: any) {
+                console.log("[RESERVATION] /cancel failed:", e1?.message, "trying PUT status");
+                await apiCall(`/api/reservations/${id}`, { method: "PUT", body: { status: "cancelled" } });
+              }
               queryClient.invalidateQueries({ queryKey: ["reservations"] });
               showAlert({ type: "success", title: "Réservation annulée", message: "La réservation a été annulée.", buttons: [{ text: "OK", style: "primary", onPress: () => router.back() }] });
             } catch (err: any) {
+              console.error("[RESERVATION] cancel error:", err?.message);
               showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible d'annuler.", buttons: [{ text: "OK", style: "primary" }] });
             } finally {
               setCancelling(false);
@@ -258,10 +268,16 @@ export default function ReservationDetailScreen() {
           onPress: async () => {
             setConfirming(true);
             try {
-              await apiCall(`/api/reservations/${id}/confirm`, { method: "POST" });
+              try {
+                await apiCall(`/api/reservations/${id}/confirm`, { method: "POST" });
+              } catch (e1: any) {
+                console.log("[RESERVATION] /confirm failed:", e1?.message, "trying PUT status");
+                await apiCall(`/api/reservations/${id}`, { method: "PUT", body: { status: "confirmed" } });
+              }
               queryClient.invalidateQueries({ queryKey: ["reservations"] });
               showAlert({ type: "success", title: "Réservation confirmée", message: "La réservation a bien été confirmée.", buttons: [{ text: "OK", style: "primary" }] });
             } catch (err: any) {
+              console.error("[RESERVATION] confirm error:", err?.message);
               showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible de confirmer.", buttons: [{ text: "OK", style: "primary" }] });
             } finally {
               setConfirming(false);

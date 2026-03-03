@@ -100,6 +100,8 @@ export default function InvoiceDetailScreen() {
     );
   }
 
+  console.log("[INVOICE DEBUG] invoice keys:", Object.keys(invoice), "invoice data:", JSON.stringify(invoice).substring(0, 1000));
+
   const statusInfo = getInvoiceStatusInfo(invoice.status);
   const createdDate = new Date(invoice.createdAt).toLocaleDateString("fr-FR", {
     day: "numeric",
@@ -118,29 +120,48 @@ export default function InvoiceDetailScreen() {
   const inv = invoice as any;
   const totalHTRaw =
     invoice.totalHT ||
+    inv.total_ht ||
     inv.totalExcludingTax ||
+    inv.total_excluding_tax ||
     inv.amountHT ||
+    inv.amount_ht ||
     inv.amountExcludingTax ||
+    inv.amount_excluding_tax ||
     inv.montantHT ||
+    inv.montant_ht ||
     inv.subtotal ||
+    inv.sub_total ||
+    inv.priceExcludingTax ||
+    inv.price_excluding_tax ||
     "0";
   const totalHTNum = parseFloat(totalHTRaw) || 0;
 
   const tvaAmountRaw =
     invoice.tvaAmount ||
+    inv.tva_amount ||
     inv.taxAmount ||
+    inv.tax_amount ||
     inv.vatAmount ||
+    inv.vat_amount ||
     inv.montantTVA ||
+    inv.montant_tva ||
     "0";
   const tvaAmountNum = parseFloat(tvaAmountRaw) || 0;
 
   const totalTTCRaw =
-    inv.totalIncludingTax ||
     invoice.totalTTC ||
+    inv.total_ttc ||
+    inv.totalIncludingTax ||
+    inv.total_including_tax ||
     inv.totalAmountIncludingTax ||
+    inv.total_amount_including_tax ||
     inv.totalWithTax ||
+    inv.total_with_tax ||
     inv.montantTTC ||
+    inv.montant_ttc ||
     inv.amount ||
+    inv.totalAmount ||
+    inv.total_amount ||
     inv.total ||
     "0";
 
@@ -151,17 +172,17 @@ export default function InvoiceDetailScreen() {
   if (totalTTCNum === 0 && invoiceItems.length > 0) {
     let itemsTotal = 0;
     for (const item of invoiceItems) {
-      const qty = parseFloat(item.quantity) || 1;
-      const up = parseFloat(item.unitPrice || item.price || item.priceHT || "0");
-      const lt = parseFloat(item.total || item.totalHT || "0");
+      const qty = parseFloat(item.quantity || item.qty || "1") || 1;
+      const up = parseFloat(item.unitPrice || item.unit_price || item.price || item.priceHT || item.price_ht || "0");
+      const lt = parseFloat(item.total || item.totalHT || item.total_ht || item.lineTotal || item.line_total || "0");
       itemsTotal += lt > 0 ? lt : (up * qty);
     }
     if (itemsTotal > 0) {
-      totalTTCNum = itemsTotal * (1 + (parseFloat(invoice.tvaRate || inv.taxRate || "20") / 100));
+      totalTTCNum = itemsTotal * (1 + (parseFloat(invoice.tvaRate || inv.tva_rate || inv.taxRate || inv.tax_rate || "20") / 100));
     }
   }
 
-  const tvaRateNum = parseFloat(invoice.tvaRate || (invoice as any).taxRate || "20");
+  const tvaRateNum = parseFloat(invoice.tvaRate || inv.tva_rate || inv.taxRate || inv.tax_rate || "20");
 
   const statusLower = invoice.status?.toLowerCase() || "";
   const isUnpaid = statusLower === "pending" || statusLower === "en_attente"

@@ -44,7 +44,7 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
   });
 
   const inv = invoice as any;
-  const totalTTC = inv.totalIncludingTax || invoice.totalTTC || inv.totalAmountIncludingTax || inv.totalWithTax || inv.montantTTC || inv.amount || inv.total || "0";
+  const totalTTC = invoice.totalTTC || inv.total_ttc || inv.totalIncludingTax || inv.total_including_tax || inv.totalAmountIncludingTax || inv.totalWithTax || inv.montantTTC || inv.montant_ttc || inv.amount || inv.totalAmount || inv.total_amount || inv.total || "0";
 
   return (
     <Pressable

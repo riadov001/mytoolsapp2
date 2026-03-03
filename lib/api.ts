@@ -134,7 +134,16 @@ export async function apiCall<T = any>(
     throw new Error("Service temporairement indisponible. Veuillez réessayer.");
   }
   try {
-    return JSON.parse(text) as T;
+    const parsed = JSON.parse(text);
+    const debugEndpoints = ["/api/invoices", "/api/quotes", "/api/reservations"];
+    if (debugEndpoints.some(ep => endpoint.startsWith(ep))) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log(`[API DEBUG] ${endpoint} => Array[${parsed.length}], first keys:`, Object.keys(parsed[0]), "sample:", JSON.stringify(parsed[0]).substring(0, 500));
+      } else if (parsed && typeof parsed === "object") {
+        console.log(`[API DEBUG] ${endpoint} => Object keys:`, Object.keys(parsed), "sample:", JSON.stringify(parsed).substring(0, 500));
+      }
+    }
+    return parsed as T;
   } catch {
     return {} as T;
   }
@@ -334,18 +343,46 @@ export const quotesApi = {
       body: data,
     }),
 
-  accept: (id: string, viewToken?: string) => {
+  accept: async (id: string, viewToken?: string) => {
     if (viewToken) {
-      return apiCall(`/api/public/quotes/${viewToken}/accept`, { method: "POST" });
+      try {
+        return await apiCall(`/api/public/quotes/${viewToken}/accept`, { method: "POST" });
+      } catch (e: any) {
+        console.log("[API] public accept failed, trying authenticated:", e?.message);
+      }
     }
-    return apiCall(`/api/quotes/${id}/accept`, { method: "POST" });
+    try {
+      return await apiCall(`/api/quotes/${id}/accept`, { method: "POST" });
+    } catch (e: any) {
+      console.log("[API] /accept failed, trying /respond:", e?.message);
+      try {
+        return await apiCall(`/api/quotes/${id}/respond`, { method: "POST", body: { action: "accept", status: "accepted" } });
+      } catch (e2: any) {
+        console.log("[API] /respond failed, trying PUT status:", e2?.message);
+        return await apiCall(`/api/quotes/${id}`, { method: "PUT", body: { status: "accepted" } });
+      }
+    }
   },
 
-  reject: (id: string, viewToken?: string) => {
+  reject: async (id: string, viewToken?: string) => {
     if (viewToken) {
-      return apiCall(`/api/public/quotes/${viewToken}/reject`, { method: "POST" });
+      try {
+        return await apiCall(`/api/public/quotes/${viewToken}/reject`, { method: "POST" });
+      } catch (e: any) {
+        console.log("[API] public reject failed, trying authenticated:", e?.message);
+      }
     }
-    return apiCall(`/api/quotes/${id}/reject`, { method: "POST" });
+    try {
+      return await apiCall(`/api/quotes/${id}/reject`, { method: "POST" });
+    } catch (e: any) {
+      console.log("[API] /reject failed, trying /respond:", e?.message);
+      try {
+        return await apiCall(`/api/quotes/${id}/respond`, { method: "POST", body: { action: "reject", status: "rejected" } });
+      } catch (e2: any) {
+        console.log("[API] /respond failed, trying PUT status:", e2?.message);
+        return await apiCall(`/api/quotes/${id}`, { method: "PUT", body: { status: "rejected" } });
+      }
+    }
   },
 };
 

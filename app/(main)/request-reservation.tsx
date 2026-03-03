@@ -251,13 +251,18 @@ export default function RequestReservationScreen() {
       const [h, m] = selectedSlot.split(":").map(Number);
       const scheduledDate = new Date(selectedDate);
       scheduledDate.setHours(h, m, 0, 0);
-      const data = {
+      const isoDate = scheduledDate.toISOString();
+      const dateOnly = `${scheduledDate.getFullYear()}-${String(scheduledDate.getMonth() + 1).padStart(2, "0")}-${String(scheduledDate.getDate()).padStart(2, "0")}`;
+      const data: any = {
         quoteId: quoteId || undefined,
         serviceId: serviceId || undefined,
-        scheduledDate: scheduledDate.toISOString(),
+        scheduledDate: isoDate,
+        date: dateOnly,
         timeSlot: selectedSlot,
+        time_slot: selectedSlot,
         notes: notes.trim() || undefined,
       };
+      console.log("[RESERVATION DEBUG] submitting:", JSON.stringify(data));
       if (isModification) {
         return apiCall(`/api/reservations/${modifyReservationId}`, {
           method: "PUT",

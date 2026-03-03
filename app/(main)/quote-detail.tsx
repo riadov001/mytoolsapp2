@@ -136,19 +136,32 @@ export default function QuoteDetailScreen() {
   const totalAmount =
     (quote as any).quoteAmount ||
     (quote as any).totalIncludingTax ||
+    (quote as any).total_including_tax ||
     (quote as any).totalTTC ||
+    (quote as any).total_ttc ||
     (quote as any).totalAmount ||
+    (quote as any).total_amount ||
+    (quote as any).amount ||
+    (quote as any).total ||
     "0";
   const totalHT =
     (quote as any).totalHT ||
+    (quote as any).total_ht ||
     (quote as any).totalExcludingTax ||
+    (quote as any).total_excluding_tax ||
     (quote as any).amountHT ||
-    (quote as any).amountExcludingTax;
-  const tvaRate = (quote as any).tvaRate || (quote as any).taxRate || "20";
+    (quote as any).amount_ht ||
+    (quote as any).amountExcludingTax ||
+    (quote as any).priceExcludingTax ||
+    (quote as any).price_excluding_tax;
+  const tvaRate = (quote as any).tvaRate || (quote as any).tva_rate || (quote as any).taxRate || (quote as any).tax_rate || "20";
   const tvaAmount =
     (quote as any).tvaAmount ||
+    (quote as any).tva_amount ||
     (quote as any).taxAmount ||
-    (quote as any).vatAmount;
+    (quote as any).tax_amount ||
+    (quote as any).vatAmount ||
+    (quote as any).vat_amount;
   const viewToken = (quote as any).viewToken as string | undefined;
   const expiryDate = (quote as any).expiryDate || (quote as any).validUntil;
   const displayRef = (quote as any).reference || (quote as any).quoteNumber || quote.id;
@@ -164,12 +177,15 @@ export default function QuoteDetailScreen() {
   const tvaAmountNum = tvaAmount ? parseFloat(tvaAmount) : (totalHTNum * parseFloat(tvaRate) / 100);
   const totalTTCNum = parseFloat(totalAmount) || (totalHTNum + tvaAmountNum) || 0;
 
+  console.log("[QUOTE DEBUG] quote keys:", Object.keys(quote), "status:", quote.status, "data:", JSON.stringify(quote).substring(0, 1000));
+
   const statusLower = quote.status?.toLowerCase() || "";
   const isPending = statusLower === "pending" || statusLower === "en_attente";
+  const isSent = statusLower === "sent" || statusLower === "envoyé" || statusLower === "envoyee";
   const isAccepted = statusLower === "accepted" || statusLower === "accepté" || statusLower === "confirmed" || statusLower === "confirmé";
   const hasNoContent = quoteItems.length === 0 && totalTTCNum === 0;
 
-  const canRespond = statusLower === "approved" || statusLower === "approuvé";
+  const canRespond = statusLower === "approved" || statusLower === "approuvé" || statusLower === "sent" || statusLower === "envoyé" || statusLower === "envoyee";
 
   const pdfUrl = viewToken
     ? `${EXTERNAL_API_BASE}/api/public/quotes/${viewToken}/pdf`
@@ -212,11 +228,22 @@ export default function QuoteDetailScreen() {
           onPress: async () => {
             setAccepting(true);
             try {
-              await quotesApi.accept(id!, viewToken);
+              console.log("[QUOTE DEBUG] accepting quote", id, "viewToken:", viewToken);
+              try {
+                await quotesApi.accept(id!, viewToken);
+              } catch (firstErr: any) {
+                console.log("[QUOTE DEBUG] first accept attempt failed:", firstErr?.message, "- trying without viewToken");
+                if (viewToken) {
+                  await quotesApi.accept(id!);
+                } else {
+                  throw firstErr;
+                }
+              }
               queryClient.invalidateQueries({ queryKey: ["quotes"] });
               queryClient.invalidateQueries({ queryKey: ["quote", id] });
               showAlert({ type: "success", title: "Devis accepté", message: "Le devis a bien été accepté.", buttons: [{ text: "OK", style: "primary" }] });
             } catch (err: any) {
+              console.error("[QUOTE DEBUG] accept error:", err?.message);
               showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible d'accepter le devis.", buttons: [{ text: "OK", style: "primary" }] });
             } finally {
               setAccepting(false);
@@ -240,11 +267,22 @@ export default function QuoteDetailScreen() {
           onPress: async () => {
             setRejecting(true);
             try {
-              await quotesApi.reject(id!, viewToken);
+              console.log("[QUOTE DEBUG] rejecting quote", id, "viewToken:", viewToken);
+              try {
+                await quotesApi.reject(id!, viewToken);
+              } catch (firstErr: any) {
+                console.log("[QUOTE DEBUG] first reject attempt failed:", firstErr?.message, "- trying without viewToken");
+                if (viewToken) {
+                  await quotesApi.reject(id!);
+                } else {
+                  throw firstErr;
+                }
+              }
               queryClient.invalidateQueries({ queryKey: ["quotes"] });
               queryClient.invalidateQueries({ queryKey: ["quote", id] });
               showAlert({ type: "success", title: "Devis refusé", message: "Le devis a bien été refusé.", buttons: [{ text: "OK", style: "primary" }] });
             } catch (err: any) {
+              console.error("[QUOTE DEBUG] reject error:", err?.message);
               showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible de refuser le devis.", buttons: [{ text: "OK", style: "primary" }] });
             } finally {
               setRejecting(false);

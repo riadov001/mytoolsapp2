@@ -189,7 +189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fetchOptions: RequestInit = {
         method: req.method,
         headers,
-        redirect: "manual",
+        redirect: "follow",
       };
 
       if (req.method !== "GET" && req.method !== "HEAD") {
@@ -222,25 +222,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader(key, value);
       });
 
+      console.log(`[PROXY] ${req.method} /api${req.url} => ${response.status} ${response.statusText}`);
       res.status(response.status);
       const body = await response.arrayBuffer();
-      const debugEndpoints = ["/invoices", "/quotes", "/reservations", "/services"];
-      const shouldLog = debugEndpoints.some(ep => req.url === ep || req.url.startsWith(ep + "?") || req.url.startsWith(ep + "/"));
-      if (shouldLog) {
-        try {
-          const text = Buffer.from(body).toString("utf-8");
-          const parsed = JSON.parse(text);
+      const text = Buffer.from(body).toString("utf-8");
+      try {
+        const parsed = JSON.parse(text);
+        const debugEndpoints = ["/invoices", "/quotes", "/reservations", "/services", "/login", "/auth"];
+        const shouldLog = debugEndpoints.some(ep => req.url === ep || req.url.startsWith(ep + "?") || req.url.startsWith(ep + "/"));
+        if (shouldLog) {
           if (Array.isArray(parsed) && parsed.length > 0) {
-            console.log(`[DEBUG] ${req.method} /api${req.url} => Array[${parsed.length}], first item keys:`, Object.keys(parsed[0]), "first item sample:", JSON.stringify(parsed[0]).slice(0, 800));
+            console.log(`[DEBUG] ${req.method} /api${req.url} => Array[${parsed.length}], first item keys:`, Object.keys(parsed[0]), "first item:", JSON.stringify(parsed[0]).slice(0, 1000));
           } else if (parsed && typeof parsed === "object") {
-            const dataArr = parsed.data || parsed.results || parsed.items || parsed.invoices || parsed.quotes || parsed.reservations || parsed.services;
+            const dataArr = parsed.data || parsed.results || parsed.items;
             if (Array.isArray(dataArr) && dataArr.length > 0) {
-              console.log(`[DEBUG] ${req.method} /api${req.url} => wrapped Array[${dataArr.length}], wrapper keys:`, Object.keys(parsed), "first item keys:", Object.keys(dataArr[0]), "first item sample:", JSON.stringify(dataArr[0]).slice(0, 800));
+              console.log(`[DEBUG] ${req.method} /api${req.url} => wrapped, wrapper keys:`, Object.keys(parsed), "first item keys:", Object.keys(dataArr[0]), "first item:", JSON.stringify(dataArr[0]).slice(0, 1000));
             } else {
-              console.log(`[DEBUG] ${req.method} /api${req.url} => Object keys:`, Object.keys(parsed), "sample:", JSON.stringify(parsed).slice(0, 800));
+              console.log(`[DEBUG] ${req.method} /api${req.url} => Object keys:`, Object.keys(parsed), "sample:", JSON.stringify(parsed).slice(0, 1000));
             }
           }
-        } catch {}
+        }
+      } catch {
+        if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+          console.log(`[DEBUG] ${req.method} /api${req.url} => HTML response (not JSON), status: ${response.status}, length: ${text.length}`);
+        } else {
+          console.log(`[DEBUG] ${req.method} /api${req.url} => non-JSON response:`, text.slice(0, 300));
+        }
       }
       res.send(Buffer.from(body));
     } catch (err: any) {
