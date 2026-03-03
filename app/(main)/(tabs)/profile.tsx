@@ -2,13 +2,12 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   Platform,
   Switch,
+  Linking,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,6 +21,9 @@ import Colors from "@/constants/colors";
 import { FloatingSupport } from "@/components/FloatingSupport";
 import { useCustomAlert } from "@/components/CustomAlert";
 
+const WEB_PORTAL_URL = "https://appmyjantes1.mytoolsgroup.eu";
+const SECURITY_MESSAGE = "Pour des raisons de sécurité, cette action est disponible uniquement depuis votre espace client sécurisé accessible via notre site internet.";
+
 async function getStoredValue(key: string): Promise<string | null> {
   if (Platform.OS === "web") return AsyncStorage.getItem(key);
   return SecureStore.getItemAsync(key);
@@ -33,32 +35,9 @@ async function setStoredValue(key: string, value: string) {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, refreshUser, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { showAlert, AlertComponent } = useCustomAlert();
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<"info" | "security" | "notifications">("info");
-
-  const [firstName, setFirstName] = useState(user?.firstName || "");
-  const [lastName, setLastName] = useState(user?.lastName || "");
-  const [phone, setPhone] = useState(user?.phone || "");
-  const [address, setAddress] = useState(user?.address || "");
-  const [postalCode, setPostalCode] = useState(user?.postalCode || "");
-  const [city, setCity] = useState(user?.city || "");
-  const [companyName, setCompanyName] = useState(user?.companyName || "");
-  const [siret, setSiret] = useState(user?.siret || "");
-  const [tvaNumber, setTvaNumber] = useState(user?.tvaNumber || "");
-  const [companyAddress, setCompanyAddress] = useState(user?.companyAddress || "");
-  const [companyPostalCode, setCompanyPostalCode] = useState(user?.companyPostalCode || "");
-  const [companyCity, setCompanyCity] = useState(user?.companyCity || "");
-  const [companyCountry, setCompanyCountry] = useState(user?.companyCountry || "France");
-
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
 
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
@@ -66,8 +45,6 @@ export default function ProfileScreen() {
 
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailNotifEnabled, setEmailNotifEnabled] = useState(true);
-  const [smsEnabled, setSmsEnabled] = useState(false);
-  const [savingNotif, setSavingNotif] = useState(false);
 
   const isPro = user?.role === "client_professionnel";
   const roleName = isPro ? "Professionnel" : "Particulier";
@@ -76,24 +53,6 @@ export default function ProfileScreen() {
     checkBiometrics();
     loadNotificationPreferences();
   }, []);
-
-  useEffect(() => {
-    if (user) {
-      setFirstName(user.firstName || "");
-      setLastName(user.lastName || "");
-      setPhone(user.phone || "");
-      setAddress(user.address || "");
-      setPostalCode(user.postalCode || "");
-      setCity(user.city || "");
-      setCompanyName(user.companyName || "");
-      setSiret(user.siret || "");
-      setTvaNumber(user.tvaNumber || "");
-      setCompanyAddress(user.companyAddress || "");
-      setCompanyPostalCode(user.companyPostalCode || "");
-      setCompanyCity(user.companyCity || "");
-      setCompanyCountry(user.companyCountry || "France");
-    }
-  }, [user]);
 
   const checkBiometrics = async () => {
     if (Platform.OS === "web") return;
@@ -122,15 +81,12 @@ export default function ProfileScreen() {
       if (prefs && typeof prefs.push === "boolean") {
         setPushEnabled(prefs.push);
         setEmailNotifEnabled(prefs.email);
-        setSmsEnabled(prefs.sms);
       }
     } catch {
       const stored = await getStoredValue("notif_push");
       if (stored !== null) setPushEnabled(stored === "true");
       const storedEmail = await getStoredValue("notif_email");
       if (storedEmail !== null) setEmailNotifEnabled(storedEmail === "true");
-      const storedSms = await getStoredValue("notif_sms");
-      if (storedSms !== null) setSmsEnabled(storedSms === "true");
     }
   };
 
@@ -152,72 +108,16 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleChangePassword = async () => {
-    if (!currentPassword) {
-      showAlert({ type: "error", title: "Erreur", message: "Veuillez saisir votre mot de passe actuel.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
-    if (newPassword.length < 8) {
-      showAlert({ type: "error", title: "Erreur", message: "Le nouveau mot de passe doit contenir au moins 8 caractères.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      showAlert({ type: "error", title: "Erreur", message: "Les mots de passe ne correspondent pas.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
-    setChangingPassword(true);
-    try {
-      await authApi.changePassword(currentPassword, newPassword);
-      showAlert({ type: "success", title: "Succès", message: "Mot de passe modifié avec succès.", buttons: [{ text: "OK", style: "primary" }] });
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (err: any) {
-      showAlert({ type: "error", title: "Erreur", message: err.message || "Impossible de modifier le mot de passe.", buttons: [{ text: "OK", style: "primary" }] });
-    } finally {
-      setChangingPassword(false);
-    }
-  };
-
-  const updateNotifPref = async (key: "push" | "email" | "sms", value: boolean) => {
-    const prev = { push: pushEnabled, email: emailNotifEnabled, sms: smsEnabled };
+  const updateNotifPref = async (key: "push" | "email", value: boolean) => {
+    const prev = { push: pushEnabled, email: emailNotifEnabled };
     if (key === "push") setPushEnabled(value);
     if (key === "email") setEmailNotifEnabled(value);
-    if (key === "sms") setSmsEnabled(value);
 
     await setStoredValue(`notif_${key}`, value ? "true" : "false");
 
     try {
       await authApi.updateNotificationPreferences({ ...prev, [key]: value });
     } catch {}
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await authApi.updateUser({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        phone: phone.trim(),
-        address: address.trim(),
-        postalCode: postalCode.trim(),
-        city: city.trim(),
-        companyName: companyName.trim(),
-        siret: siret.trim(),
-        tvaNumber: tvaNumber.trim(),
-        companyAddress: companyAddress.trim(),
-        companyPostalCode: companyPostalCode.trim(),
-        companyCity: companyCity.trim(),
-        companyCountry: companyCountry.trim(),
-      });
-      await refreshUser();
-      setEditing(false);
-      showAlert({ type: "success", title: "Succès", message: "Profil mis à jour avec succès.", buttons: [{ text: "OK", style: "primary" }] });
-    } catch (err: any) {
-      showAlert({ type: "error", title: "Erreur", message: err.message || "Impossible de mettre à jour le profil.", buttons: [{ text: "OK", style: "primary" }] });
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleLogout = () => {
@@ -232,36 +132,23 @@ export default function ProfileScreen() {
     });
   };
 
+  const openWebPortal = () => {
+    Linking.openURL(WEB_PORTAL_URL);
+  };
+
   const renderField = (
     label: string,
     value: string,
-    setValue: (v: string) => void,
     icon: keyof typeof Ionicons.glyphMap,
-    opts: { keyboardType?: any; maxLength?: number; editable?: boolean } = {}
   ) => (
     <View style={styles.fieldContainer}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      {editing && opts.editable !== false ? (
-        <View style={styles.fieldInputContainer}>
-          <Ionicons name={icon} size={18} color={Colors.textSecondary} style={styles.fieldIcon} />
-          <TextInput
-            style={styles.fieldInput}
-            value={value}
-            onChangeText={setValue}
-            placeholder={label}
-            placeholderTextColor={Colors.textTertiary}
-            keyboardType={opts.keyboardType}
-            maxLength={opts.maxLength}
-          />
-        </View>
-      ) : (
-        <View style={styles.fieldValueRow}>
-          <Ionicons name={icon} size={18} color={Colors.textSecondary} />
-          <Text style={[styles.fieldValue, !value && styles.fieldValueEmpty]}>
-            {value || "Non renseigné"}
-          </Text>
-        </View>
-      )}
+      <View style={styles.fieldValueRow}>
+        <Ionicons name={icon} size={18} color={Colors.textSecondary} />
+        <Text style={[styles.fieldValue, !value && styles.fieldValueEmpty]}>
+          {value || "Non renseigné"}
+        </Text>
+      </View>
     </View>
   );
 
@@ -291,19 +178,6 @@ export default function ProfileScreen() {
       >
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Mon Profil</Text>
-          {activeSection === "info" && (
-            <Pressable onPress={() => (editing ? handleSave() : setEditing(true))}>
-              {saving ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
-              ) : (
-                <Ionicons
-                  name={editing ? "checkmark" : "create-outline"}
-                  size={24}
-                  color={Colors.primary}
-                />
-              )}
-            </Pressable>
-          )}
         </View>
 
         <View style={styles.avatarSection}>
