@@ -16,6 +16,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { invoicesApi } from "@/lib/api";
 import Colors from "@/constants/colors";
+import { useCustomAlert } from "@/components/CustomAlert";
 
 const API_BASE = "https://appmyjantes1.mytoolsgroup.eu";
 
@@ -63,6 +64,7 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 export default function InvoiceDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { showAlert, AlertComponent } = useCustomAlert();
   const { data: invoice, isLoading } = useQuery({
     queryKey: ["invoice", id],
     queryFn: async () => {
@@ -113,11 +115,30 @@ export default function InvoiceDetailScreen() {
   const clientInfo = (invoice as any).client || null;
   const quoteRef = (invoice as any).quoteNumber || (invoice as any).quoteReference || null;
 
-  const totalHTNum = parseFloat(invoice.totalHT || "0");
-  const tvaAmountNum = parseFloat(invoice.tvaAmount || "0");
-  const totalIncludingTax = (invoice as any).totalIncludingTax;
-  const totalTTCNum = totalIncludingTax ? parseFloat(totalIncludingTax) : parseFloat(invoice.totalTTC || "0");
-  const tvaRateNum = parseFloat(invoice.tvaRate || "20");
+  const totalHTRaw =
+    invoice.totalHT ||
+    (invoice as any).totalExcludingTax ||
+    (invoice as any).amountHT ||
+    (invoice as any).amountExcludingTax ||
+    "0";
+  const totalHTNum = parseFloat(totalHTRaw);
+
+  const tvaAmountRaw =
+    invoice.tvaAmount ||
+    (invoice as any).taxAmount ||
+    (invoice as any).vatAmount ||
+    "0";
+  const tvaAmountNum = parseFloat(tvaAmountRaw);
+
+  const totalTTCRaw =
+    (invoice as any).totalIncludingTax ||
+    invoice.totalTTC ||
+    (invoice as any).totalAmountIncludingTax ||
+    (invoice as any).totalWithTax ||
+    "0";
+  const totalTTCNum = parseFloat(totalTTCRaw) || (totalHTNum + tvaAmountNum) || 0;
+
+  const tvaRateNum = parseFloat(invoice.tvaRate || (invoice as any).taxRate || "20");
 
   const statusLower = invoice.status?.toLowerCase() || "";
   const isUnpaid = statusLower === "pending" || statusLower === "en_attente"
@@ -126,8 +147,23 @@ export default function InvoiceDetailScreen() {
   const pdfUrl = viewToken ? `${API_BASE}/api/public/invoices/${viewToken}/pdf` : null;
 
   const handleDownloadPdf = async () => {
-    if (!pdfUrl) return;
-    try { await WebBrowser.openBrowserAsync(pdfUrl); } catch { Linking.openURL(pdfUrl); }
+    const url = pdfUrl;
+    if (!url) return;
+    showAlert({
+      type: "info",
+      title: "Télécharger la facture",
+      message: "Vous allez être redirigé vers votre espace personnel pour télécharger ce document. Souhaitez-vous continuer ?",
+      buttons: [
+        { text: "Annuler" },
+        {
+          text: "Continuer",
+          style: "primary",
+          onPress: async () => {
+            try { await WebBrowser.openBrowserAsync(url); } catch { Linking.openURL(url); }
+          },
+        },
+      ],
+    });
   };
 
 
@@ -289,8 +325,20 @@ export default function InvoiceDetailScreen() {
           </View>
         ) : null}
 
+        {pdfUrl && (
+          <View style={styles.footerActions}>
+            <Pressable
+              style={({ pressed }) => [styles.btnPdf, pressed && styles.btnPdfPressed]}
+              onPress={handleDownloadPdf}
+            >
+              <Ionicons name="download-outline" size={18} color={Colors.primary} />
+              <Text style={styles.btnPdfText}>Télécharger la facture</Text>
+            </Pressable>
+          </View>
+        )}
         
       </ScrollView>
+      {AlertComponent}
     </View>
   );
 }
@@ -494,15 +542,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "transparent",
+    backgroundColor: Colors.surface,
     borderRadius: 12,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: "#3B82F6",
+    borderColor: Colors.primary,
+  },
+  btnPdfPressed: {
+    backgroundColor: Colors.surfaceSecondary,
   },
   btnPdfText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
-    color: "#3B82F6",
+    color: Colors.primary,
   },
 });

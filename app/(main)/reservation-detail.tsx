@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -11,10 +11,11 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
-import { reservationsApi, servicesApi, Reservation } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { reservationsApi, servicesApi, apiCall, Reservation } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import Colors from "@/constants/colors";
+import { useCustomAlert } from "@/components/CustomAlert";
 
 function getReservationStatusInfo(status: string) {
   const s = status?.toLowerCase() || "";
@@ -87,6 +88,11 @@ export default function ReservationDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { showAlert, AlertComponent } = useCustomAlert();
+  const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
   const { data: allReservationsRaw = [], isLoading } = useQuery({
     queryKey: ["reservations"],
     queryFn: reservationsApi.getAll,
@@ -155,6 +161,64 @@ export default function ReservationDetailScreen() {
   const priceHTNum = priceHT ? parseFloat(priceHT) : 0;
   const taxAmountNum = taxAmount ? parseFloat(taxAmount) : priceHTNum * (parseFloat(taxRate) / 100);
   const totalTTC = totalTTC_Raw ? parseFloat(totalTTC_Raw) : (priceHTNum + taxAmountNum);
+
+  const statusLower = reservation.status?.toLowerCase() || "";
+  const isPendingClientAction = statusLower === "pending" || statusLower === "en_attente" || statusLower === "pending_client";
+  const isConfirmed = statusLower === "confirmed" || statusLower === "confirmée" || statusLower === "confirmé";
+
+  const handleConfirm = () => {
+    showAlert({
+      type: "info",
+      title: "Confirmer la réservation",
+      message: "Souhaitez-vous confirmer cette réservation ?",
+      buttons: [
+        { text: "Annuler" },
+        {
+          text: "Confirmer",
+          style: "primary",
+          onPress: async () => {
+            setConfirming(true);
+            try {
+              await apiCall(`/api/reservations/${id}/confirm`, { method: "POST" });
+              queryClient.invalidateQueries({ queryKey: ["reservations"] });
+              showAlert({ type: "success", title: "Réservation confirmée", message: "La réservation a bien été confirmée.", buttons: [{ text: "OK", style: "primary" }] });
+            } catch (err: any) {
+              showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible de confirmer.", buttons: [{ text: "OK", style: "primary" }] });
+            } finally {
+              setConfirming(false);
+            }
+          },
+        },
+      ],
+    });
+  };
+
+  const handleCancel = () => {
+    showAlert({
+      type: "warning",
+      title: "Annuler la réservation",
+      message: "Êtes-vous sûr de vouloir annuler cette réservation ?",
+      buttons: [
+        { text: "Retour" },
+        {
+          text: "Annuler la réservation",
+          style: "primary",
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              await apiCall(`/api/reservations/${id}/cancel`, { method: "POST" });
+              queryClient.invalidateQueries({ queryKey: ["reservations"] });
+              showAlert({ type: "success", title: "Réservation annulée", message: "La réservation a été annulée.", buttons: [{ text: "OK", style: "primary", onPress: () => router.back() }] });
+            } catch (err: any) {
+              showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible d'annuler.", buttons: [{ text: "OK", style: "primary" }] });
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ],
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -332,7 +396,41 @@ export default function ReservationDetailScreen() {
             <Text style={styles.notesText}>{notes}</Text>
           </View>
         ) : null}
+
+        {isPendingClientAction && (
+          <View style={styles.actionsSection}>
+            <View style={styles.actionsBanner}>
+              <Ionicons name="information-circle" size={18} color="#F59E0B" />
+              <Text style={styles.actionsBannerText}>
+                Cette réservation est en attente de votre confirmation.
+              </Text>
+            </View>
+            <View style={styles.actionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.actionBtnSecondary, pressed && { opacity: 0.7 }]}
+                onPress={handleCancel}
+                disabled={cancelling}
+              >
+                {cancelling
+                  ? <ActivityIndicator size="small" color={Colors.primary} />
+                  : <Text style={styles.actionBtnSecondaryText}>Refuser</Text>
+                }
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.actionBtnPrimary, pressed && { opacity: 0.7 }]}
+                onPress={handleConfirm}
+                disabled={confirming}
+              >
+                {confirming
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={styles.actionBtnPrimaryText}>Confirmer</Text>
+                }
+              </Pressable>
+            </View>
+          </View>
+        )}
       </ScrollView>
+      {AlertComponent}
     </View>
   );
 }
@@ -479,4 +577,58 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 16, fontFamily: "Inter_500Medium", color: Colors.textSecondary, marginTop: 12 },
   backLink: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: 10 },
   backLinkText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  actionsSection: {
+    marginTop: 24,
+    marginBottom: 12,
+    gap: 12,
+  },
+  actionsBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#FFFBEB",
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+  },
+  actionsBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "#92400E",
+    lineHeight: 20,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  actionBtnPrimary: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionBtnPrimaryText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: "#fff",
+  },
+  actionBtnSecondary: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  actionBtnSecondaryText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
 });

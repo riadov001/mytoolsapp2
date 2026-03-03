@@ -15,18 +15,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
-import { quotesApi, apiCall, Quote } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
+import { quotesApi, Quote } from "@/lib/api";
 import Colors from "@/constants/colors";
 import { useCustomAlert } from "@/components/CustomAlert";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "https://appmyjantes5.mytoolsgroup.eu";
+const EXTERNAL_API_BASE = "https://appmyjantes1.mytoolsgroup.eu";
 
 function getStatusInfo(status: string) {
   const s = status?.toLowerCase() || "";
   if (s === "pending" || s === "en_attente")
     return { label: "En attente", color: Colors.pending, bg: Colors.pendingBg, icon: "time-outline" as const };
-  if (s === "accepted" || s === "accepté" || s === "approved")
+  if (s === "accepted" || s === "accepté" || s === "approved" || s === "confirmed")
     return { label: "Accepté", color: Colors.accepted, bg: Colors.acceptedBg, icon: "checkmark-circle-outline" as const };
   if (s === "rejected" || s === "refusé" || s === "refused")
     return { label: "Refusé", color: Colors.rejected, bg: Colors.rejectedBg, icon: "close-circle-outline" as const };
@@ -34,6 +33,8 @@ function getStatusInfo(status: string) {
     return { label: "Terminé", color: Colors.accepted, bg: Colors.acceptedBg, icon: "checkmark-done-outline" as const };
   if (s === "in_progress" || s === "en_cours")
     return { label: "En cours", color: "#3B82F6", bg: "#0F1D3D", icon: "hourglass-outline" as const };
+  if (s === "sent" || s === "envoyé")
+    return { label: "Envoyé", color: "#3B82F6", bg: "#0F1D3D", icon: "send-outline" as const };
   return { label: status || "Inconnu", color: Colors.textSecondary, bg: Colors.surfaceSecondary, icon: "help-outline" as const };
 }
 
@@ -75,11 +76,10 @@ export default function QuoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { showAlert, AlertComponent } = useCustomAlert();
-  const { user } = useAuth();
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
 
-  const { data: quote, isLoading, error } = useQuery({
+  const { data: quote, isLoading } = useQuery({
     queryKey: ["quote", id],
     queryFn: async () => {
       try {
@@ -128,87 +128,137 @@ export default function QuoteDetailScreen() {
   const quoteServices = Array.isArray((quote as any).services) ? (quote as any).services : [];
   const quotePhotos = Array.isArray((quote as any).photos) ? (quote as any).photos : [];
   const quoteNotes = (quote as any).notes || "";
-  const totalAmount = (quote as any).quoteAmount || (quote as any).totalIncludingTax || (quote as any).totalAmount || "0";
-  const totalHT = (quote as any).totalHT || (quote as any).amountHT;
+
+  const totalAmount =
+    (quote as any).quoteAmount ||
+    (quote as any).totalIncludingTax ||
+    (quote as any).totalTTC ||
+    (quote as any).totalAmount ||
+    "0";
+  const totalHT =
+    (quote as any).totalHT ||
+    (quote as any).totalExcludingTax ||
+    (quote as any).amountHT ||
+    (quote as any).amountExcludingTax;
   const tvaRate = (quote as any).tvaRate || (quote as any).taxRate || "20";
-  const tvaAmount = (quote as any).tvaAmount || (quote as any).taxAmount;
+  const tvaAmount =
+    (quote as any).tvaAmount ||
+    (quote as any).taxAmount ||
+    (quote as any).vatAmount;
   const viewToken = (quote as any).viewToken as string | undefined;
   const expiryDate = (quote as any).expiryDate || (quote as any).validUntil;
   const displayRef = (quote as any).reference || (quote as any).quoteNumber || quote.id;
   const rawRequestDetails = (quote as any).requestDetails || (quote as any).description || "";
-  const requestDetails = typeof rawRequestDetails === "object" 
-    ? (rawRequestDetails.message || rawRequestDetails.details || JSON.stringify(rawRequestDetails)) 
+  const requestDetails = typeof rawRequestDetails === "object"
+    ? (rawRequestDetails.message || rawRequestDetails.details || JSON.stringify(rawRequestDetails))
     : String(rawRequestDetails);
   const serviceName = (quote as any).service?.name || (quote as any).serviceName || "";
   const clientInfo = (quote as any).client || null;
+  const quoteServiceId = (quote as any).serviceId || (quote as any).service?.id;
 
   const totalHTNum = totalHT ? parseFloat(totalHT) : 0;
-  const tvaAmountNum = tvaAmount ? parseFloat(tvaAmount) : 0;
+  const tvaAmountNum = tvaAmount ? parseFloat(tvaAmount) : (totalHTNum * parseFloat(tvaRate) / 100);
   const totalTTCNum = parseFloat(totalAmount) || (totalHTNum + tvaAmountNum) || 0;
 
   const statusLower = quote.status?.toLowerCase() || "";
   const isPending = statusLower === "pending" || statusLower === "en_attente";
+  const isAccepted = statusLower === "accepted" || statusLower === "accepté" || statusLower === "approved" || statusLower === "confirmed";
   const hasNoContent = quoteItems.length === 0 && totalTTCNum === 0;
-  const canRespond = (statusLower === "pending" || statusLower === "approved") && !!viewToken;
 
-  const pdfUrl = viewToken ? `${API_BASE}/api/public/quotes/${viewToken}/pdf` : null;
+  const canRespond = statusLower === "pending" || statusLower === "en_attente" || statusLower === "sent" || statusLower === "envoyé" || statusLower === "approved";
+
+  const pdfUrl = viewToken
+    ? `${EXTERNAL_API_BASE}/api/public/quotes/${viewToken}/pdf`
+    : null;
 
   const formattedExpiry = expiryDate
     ? new Date(expiryDate).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
     : null;
 
   const handleDownloadPdf = async () => {
-    if (!pdfUrl) return;
-    try { await WebBrowser.openBrowserAsync(pdfUrl); } catch { Linking.openURL(pdfUrl); }
-  };
-
-  const handleConsultExternal = async () => {
-    if (!viewToken) return;
-    const url = `${API_BASE}/public/quotes/${viewToken}`;
-    try { await WebBrowser.openBrowserAsync(url); } catch { Linking.openURL(url); }
+    const url = pdfUrl;
+    if (!url) return;
+    showAlert({
+      type: "info",
+      title: "Télécharger le devis",
+      message: "Vous allez être redirigé vers votre espace personnel pour télécharger ce document. Souhaitez-vous continuer ?",
+      buttons: [
+        { text: "Annuler" },
+        {
+          text: "Continuer",
+          style: "primary",
+          onPress: async () => {
+            try { await WebBrowser.openBrowserAsync(url); } catch { Linking.openURL(url); }
+          },
+        },
+      ],
+    });
   };
 
   const handleAccept = async () => {
-    if (!viewToken) return;
-    setAccepting(true);
-    try {
-      await apiCall(`/api/public/quotes/${viewToken}/accept`, { method: "POST" });
-      queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      queryClient.invalidateQueries({ queryKey: ["quote", id] });
-      showAlert({ type: 'success', title: 'Devis accepté', message: 'Le devis a bien été accepté.', buttons: [{ text: 'OK', style: 'primary' }] });
-    } catch (err: any) {
-      showAlert({ type: 'error', title: 'Erreur', message: err?.message || "Impossible d'accepter le devis.", buttons: [{ text: 'OK', style: 'primary' }] });
-    } finally {
-      setAccepting(false);
-    }
+    showAlert({
+      type: "info",
+      title: "Accepter le devis",
+      message: "Êtes-vous sûr de vouloir accepter ce devis ?",
+      buttons: [
+        { text: "Annuler" },
+        {
+          text: "Accepter",
+          style: "primary",
+          onPress: async () => {
+            setAccepting(true);
+            try {
+              await quotesApi.accept(id!, viewToken);
+              queryClient.invalidateQueries({ queryKey: ["quotes"] });
+              queryClient.invalidateQueries({ queryKey: ["quote", id] });
+              showAlert({ type: "success", title: "Devis accepté", message: "Le devis a bien été accepté.", buttons: [{ text: "OK", style: "primary" }] });
+            } catch (err: any) {
+              showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible d'accepter le devis.", buttons: [{ text: "OK", style: "primary" }] });
+            } finally {
+              setAccepting(false);
+            }
+          },
+        },
+      ],
+    });
   };
 
   const handleReject = async () => {
-    if (!viewToken) return;
     showAlert({
-      type: 'warning',
-      title: 'Refuser le devis',
-      message: 'Êtes-vous sûr de vouloir refuser ce devis ?',
+      type: "warning",
+      title: "Refuser le devis",
+      message: "Êtes-vous sûr de vouloir refuser ce devis ?",
       buttons: [
-        { text: 'Annuler' },
+        { text: "Annuler" },
         {
-          text: 'Refuser',
-          style: 'primary',
+          text: "Refuser",
+          style: "primary",
           onPress: async () => {
             setRejecting(true);
             try {
-              await apiCall(`/api/public/quotes/${viewToken}/reject`, { method: "POST" });
+              await quotesApi.reject(id!, viewToken);
               queryClient.invalidateQueries({ queryKey: ["quotes"] });
               queryClient.invalidateQueries({ queryKey: ["quote", id] });
-              showAlert({ type: 'success', title: 'Devis refusé', message: 'Le devis a bien été refusé.', buttons: [{ text: 'OK', style: 'primary' }] });
+              showAlert({ type: "success", title: "Devis refusé", message: "Le devis a bien été refusé.", buttons: [{ text: "OK", style: "primary" }] });
             } catch (err: any) {
-              showAlert({ type: 'error', title: 'Erreur', message: err?.message || "Impossible de refuser le devis.", buttons: [{ text: 'OK', style: 'primary' }] });
+              showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible de refuser le devis.", buttons: [{ text: "OK", style: "primary" }] });
             } finally {
               setRejecting(false);
             }
           },
         },
       ],
+    });
+  };
+
+  const handleRequestReservation = () => {
+    router.push({
+      pathname: "/(main)/request-reservation",
+      params: {
+        quoteId: id,
+        serviceId: quoteServiceId || "",
+        quoteName: displayRef,
+      },
     });
   };
 
@@ -263,7 +313,7 @@ export default function QuoteDetailScreen() {
           </View>
         )}
 
-        {serviceName ? (
+        {(serviceName && quoteServices.length === 0) ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="construct-outline" size={18} color={Colors.primary} />
@@ -279,6 +329,34 @@ export default function QuoteDetailScreen() {
             </View>
           </View>
         ) : null}
+
+        {quoteServices.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="construct-outline" size={18} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>Services inclus</Text>
+            </View>
+            <View style={styles.sectionContent}>
+              {quoteServices.map((service: any, idx: number) => {
+                const sName = typeof service === "string" ? service : service?.name || service?.id || `Service ${idx + 1}`;
+                const sPrice = service?.basePrice || service?.price;
+                return (
+                  <View key={idx} style={styles.serviceRow}>
+                    <View style={styles.serviceIcon}>
+                      <Ionicons name="checkmark" size={14} color={Colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.serviceName}>{sName}</Text>
+                      {sPrice && parseFloat(sPrice) > 0 && (
+                        <Text style={styles.servicePrice}>{parseFloat(sPrice).toFixed(2)} € HT</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {requestDetails ? (
           <View style={styles.section}>
@@ -304,9 +382,6 @@ export default function QuoteDetailScreen() {
               )}
               {clientInfo.email && <InfoRow icon="mail-outline" label="Email" value={clientInfo.email} />}
               {clientInfo.phone && <InfoRow icon="call-outline" label="Téléphone" value={clientInfo.phone} />}
-              {clientInfo.address && <InfoRow icon="location-outline" label="Adresse" value={`${clientInfo.address}${clientInfo.postalCode ? ', ' + clientInfo.postalCode : ''}${clientInfo.city ? ' ' + clientInfo.city : ''}`} />}
-              {clientInfo.companyName && <InfoRow icon="business-outline" label="Société" value={clientInfo.companyName} />}
-              {clientInfo.siret && <InfoRow icon="card-outline" label="SIRET" value={clientInfo.siret} />}
             </View>
           </View>
         )}
@@ -322,10 +397,6 @@ export default function QuoteDetailScreen() {
               {vehicleInfo.modele && <InfoRow icon="car-sport-outline" label="Modèle" value={vehicleInfo.modele} />}
               {vehicleInfo.immatriculation && <InfoRow icon="card-outline" label="Immatriculation" value={vehicleInfo.immatriculation} />}
               {vehicleInfo.annee && <InfoRow icon="calendar-outline" label="Année" value={vehicleInfo.annee} />}
-              {vehicleInfo.vin && <InfoRow icon="barcode-outline" label="VIN" value={vehicleInfo.vin} />}
-              {vehicleInfo.couleur && <InfoRow icon="color-palette-outline" label="Couleur" value={vehicleInfo.couleur} />}
-              {vehicleInfo.type && <InfoRow icon="information-circle-outline" label="Type" value={vehicleInfo.type} />}
-              {vehicleInfo.motorisation && <InfoRow icon="speedometer-outline" label="Motorisation" value={vehicleInfo.motorisation} />}
             </View>
           </View>
         )}
@@ -367,28 +438,6 @@ export default function QuoteDetailScreen() {
           </View>
         )}
 
-        {quoteServices.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="construct-outline" size={18} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>Services inclus</Text>
-            </View>
-            <View style={styles.sectionContent}>
-              {quoteServices.map((service: any, idx: number) => {
-                const sName = typeof service === "string" ? service : service?.name || service?.id || `Service ${idx + 1}`;
-                return (
-                  <View key={idx} style={styles.serviceRow}>
-                    <View style={styles.serviceIcon}>
-                      <Ionicons name="checkmark" size={14} color={Colors.primary} />
-                    </View>
-                    <Text style={styles.serviceName}>{sName}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        )}
-
         {(totalHTNum > 0 || totalTTCNum > 0) && (
           <View style={styles.amountsCard}>
             <View style={styles.amountsHeader}>
@@ -423,7 +472,7 @@ export default function QuoteDetailScreen() {
             <View style={styles.photosGrid}>
               {quotePhotos.map((photo: any, idx: number) => {
                 const photoUri = typeof photo === "string" ? photo : photo?.url || photo?.uri || "";
-                const fullUri = photoUri.startsWith("http") ? photoUri : `${API_BASE}${photoUri}`;
+                const fullUri = photoUri.startsWith("http") ? photoUri : `${EXTERNAL_API_BASE}${photoUri}`;
                 return (
                   <View key={idx} style={styles.photoThumb}>
                     <Image
@@ -451,10 +500,20 @@ export default function QuoteDetailScreen() {
         ) : null}
 
         <View style={styles.footerActions}>
+          {pdfUrl && (
+            <Pressable
+              style={({ pressed }) => [styles.btnSecondary, pressed && styles.btnSecondaryPressed]}
+              onPress={handleDownloadPdf}
+            >
+              <Ionicons name="download-outline" size={18} color={Colors.primary} />
+              <Text style={styles.btnSecondaryText}>Télécharger le devis</Text>
+            </Pressable>
+          )}
+
           {canRespond && (
             <View style={styles.responseRow}>
               <Pressable
-                style={[styles.btnAccept, accepting && styles.btnDisabled]}
+                style={[styles.btnAccept, (accepting || rejecting) && styles.btnDisabled]}
                 onPress={handleAccept}
                 disabled={accepting || rejecting}
               >
@@ -467,7 +526,7 @@ export default function QuoteDetailScreen() {
               </Pressable>
 
               <Pressable
-                style={[styles.btnReject, rejecting && styles.btnDisabled]}
+                style={[styles.btnReject, (accepting || rejecting) && styles.btnDisabled]}
                 onPress={handleReject}
                 disabled={accepting || rejecting}
               >
@@ -479,6 +538,16 @@ export default function QuoteDetailScreen() {
                 <Text style={styles.btnRejectText}>Refuser</Text>
               </Pressable>
             </View>
+          )}
+
+          {isAccepted && (
+            <Pressable
+              style={({ pressed }) => [styles.btnReservation, pressed && styles.btnReservationPressed]}
+              onPress={handleRequestReservation}
+            >
+              <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.btnReservationText}>Demander une réservation</Text>
+            </Pressable>
           )}
         </View>
       </ScrollView>
@@ -570,16 +639,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 20,
     marginBottom: 20,
+    alignItems: "center",
+    gap: 8,
     borderWidth: 1,
     borderColor: Colors.border,
-    alignItems: "center",
-    gap: 12,
   },
   processingIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.acceptedBg,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.surfaceSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -617,6 +686,35 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  serviceRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  serviceIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceSecondary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 1,
+  },
+  serviceName: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: Colors.text,
+    flex: 1,
+  },
+  servicePrice: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -641,26 +739,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     color: Colors.text,
     textAlign: "right",
-    flex: 1,
-  },
-  serviceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 6,
-  },
-  serviceIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.acceptedBg,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  serviceName: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    color: Colors.text,
     flex: 1,
   },
   lineItemCard: {
@@ -724,44 +802,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  amountLabel: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-  },
-  amountHT: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
-  },
-  amountTVA: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
-  },
+  amountLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
+  amountHT: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  amountTVA: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text },
   totalRow: {
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
   },
-  totalLabel: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
-  },
-  totalValue: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    color: Colors.primary,
-  },
+  totalLabel: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.text },
+  totalValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.primary },
   photosGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
   photoThumb: {
-    width: 100,
-    height: 100,
+    width: 90,
+    height: 90,
     borderRadius: 10,
     overflow: "hidden",
     borderWidth: 1,
@@ -777,60 +835,10 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     lineHeight: 22,
   },
-  errorText: {
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-    marginTop: 12,
-  },
-  backLink: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-  },
-  backLinkText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: "#fff",
-  },
   footerActions: {
-    marginTop: 8,
     gap: 12,
-    marginBottom: 20,
-  },
-  btnConsult: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  btnConsultText: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
-  },
-  btnPdf: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "transparent",
-    borderRadius: 12,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: "#3B82F6",
-  },
-  btnPdfText: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    color: "#3B82F6",
+    marginTop: 4,
+    marginBottom: 16,
   },
   responseRow: {
     flexDirection: "row",
@@ -841,7 +849,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
     backgroundColor: Colors.accepted,
     borderRadius: 12,
     paddingVertical: 14,
@@ -856,8 +864,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    backgroundColor: "transparent",
+    gap: 8,
+    backgroundColor: Colors.surface,
     borderRadius: 12,
     paddingVertical: 14,
     borderWidth: 1,
@@ -869,6 +877,45 @@ const styles = StyleSheet.create({
     color: Colors.rejected,
   },
   btnDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
+  btnSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  btnSecondaryPressed: {
+    backgroundColor: Colors.surfaceSecondary,
+  },
+  btnSecondaryText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primary,
+  },
+  btnReservation: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
+  btnReservationPressed: {
+    backgroundColor: Colors.primaryDark,
+  },
+  btnReservationText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: "#FFFFFF",
+  },
+  errorText: { fontSize: 16, fontFamily: "Inter_500Medium", color: Colors.textSecondary, marginTop: 12 },
+  backLink: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: 10 },
+  backLinkText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

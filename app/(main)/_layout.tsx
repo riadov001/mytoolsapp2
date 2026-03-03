@@ -11,6 +11,7 @@ export default function MainLayout() {
       <Stack.Screen name="reservation-detail" options={{ headerShown: false }} />
       <Stack.Screen name="chat-detail" options={{ headerShown: false }} />
       <Stack.Screen name="delete-account" options={{ headerShown: false }} />
+      <Stack.Screen name="request-reservation" options={{ headerShown: false }} />
     </Stack>
   );
 }
