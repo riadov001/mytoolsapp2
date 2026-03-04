@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "MyJantes",
-    "slug": "myjantesmobile",
+    "name": "MyTools",
+    "slug": "mytools",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myjantes",
+    "scheme": "mytools",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mytoolsgroup.myjantes",
+      "bundleIdentifier": "com.mytools.app",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -29,7 +29,7 @@
       }
     },
     "android": {
-      "package": "com.myjantes.app",
+      "package": "com.mytools.app",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/icon.png",
@@ -42,7 +42,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       [
