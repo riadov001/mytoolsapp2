@@ -6,10 +6,7 @@ const getApiBase = () => {
     return process.env.EXPO_PUBLIC_API_URL;
   }
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    if (hostname.includes("replit.dev") || hostname.includes("repl.co")) {
-      return `https://${hostname}`;
-    }
+    return window.location.origin;
   }
   if (process.env.EXPO_PUBLIC_DOMAIN) {
     return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;

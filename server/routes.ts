@@ -39,19 +39,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Impossible d'identifier l'utilisateur." });
       }
 
-      const existing = await pool.query(
-        "SELECT id FROM deleted_accounts WHERE external_user_id = $1 OR email = $2",
-        [String(userId), userEmail || ""]
-      );
+      try {
+        const existing = await pool.query(
+          "SELECT id FROM deleted_accounts WHERE external_user_id = $1 OR email = $2",
+          [String(userId), userEmail || ""]
+        );
 
-      if (existing.rows.length > 0) {
-        return res.status(200).json({ message: "Compte déjà supprimé." });
+        if (existing.rows.length > 0) {
+          return res.status(200).json({ message: "Compte déjà supprimé." });
+        }
+
+        await pool.query(
+          "INSERT INTO deleted_accounts (external_user_id, email, user_data) VALUES ($1, $2, $3)",
+          [String(userId), userEmail || null, JSON.stringify(userData)]
+        );
+      } catch (dbErr: any) {
+        console.warn("[DB] deleted_accounts insert skipped (DB unavailable):", dbErr.message);
       }
-
-      await pool.query(
-        "INSERT INTO deleted_accounts (external_user_id, email, user_data) VALUES ($1, $2, $3)",
-        [String(userId), userEmail || null, JSON.stringify(userData)]
-      );
 
       try {
         await fetch(`${EXTERNAL_API}/api/admin/users/${userId}`, {
@@ -82,15 +86,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const email = req.body?.email;
 
       if (email) {
-        const deleted = await pool.query(
-          "SELECT id FROM deleted_accounts WHERE email = $1",
-          [email]
-        );
+        try {
+          const deleted = await pool.query(
+            "SELECT id FROM deleted_accounts WHERE email = $1",
+            [email]
+          );
 
-        if (deleted.rows.length > 0) {
-          return res.status(403).json({
-            message: "Ce compte a été supprimé. Il n'est plus possible de se connecter."
-          });
+          if (deleted.rows.length > 0) {
+            return res.status(403).json({
+              message: "Ce compte a été supprimé. Il n'est plus possible de se connecter."
+            });
+          }
+        } catch (dbErr: any) {
+          console.warn("[DB] deleted_accounts check skipped (DB unavailable):", dbErr.message);
         }
       }
 
@@ -136,24 +144,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const loggedInEmail = responseData?.email || responseData?.user?.email;
 
         if (loggedInUserId || loggedInEmail) {
-          const deletedById = loggedInUserId
-            ? await pool.query("SELECT id FROM deleted_accounts WHERE external_user_id = $1", [String(loggedInUserId)])
-            : { rows: [] };
-          const deletedByEmail = loggedInEmail
-            ? await pool.query("SELECT id FROM deleted_accounts WHERE email = $1", [loggedInEmail])
-            : { rows: [] };
+          try {
+            const deletedById = loggedInUserId
+              ? await pool.query("SELECT id FROM deleted_accounts WHERE external_user_id = $1", [String(loggedInUserId)])
+              : { rows: [] };
+            const deletedByEmail = loggedInEmail
+              ? await pool.query("SELECT id FROM deleted_accounts WHERE email = $1", [loggedInEmail])
+              : { rows: [] };
 
-          if (deletedById.rows.length > 0 || deletedByEmail.rows.length > 0) {
-            try {
-              await fetch(`${EXTERNAL_API}/api/logout`, {
-                method: "POST",
-                headers: { "host": new URL(EXTERNAL_API).host, ...(req.headers["cookie"] ? { "cookie": req.headers["cookie"] as string } : {}) },
-                redirect: "manual",
+            if (deletedById.rows.length > 0 || deletedByEmail.rows.length > 0) {
+              try {
+                await fetch(`${EXTERNAL_API}/api/logout`, {
+                  method: "POST",
+                  headers: { "host": new URL(EXTERNAL_API).host, ...(req.headers["cookie"] ? { "cookie": req.headers["cookie"] as string } : {}) },
+                  redirect: "manual",
+                });
+              } catch {}
+              return res.status(403).json({
+                message: "Ce compte a été supprimé. Il n'est plus possible de se connecter."
               });
-            } catch {}
-            return res.status(403).json({
-              message: "Ce compte a été supprimé. Il n'est plus possible de se connecter."
-            });
+            }
+          } catch (dbErr: any) {
+            console.warn("[DB] post-login deleted_accounts check skipped (DB unavailable):", dbErr.message);
           }
         }
 
