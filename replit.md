@@ -5,12 +5,12 @@ Application mobile Expo React Native pour MyJantes, un service professionnel de 
 
 ## Architecture
 - **Frontend**: Expo React Native (Expo Router, file-based routing)
-- **Backend**: API externe hébergée sur `appmyjantes5.mytoolsgroup.eu`
+- **Backend**: API externe hébergée sur `appmyjantes2.mytoolsgroup.eu`
 - **Auth**: Sessions avec cookies (stockés via expo-secure-store / AsyncStorage)
 - **State**: React Query pour les données serveur, React Context pour l'auth
 
 ## API Backend
-Base URL: Configurable via `EXTERNAL_API_URL` env var (default: `https://MyJantesv6.replit.app`)
+Base URL: Configurable via `EXTERNAL_API_URL` env var (default: `https://appmyjantes2.mytoolsgroup.eu/api`)
 
 ### Endpoints principaux
 - `POST /api/register` - Inscription (email, password, firstName, lastName, role, etc.)
@@ -20,7 +20,6 @@ Base URL: Configurable via `EXTERNAL_API_URL` env var (default: `https://MyJante
 - `GET /api/services` - Liste des services (auth requise)
 - `GET /api/quotes` - Liste des devis de l'utilisateur (auth requise)
 - `POST /api/quotes` - Créer une demande de devis
-- `POST /api/upload` - Upload de fichiers (multipart/form-data, field "media")
 - `POST /api/support/contact` - Formulaire de contact
 - `DELETE /api/users/me` - Suppression permanente du compte utilisateur
 
@@ -53,8 +52,8 @@ app/
     new-quote.tsx       # Formulaire nouveau devis
     quote-detail.tsx    # Détail d'un devis
     invoice-detail.tsx  # Détail d'une facture
-    reservation-detail.tsx # Détail d'une réservation
-    chat-detail.tsx     # Conversation chat (avec envoi de photos)
+    reservation-detail.tsx # Détail d'une réservation (confirmer uniquement)
+    chat-detail.tsx     # Conversation chat (texte uniquement)
     request-reservation.tsx # Demande de réservation
     support-history.tsx # Historique des demandes support
     delete-account.tsx  # Suppression permanente du compte (Apple 5.1.1(v))
@@ -89,7 +88,8 @@ server/
 - Account deletion available via Profile → Paramètres → Supprimer mon compte
 - Detail pages use client API endpoints only
 - Biometric auth auto-clears expired session credentials
-- API_BASE for detail pages uses `EXPO_PUBLIC_API_URL` env var with fallback to default
+- All domain references point to `appmyjantes2.mytoolsgroup.eu`
+- Data auto-refreshes: quotes every 30s, invoices/reservations every 60s, notifications every 30s
 
 ## Apple App Store Compliance (5.1.1(v))
 - All AI screens, services, and imports removed (chatbot, OCR scanner)
@@ -109,15 +109,23 @@ server/
 ## API Response Handling
 - API responses are auto-unwrapped: `unwrapList()` and `unwrapSingle()` in `lib/api.ts` handle wrapped responses (`{ data: [...] }`, `{ results: [...] }`, etc.)
 - Invoice/quote amounts use extensive field name fallbacks (camelCase + snake_case): `totalHT`, `total_ht`, `totalTTC`, `total_ttc`, `tvaAmount`, `tva_amount`, etc.
+- PDF token detection checks 7 field names + direct URL fallback
+- Invoice line items check 10 field name variants
 - Quote accept/reject tries multiple endpoint patterns: `/accept`, `/respond`, and PUT status update as fallbacks
-- Reservation cancel/confirm also tries fallback PUT status update
+- Reservation confirm tries fallback PUT status update
 - Server proxy logs all API responses to `/tmp/api_debug_*.json` files for debugging
 
 ## Quote Status Flow
 - `pending` → `sent` → `approved` (admin approved) → `accepted` (client accepted)
-- `canRespond` shows Accept/Reject buttons for: `approved`, `approuvé`, `sent`, `envoyé`
+- `canRespond` shows Accept/Reject buttons for any non-final, non-pending status
+- Final statuses (no accept/reject): accepted, rejected, completed, cancelled (+ French equivalents)
 - `isAccepted` shows "Demander une réservation" for: `accepted`, `accepté`, `confirmed`, `confirmé`
-- Reservation modify/cancel has 24h restriction before scheduled date
+
+## Removed Features (non-functional buttons cleaned up)
+- Chat: image/photo attach button removed (text-only messaging)
+- Chat: uploadApi and sendMessageWithImage removed from lib/api.ts
+- Reservation detail: "Modifier" and "Annuler" buttons removed
+- Reservation detail: "Refuser" button removed (only "Confirmer" remains for pending client action)
 
 ## Recent Changes
 - Feb 2026: Initial build of MyJantes mobile app
@@ -135,11 +143,10 @@ server/
 - Mar 3 2026: Quote accept/reject with multi-endpoint fallbacks
 - Mar 3 2026: Invoice/quote amount field name fallbacks (camelCase + snake_case)
 - Mar 3 2026: Server proxy debug logging to /tmp/api_debug_*.json
-- Mar 4 2026: Reservations restricted to accepted quotes only (one per quote, with check)
-- Mar 4 2026: Cancel/modify reservations redirects to support (no direct API cancellation)
-- Mar 4 2026: "Ajouter au calendrier" button in reservation detail (expo-calendar)
-- Mar 4 2026: Secure PDF download proxy routes added to backend (/api/proxy/invoice-pdf/:token, /api/proxy/quote-pdf/:token)
-- Mar 4 2026: Photo sending in chat (expo-image-picker, upload, send as [image]url[/image] tag)
-- Mar 4 2026: Support history screen added (GET /api/support/tickets)
-- Mar 4 2026: "Historique des demandes" link in More tab
-- Mar 4 2026: DB calls in delete account route wrapped in try-catch (non-blocking)
+- Mar 4 2026: Backend URL switched to appmyjantes2.mytoolsgroup.eu
+- Mar 4 2026: Removed all non-functional buttons (image attach, Modifier, Annuler, Refuser)
+- Mar 4 2026: Removed uploadApi and sendMessageWithImage from lib/api.ts
+- Mar 4 2026: Auto-refresh polling added (quotes 30s, invoices/reservations 60s)
+- Mar 4 2026: PDF token detection expanded (7 field names + direct URL fallback)
+- Mar 4 2026: Invoice line items check 10 field name variants
+- Mar 4 2026: canRespond logic simplified (any non-final, non-pending status)

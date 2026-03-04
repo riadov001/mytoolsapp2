@@ -20,7 +20,7 @@ import { invoicesApi, getBackendUrl, getSessionCookie } from "@/lib/api";
 import Colors from "@/constants/colors";
 import { useCustomAlert } from "@/components/CustomAlert";
 
-const API_BASE = "https://appmyjantes1.mytoolsgroup.eu";
+const API_BASE = "https://appmyjantes2.mytoolsgroup.eu";
 
 function getInvoiceStatusInfo(status: string) {
   const s = status?.toLowerCase() || "";

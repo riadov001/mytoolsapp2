@@ -19,7 +19,7 @@ import { quotesApi, Quote } from "@/lib/api";
 import Colors from "@/constants/colors";
 import { FloatingSupport } from "@/components/FloatingSupport";
 
-const API_BASE = "https://appmyjantes.mytoolsgroup.eu";
+const API_BASE = "https://appmyjantes2.mytoolsgroup.eu";
 
 function getStatusInfo(status: string) {
   const s = status?.toLowerCase() || "";
