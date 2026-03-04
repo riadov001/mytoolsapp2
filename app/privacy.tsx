@@ -21,7 +21,7 @@ export default function PrivacyScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>1. Collecte des données personnelles</Text>
         <Text style={styles.text}>
-          Dans le cadre de l'utilisation de l'application MyJantes, nous collectons les données personnelles suivantes :
+          Dans le cadre de l'utilisation de l'application MyTools, nous collectons les données personnelles suivantes :
         </Text>
         <Text style={styles.bullet}>- Nom et prénom</Text>
         <Text style={styles.bullet}>- Adresse email</Text>
@@ -81,7 +81,7 @@ export default function PrivacyScreen() {
         <Text style={styles.bullet}>- Droit à la portabilité de vos données</Text>
         <Text style={styles.bullet}>- Droit d'opposition au traitement</Text>
         <Text style={styles.text}>
-          Pour exercer vos droits, notamment la suppression de vos données, contactez-nous à : contact@myjantes.com ou via le bouton de suppression dans votre profil.
+          Pour exercer vos droits, notamment la suppression de vos données, contactez-nous à : contact@mytoolsgroup.eu ou via le bouton de suppression dans votre profil.
         </Text>
       </View>
 
@@ -97,7 +97,7 @@ export default function PrivacyScreen() {
         <Text style={styles.text}>
           Pour toute question relative à la protection de vos données personnelles :
         </Text>
-        <Text style={styles.text}>Email : contact@myjantes.com</Text>
+        <Text style={styles.text}>Email : contact@mytoolsgroup.eu</Text>
       </View>
     </ScrollView>
   );

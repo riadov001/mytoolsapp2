@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "node:http";
 import pg from "pg";
 
-const EXTERNAL_API = (process.env.EXTERNAL_API_URL || "https://appmyjantes2.mytoolsgroup.eu/api").replace(/\/$/, "");
+const EXTERNAL_API = (process.env.EXTERNAL_API_URL || "https://saas2.mytoolsgroup.eu/api").replace(/\/$/, "");
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
@@ -88,6 +88,37 @@ function forwardSetCookie(externalRes: globalThis.Response, expressRes: Response
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await initDatabase();
+
+  app.get("/api/public/garages", async (req: Request, res: Response) => {
+    try {
+      const endpoints = [
+        `${EXTERNAL_API}/garages`,
+        `${EXTERNAL_API}/superadmin/garages`,
+        `${EXTERNAL_API}/public/garages`,
+      ];
+      let garages: any[] = [];
+      for (const url of endpoints) {
+        try {
+          const r = await fetch(url, {
+            headers: {
+              "accept": "application/json",
+              "x-requested-with": "XMLHttpRequest",
+              "host": new URL(EXTERNAL_API).host,
+            },
+          });
+          if (r.ok) {
+            const data = await r.json();
+            if (Array.isArray(data)) { garages = data; break; }
+            if (data?.data && Array.isArray(data.data)) { garages = data.data; break; }
+            if (data?.garages && Array.isArray(data.garages)) { garages = data.garages; break; }
+          }
+        } catch {}
+      }
+      res.json(garages);
+    } catch (err: any) {
+      res.json([]);
+    }
+  });
 
   app.post("/api/quotes/:id/accept", async (req: Request, res: Response) => {
     const { id } = req.params;

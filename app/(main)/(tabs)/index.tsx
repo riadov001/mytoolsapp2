@@ -101,7 +101,7 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>{greeting}</Text>
-            <Text style={styles.welcomeText}>Bienvenue sur MyJantes</Text>
+            <Text style={styles.welcomeText}>Bienvenue sur MyTools</Text>
           </View>
           <Pressable
             style={styles.notifBtn}

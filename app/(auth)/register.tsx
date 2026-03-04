@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
+  FlatList,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth-context";
 import Colors from "@/constants/colors";
 import { useCustomAlert } from "@/components/CustomAlert";
+import { garagesApi, Garage } from "@/lib/api";
 
 type AccountType = "client" | "client_professionnel";
 
@@ -44,7 +47,38 @@ export default function RegisterScreen() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const [garages, setGarages] = useState<Garage[]>([]);
+  const [selectedGarage, setSelectedGarage] = useState<Garage | null>(null);
+  const [loadingGarages, setLoadingGarages] = useState(true);
+  const [showGaragePicker, setShowGaragePicker] = useState(false);
+  const [garageSearch, setGarageSearch] = useState("");
+
+  useEffect(() => {
+    loadGarages();
+  }, []);
+
+  const loadGarages = async () => {
+    setLoadingGarages(true);
+    try {
+      const list = await garagesApi.getAll();
+      setGarages(list);
+    } catch {
+      setGarages([]);
+    } finally {
+      setLoadingGarages(false);
+    }
+  };
+
+  const filteredGarages = garages.filter(g =>
+    g.name?.toLowerCase().includes(garageSearch.toLowerCase()) ||
+    g.city?.toLowerCase().includes(garageSearch.toLowerCase())
+  );
+
   const handleRegister = async () => {
+    if (!selectedGarage) {
+      showAlert({ type: 'error', title: 'Garage requis', message: 'Veuillez sélectionner votre garage avant de continuer.', buttons: [{ text: 'OK', style: 'primary' }] });
+      return;
+    }
     if (!agreeTerms) {
       showAlert({ type: 'warning', title: 'Consentement requis', message: 'Veuillez accepter les mentions légales et la politique de confidentialité.', buttons: [{ text: 'OK', style: 'primary' }] });
       return;
@@ -92,6 +126,7 @@ export default function RegisterScreen() {
         postalCode: postalCode.trim() || undefined,
         city: city.trim() || undefined,
         role: accountType,
+        garageId: selectedGarage.id,
         companyName: companyName.trim() || undefined,
         siret: siret.trim() || undefined,
         tvaNumber: tvaNumber.trim() || undefined,
@@ -166,7 +201,46 @@ export default function RegisterScreen() {
         </View>
 
         <Text style={styles.title}>Créer un compte</Text>
-        <Text style={styles.subtitle}>Inscrivez-vous pour demander un devis</Text>
+        <Text style={styles.subtitle}>Inscrivez-vous pour accéder à votre espace</Text>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Votre garage <Text style={styles.required}>*</Text>
+          </Text>
+          <Text style={styles.sectionHint}>Sélectionnez le garage auquel vous êtes rattaché</Text>
+          <Pressable
+            style={[styles.garagePicker, !selectedGarage && styles.garagePickerEmpty]}
+            onPress={() => setShowGaragePicker(true)}
+          >
+            {loadingGarages ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : (
+              <>
+                <Ionicons
+                  name="business-outline"
+                  size={20}
+                  color={selectedGarage ? Colors.primary : Colors.textTertiary}
+                  style={styles.garageIcon}
+                />
+                <View style={styles.garageTextContainer}>
+                  {selectedGarage ? (
+                    <>
+                      <Text style={styles.garageSelectedName}>{selectedGarage.name}</Text>
+                      {selectedGarage.city && (
+                        <Text style={styles.garageSelectedCity}>{selectedGarage.city}</Text>
+                      )}
+                    </>
+                  ) : (
+                    <Text style={styles.garagePlaceholder}>
+                      {garages.length === 0 ? "Aucun garage disponible" : "Sélectionner un garage..."}
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-down" size={18} color={Colors.textSecondary} />
+              </>
+            )}
+          </Pressable>
+        </View>
 
         <View style={styles.typeSelector}>
           <Pressable
@@ -328,7 +402,6 @@ export default function RegisterScreen() {
               <Text style={styles.link} onPress={() => router.push("/legal")}>mentions légales</Text>
               {" "}et la{" "}
               <Text style={styles.link} onPress={() => router.push("/privacy")}>politique de confidentialité</Text>.
-              Je reconnais être informé que les prochaines versions incluront le paiement Stripe.
             </Text>
           </Pressable>
         </View>
@@ -353,6 +426,90 @@ export default function RegisterScreen() {
           <Text style={styles.loginLinkText}>Déjà un compte ? Se connecter</Text>
         </Pressable>
       </ScrollView>
+
+      <Modal
+        visible={showGaragePicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowGaragePicker(false)}
+      >
+        <View style={[styles.modalContainer, { paddingTop: insets.top || 20 }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Choisir un garage</Text>
+            <Pressable onPress={() => setShowGaragePicker(false)} style={styles.modalCloseBtn}>
+              <Ionicons name="close" size={24} color={Colors.text} />
+            </Pressable>
+          </View>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search-outline" size={18} color={Colors.textSecondary} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              value={garageSearch}
+              onChangeText={setGarageSearch}
+              placeholder="Rechercher un garage..."
+              placeholderTextColor={Colors.textTertiary}
+              autoCapitalize="none"
+            />
+            {garageSearch.length > 0 && (
+              <Pressable onPress={() => setGarageSearch("")}>
+                <Ionicons name="close-circle" size={18} color={Colors.textSecondary} />
+              </Pressable>
+            )}
+          </View>
+          {filteredGarages.length === 0 ? (
+            <View style={styles.emptyGarages}>
+              <Ionicons name="business-outline" size={40} color={Colors.textTertiary} />
+              <Text style={styles.emptyGaragesText}>
+                {garages.length === 0
+                  ? "Aucun garage enregistré pour le moment"
+                  : "Aucun résultat pour cette recherche"}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredGarages}
+              keyExtractor={item => item.id}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.garageItem,
+                    selectedGarage?.id === item.id && styles.garageItemSelected,
+                    pressed && styles.garageItemPressed,
+                  ]}
+                  onPress={() => {
+                    setSelectedGarage(item);
+                    setShowGaragePicker(false);
+                    setGarageSearch("");
+                  }}
+                >
+                  <View style={[styles.garageItemIcon, selectedGarage?.id === item.id && styles.garageItemIconSelected]}>
+                    <Ionicons
+                      name="business"
+                      size={20}
+                      color={selectedGarage?.id === item.id ? "#fff" : Colors.primary}
+                    />
+                  </View>
+                  <View style={styles.garageItemText}>
+                    <Text style={[styles.garageItemName, selectedGarage?.id === item.id && styles.garageItemNameSelected]}>
+                      {item.name}
+                    </Text>
+                    {(item.city || item.address) && (
+                      <Text style={styles.garageItemAddress}>
+                        {[item.address, item.city].filter(Boolean).join(", ")}
+                      </Text>
+                    )}
+                  </View>
+                  {selectedGarage?.id === item.id && (
+                    <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
+                  )}
+                </Pressable>
+              )}
+            />
+          )}
+        </View>
+      </Modal>
+
       {AlertComponent}
     </KeyboardAvoidingView>
   );
@@ -424,7 +581,51 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
     color: Colors.text,
+    marginBottom: 2,
+  },
+  sectionHint: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    marginTop: -8,
     marginBottom: 4,
+  },
+  garagePicker: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 10,
+  },
+  garagePickerEmpty: {
+    borderColor: Colors.border,
+    borderWidth: 1,
+  },
+  garageIcon: {
+    marginRight: 2,
+  },
+  garageTextContainer: {
+    flex: 1,
+  },
+  garageSelectedName: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  garageSelectedCity: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  garagePlaceholder: {
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
   },
   inputGroup: {
     gap: 4,
@@ -532,5 +733,109 @@ const styles = StyleSheet.create({
   link: {
     color: Colors.primary,
     textDecorationLine: "underline",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surface,
+    margin: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    color: Colors.text,
+    height: "100%",
+  },
+  garageItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    gap: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  garageItemSelected: {
+    backgroundColor: `${Colors.primary}10`,
+  },
+  garageItemPressed: {
+    backgroundColor: Colors.surface,
+  },
+  garageItemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: `${Colors.primary}15`,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  garageItemIconSelected: {
+    backgroundColor: Colors.primary,
+  },
+  garageItemText: {
+    flex: 1,
+  },
+  garageItemName: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  garageItemNameSelected: {
+    color: Colors.primary,
+  },
+  garageItemAddress: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  emptyGarages: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingTop: 80,
+  },
+  emptyGaragesText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    paddingHorizontal: 40,
   },
 });

@@ -149,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!savedCookie) return false;
 
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Connexion à MyJantes",
+        promptMessage: "Connexion à MyTools",
         cancelLabel: "Annuler",
         disableDeviceFallback: false,
       });

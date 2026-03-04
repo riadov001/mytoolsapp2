@@ -79,8 +79,8 @@ export default function MoreScreen() {
           <MenuItem
             icon="mail-outline"
             title="Email"
-            subtitle="contact@myjantes.com"
-            onPress={() => Linking.openURL("mailto:contact@myjantes.com")}
+            subtitle="contact@mytoolsgroup.eu"
+            onPress={() => Linking.openURL("mailto:contact@mytoolsgroup.eu")}
             iconColor="#22C55E"
           />
         </View>
@@ -125,7 +125,7 @@ export default function MoreScreen() {
             style={styles.footerLogo}
             contentFit="contain"
           />
-          <Text style={styles.footerSubtext}>Service de rénovation de jantes</Text>
+          <Text style={styles.footerSubtext}>MyTools — Built for Performance</Text>
         </View>
       </ScrollView>
       <FloatingSupport />

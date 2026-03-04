@@ -21,7 +21,7 @@ import { quotesApi, reservationsApi, getBackendUrl, getSessionCookie, Quote } fr
 import Colors from "@/constants/colors";
 import { useCustomAlert } from "@/components/CustomAlert";
 
-const EXTERNAL_API_BASE = "https://appmyjantes2.mytoolsgroup.eu";
+const EXTERNAL_API_BASE = "https://saas2.mytoolsgroup.eu";
 
 function getStatusInfo(status: string) {
   const s = status?.toLowerCase() || "";

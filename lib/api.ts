@@ -31,12 +31,10 @@ let sessionCookie: string | null = null;
 
 export function setSessionCookie(cookie: string | null) {
   if (cookie) {
-    if (cookie.includes("myjantes.sid") || cookie.includes("connect.sid")) {
-      sessionCookie = cookie.split(";")[0];
-    } else if (cookie.includes("=")) {
+    if (cookie.includes("=")) {
       sessionCookie = cookie.split(";")[0];
     } else {
-      sessionCookie = `myjantes.sid=${cookie}`;
+      sessionCookie = `connect.sid=${cookie}`;
     }
   } else {
     sessionCookie = null;
@@ -112,11 +110,11 @@ export async function apiCall<T = any>(
     if (setCookie) {
       const parts = setCookie.split(",").map(c => c.trim());
       const knownSession = parts.find(c =>
-        c.startsWith("myjantes.sid=") ||
         c.startsWith("connect.sid=") ||
         c.startsWith("laravel_session=") ||
         c.startsWith("PHPSESSID=") ||
-        c.toLowerCase().includes("session=")
+        c.toLowerCase().includes("session=") ||
+        c.toLowerCase().includes("sid=")
       );
       if (knownSession) {
         sessionCookie = knownSession.split(";")[0];
@@ -222,6 +220,7 @@ export interface RegisterData {
   postalCode?: string;
   city?: string;
   role: "client" | "client_professionnel";
+  garageId?: string;
   companyName?: string;
   siret?: string;
   tvaNumber?: string;
@@ -230,6 +229,27 @@ export interface RegisterData {
   companyCity?: string;
   companyCountry?: string;
 }
+
+export interface Garage {
+  id: string;
+  name: string;
+  address?: string;
+  city?: string;
+  phone?: string;
+}
+
+export const garagesApi = {
+  getAll: async (): Promise<Garage[]> => {
+    try {
+      const result = await apiCall<any>("/api/public/garages");
+      if (Array.isArray(result)) return result;
+      if (result?.data && Array.isArray(result.data)) return result.data;
+      return [];
+    } catch {
+      return [];
+    }
+  },
+};
 
 export interface LoginData {
   email: string;

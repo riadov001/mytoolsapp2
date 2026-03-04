@@ -26,43 +26,43 @@ interface OnboardingSlide {
 const slides: OnboardingSlide[] = [
   {
     id: "1",
-    icon: "car-sport",
+    icon: "rocket",
     iconColor: Colors.primary,
-    title: "Bienvenue sur MyJantes",
+    title: "Bienvenue sur MyTools",
     description:
-      "Votre application dédiée à la rénovation et personnalisation de jantes automobiles.",
+      "Built for Performance. La solution SaaS complète pour les garages d'élite qui visent le sommet.",
   },
   {
     id: "2",
     icon: "document-text",
     iconColor: "#3B82F6",
-    title: "Demandez un devis",
+    title: "Devis instantané",
     description:
-      "Envoyez des photos de vos jantes et recevez un devis personnalisé rapidement. Acceptez ou refusez directement depuis l'application.",
+      "Chaque devis compte. Envoyez vos demandes et recevez un devis personnalisé rapidement. Acceptez ou refusez directement depuis l'application.",
   },
   {
     id: "3",
     icon: "receipt",
     iconColor: "#10B981",
-    title: "Consultez vos factures",
+    title: "Facturation fluide",
     description:
-      "Retrouvez l'ensemble de vos factures en consultation. Les paiements s'effectuent depuis votre espace client sur notre site internet.",
+      "Retrouvez l'ensemble de vos factures. Rien n'est approximatif — chaque transaction est tracée avec précision.",
   },
   {
     id: "4",
-    icon: "calendar",
+    icon: "car",
     iconColor: "#8B5CF6",
-    title: "Gérez vos rendez-vous",
+    title: "Suivi véhicule millimétré",
     description:
-      "Consultez vos réservations et suivez l'avancement de vos prestations en temps réel.",
+      "Consultez vos réservations et suivez l'avancement de vos prestations en temps réel. Analyse en temps réel, décision immédiate.",
   },
   {
     id: "5",
     icon: "chatbubbles",
     iconColor: "#F59E0B",
-    title: "Échangez avec nous",
+    title: "Communication directe",
     description:
-      "Un chat intégré vous permet de communiquer facilement avec notre équipe pour toute question ou suivi.",
+      "Un chat intégré pour communiquer facilement avec votre garage. Précision absolue, réactivité totale.",
   },
 ];
 

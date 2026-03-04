@@ -20,9 +20,9 @@ export default function LegalScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>1. Éditeur du site et de l'application</Text>
         <Text style={styles.text}>
-          L'application mobile MyJantes est éditée par la société MyJantes, spécialisée dans la rénovation et la personnalisation de jantes automobiles.
+          L'application mobile MyTools est éditée par la société MyTools, spécialisée dans la rénovation et la personnalisation de jantes automobiles.
         </Text>
-        <Text style={styles.text}>Email : contact@myjantes.com</Text>
+        <Text style={styles.text}>Email : contact@mytoolsgroup.eu</Text>
       </View>
 
       <View style={styles.section}>
@@ -35,14 +35,14 @@ export default function LegalScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>3. Propriété intellectuelle</Text>
         <Text style={styles.text}>
-          L'ensemble des éléments constituant l'application MyJantes (textes, images, logos, icônes, sons, logiciels, etc.) sont la propriété exclusive de MyJantes ou de ses partenaires. Toute reproduction, représentation, modification, publication, adaptation de tout ou partie des éléments de l'application, quel que soit le moyen ou le procédé utilisé, est interdite, sauf autorisation écrite préalable de MyJantes.
+          L'ensemble des éléments constituant l'application MyTools (textes, images, logos, icônes, sons, logiciels, etc.) sont la propriété exclusive de MyTools ou de ses partenaires. Toute reproduction, représentation, modification, publication, adaptation de tout ou partie des éléments de l'application, quel que soit le moyen ou le procédé utilisé, est interdite, sauf autorisation écrite préalable de MyTools.
         </Text>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>4. Limitation de responsabilité</Text>
         <Text style={styles.text}>
-          MyJantes s'efforce de fournir des informations aussi précises que possible. Toutefois, elle ne pourra être tenue responsable des omissions, des inexactitudes et des carences dans la mise à jour, qu'elles soient de son fait ou du fait des tiers partenaires qui lui fournissent ces informations.
+          MyTools s'efforce de fournir des informations aussi précises que possible. Toutefois, elle ne pourra être tenue responsable des omissions, des inexactitudes et des carences dans la mise à jour, qu'elles soient de son fait ou du fait des tiers partenaires qui lui fournissent ces informations.
         </Text>
       </View>
 
@@ -56,7 +56,7 @@ export default function LegalScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>6. Fonctionnalités de l'application</Text>
         <Text style={styles.text}>
-          L'application MyJantes permet la consultation de vos devis et factures en lecture seule. Aucun paiement ne peut être effectué depuis l'application. Pour tout règlement, veuillez vous rendre sur votre espace client sécurisé accessible via notre site internet.
+          L'application MyTools permet la consultation de vos devis et factures en lecture seule. Aucun paiement ne peut être effectué depuis l'application. Pour tout règlement, veuillez vous rendre sur votre espace client sécurisé accessible via notre site internet.
         </Text>
         <Text style={styles.text}>
           La modification de vos informations personnelles et de votre mot de passe s'effectue exclusivement depuis votre espace client sur notre site internet, pour des raisons de sécurité.
@@ -66,7 +66,7 @@ export default function LegalScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>7. Contact</Text>
         <Text style={styles.text}>
-          Pour toute question relative aux mentions légales, vous pouvez nous contacter à l'adresse : contact@myjantes.com
+          Pour toute question relative aux mentions légales, vous pouvez nous contacter à l'adresse : contact@mytoolsgroup.eu
         </Text>
       </View>
     </ScrollView>

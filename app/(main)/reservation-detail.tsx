@@ -204,8 +204,8 @@ export default function ReservationDetailScreen() {
       const eventStart = startDate ? new Date(startDate) : new Date();
       const eventEnd = endDate ? new Date(endDate) : new Date(eventStart.getTime() + 2 * 60 * 60 * 1000);
       const title = linkedService?.name
-        ? `MyJantes — ${linkedService.name}`
-        : `MyJantes — Réservation ${displayRef}`;
+        ? `MyTools — ${linkedService.name}`
+        : `MyTools — Réservation ${displayRef}`;
       const notes = [
         linkedService?.name ? `Service : ${linkedService.name}` : null,
         vehicleInfo && typeof vehicleInfo === "object"

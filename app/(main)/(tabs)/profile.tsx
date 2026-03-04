@@ -22,7 +22,7 @@ import Colors from "@/constants/colors";
 import { FloatingSupport } from "@/components/FloatingSupport";
 import { useCustomAlert } from "@/components/CustomAlert";
 
-const WEB_PORTAL_URL = "https://appmyjantes2.mytoolsgroup.eu";
+const WEB_PORTAL_URL = "https://saas2.mytoolsgroup.eu";
 const SECURITY_MESSAGE = "Pour des raisons de sécurité, cette action est disponible uniquement depuis votre espace client sécurisé accessible via notre site internet.";
 
 async function getStoredValue(key: string): Promise<string | null> {

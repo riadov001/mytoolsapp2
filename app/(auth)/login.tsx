@@ -121,7 +121,7 @@ export default function LoginScreen() {
               contentFit="cover"
             />
           </View>
-          <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
+          <Text style={styles.subtitle}>MyTools — Built for Performance</Text>
         </View>
 
         <View style={styles.form}>
