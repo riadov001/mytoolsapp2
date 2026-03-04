@@ -102,13 +102,23 @@ export async function apiCall<T = any>(
     res = await expoFetch(url, fetchOptions);
   }
 
-  const setCookie = res.headers.get("set-cookie");
-  if (setCookie) {
-    const cookies = setCookie.split(",").map(c => c.trim());
-    const sessionCookieValue = cookies.find(c => c.startsWith("myjantes.sid=") || c.startsWith("connect.sid="));
-    if (sessionCookieValue) {
-      const cookiePart = sessionCookieValue.split(";")[0];
-      sessionCookie = cookiePart;
+  const xSessionCookie = res.headers.get("x-session-cookie");
+  if (xSessionCookie) {
+    sessionCookie = xSessionCookie;
+  } else {
+    const setCookie = res.headers.get("set-cookie");
+    if (setCookie) {
+      const parts = setCookie.split(",").map(c => c.trim());
+      const knownSession = parts.find(c =>
+        c.startsWith("myjantes.sid=") ||
+        c.startsWith("connect.sid=") ||
+        c.startsWith("laravel_session=") ||
+        c.startsWith("PHPSESSID=") ||
+        c.toLowerCase().includes("session=")
+      );
+      if (knownSession) {
+        sessionCookie = knownSession.split(";")[0];
+      }
     }
   }
 
