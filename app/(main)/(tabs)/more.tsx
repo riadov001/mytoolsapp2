@@ -201,8 +201,8 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   footerLogo: {
-    width: 140,
-    height: 60,
+    width: 120,
+    height: 120,
     marginBottom: 6,
   },
   footerSubtext: {

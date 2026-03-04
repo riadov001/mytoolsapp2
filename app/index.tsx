@@ -24,7 +24,7 @@ export default function IndexScreen() {
         <Image
           source={require("@/assets/images/logo_rounded.png")}
           style={styles.logo}
-          contentFit="cover"
+          contentFit="contain"
         />
       </View>
       <ActivityIndicator size="small" color={Colors.primary} style={styles.loader} />
@@ -41,8 +41,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   logoWrapper: {
-    width: 280,
-    height: 140,
+    width: 240,
+    height: 240,
     marginBottom: 24,
     justifyContent: "center",
     alignItems: "center",

@@ -118,7 +118,7 @@ export default function LoginScreen() {
             <Image
               source={require("@/assets/images/logo_rounded.png")}
               style={styles.logo}
-              contentFit="cover"
+              contentFit="contain"
             />
           </View>
           <Text style={styles.subtitle}>MyTools — Built for Performance</Text>
@@ -230,8 +230,8 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   logoWrapper: {
-    width: 240,
-    height: 120,
+    width: 220,
+    height: 220,
     marginBottom: 16,
     justifyContent: "center",
     alignItems: "center",

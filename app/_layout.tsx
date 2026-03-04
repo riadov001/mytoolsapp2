@@ -65,7 +65,7 @@ export default function RootLayout() {
           <Image
             source={require("@/assets/images/logo_rounded.png")}
             style={styles.splashLogo}
-            contentFit="cover"
+            contentFit="contain"
           />
         </View>
         <View style={styles.versionBottom}>
@@ -98,8 +98,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoWrapper: {
-    width: 280,
-    height: 140,
+    width: 240,
+    height: 240,
     justifyContent: "center",
     alignItems: "center",
   },

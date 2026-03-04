@@ -286,8 +286,8 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
   },
   headerLogo: {
-    width: 50,
-    height: 40,
+    width: 52,
+    height: 52,
   },
   ctaCard: {
     backgroundColor: Colors.primary,
