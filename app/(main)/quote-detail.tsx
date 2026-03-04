@@ -171,7 +171,8 @@ export default function QuoteDetailScreen() {
     (quote as any).tax_amount ||
     (quote as any).vatAmount ||
     (quote as any).vat_amount;
-  const viewToken = (quote as any).viewToken as string | undefined;
+  const viewToken = ((quote as any).viewToken || (quote as any).pdfToken || (quote as any).token || (quote as any).publicToken || (quote as any).shareToken || (quote as any).accessToken || (quote as any).publicId) as string | undefined;
+  const directPdfUrl = (quote as any).pdfUrl || (quote as any).pdf_url || (quote as any).documentUrl || (quote as any).document_url;
   const expiryDate = (quote as any).expiryDate || (quote as any).validUntil;
   const displayRef = (quote as any).reference || (quote as any).quoteNumber || quote.id;
   const rawRequestDetails = (quote as any).requestDetails || (quote as any).description || "";
@@ -194,11 +195,12 @@ export default function QuoteDetailScreen() {
   const isAccepted = statusLower === "accepted" || statusLower === "accepté" || statusLower === "confirmed" || statusLower === "confirmé";
   const hasNoContent = quoteItems.length === 0 && totalTTCNum === 0;
 
-  const canRespond = statusLower === "approved" || statusLower === "approuvé" || statusLower === "sent" || statusLower === "envoyé" || statusLower === "envoyee";
+  const finalStatuses = new Set(["accepted", "accepté", "accepte", "rejected", "refusé", "refuse", "refused", "completed", "terminé", "termine", "cancelled", "annulé", "annule", "annulée", "annulee"]);
+  const canRespond = !isPending && !finalStatuses.has(statusLower);
 
   const pdfUrl = viewToken
     ? `${getBackendUrl()}/api/proxy/quote-pdf/${viewToken}`
-    : null;
+    : directPdfUrl || null;
 
   const existingReservation = (allReservations as any[]).find(
     (r) => r.quoteId === id || r.quoteId === quote?.id

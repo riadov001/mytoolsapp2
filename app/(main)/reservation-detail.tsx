@@ -503,30 +503,6 @@ export default function ReservationDetailScreen() {
           </View>
         )}
 
-        {isActiveReservation && !isPendingClientAction && (
-          <View style={styles.actionsSection}>
-            <View style={styles.actionsRow}>
-              <Pressable
-                style={({ pressed }) => [styles.actionBtnSecondary, pressed && { opacity: 0.7 }]}
-                onPress={handleContactSupportForModify}
-              >
-                <Ionicons name="create-outline" size={16} color={Colors.primary} style={{ marginRight: 4 }} />
-                <Text style={[styles.actionBtnSecondaryText, { color: Colors.primary }]}>Modifier</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.actionBtnSecondary,
-                  { borderColor: "#FCA5A5" },
-                  pressed && { opacity: 0.7 },
-                ]}
-                onPress={handleContactSupportForCancel}
-              >
-                <Ionicons name="close-circle-outline" size={16} color="#DC2626" style={{ marginRight: 4 }} />
-                <Text style={[styles.actionBtnSecondaryText, { color: "#DC2626" }]}>Annuler</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
 
         {isActiveReservation && startDate && (
           <Pressable

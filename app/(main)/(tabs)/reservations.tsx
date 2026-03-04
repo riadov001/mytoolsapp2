@@ -114,6 +114,7 @@ export default function ReservationsScreen() {
     queryKey: ["reservations"],
     queryFn: reservationsApi.getAll,
     retry: 1,
+    refetchInterval: 60000,
   });
 
   const reservations = Array.isArray(reservationsRaw) ? reservationsRaw : [];

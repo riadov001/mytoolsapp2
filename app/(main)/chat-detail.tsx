@@ -15,7 +15,6 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import * as ImagePicker from "expo-image-picker";
 import { chatApi, ChatConversation, ChatMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import Colors from "@/constants/colors";
@@ -71,7 +70,6 @@ export default function ChatDetailScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [messageText, setMessageText] = useState("");
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   const { data: conversations = [] } = useQuery({
     queryKey: ["chat-conversations"],
@@ -111,37 +109,6 @@ export default function ChatDetailScreen() {
     const trimmed = messageText.trim();
     if (!trimmed || sendMutation.isPending) return;
     sendMutation.mutate(trimmed);
-  };
-
-  const handlePickImage = async () => {
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (result.canceled || !result.assets || result.assets.length === 0) return;
-      const asset = result.assets[0];
-      setUploadingImage(true);
-      try {
-        await chatApi.sendMessageWithImage(
-          id!,
-          asset.uri,
-          asset.fileName || `photo_${Date.now()}.jpg`,
-          asset.mimeType || "image/jpeg"
-        );
-        queryClient.invalidateQueries({ queryKey: ["chat-messages", id] });
-        queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
-      } finally {
-        setUploadingImage(false);
-      }
-    } catch {
-      setUploadingImage(false);
-    }
   };
 
   const bottomPad = Platform.OS === "web" ? 34 : Math.max(insets.bottom, 12);
@@ -195,17 +162,6 @@ export default function ChatDetailScreen() {
           { paddingBottom: bottomPad },
         ]}
       >
-        <Pressable
-          onPress={handlePickImage}
-          disabled={uploadingImage || sendMutation.isPending}
-          style={[styles.attachButton, (uploadingImage || sendMutation.isPending) && { opacity: 0.5 }]}
-          hitSlop={8}
-        >
-          {uploadingImage
-            ? <ActivityIndicator size="small" color={Colors.primary} />
-            : <Ionicons name="image-outline" size={24} color={Colors.primary} />
-          }
-        </Pressable>
         <TextInput
           style={styles.textInput}
           placeholder="Votre message..."

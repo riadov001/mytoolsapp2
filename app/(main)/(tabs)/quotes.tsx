@@ -114,6 +114,7 @@ export default function QuotesScreen() {
   const { data: quotesRaw, isLoading, refetch } = useQuery({
     queryKey: ["quotes"],
     queryFn: quotesApi.getAll,
+    refetchInterval: 30000,
   });
 
   const quotes = Array.isArray(quotesRaw) ? quotesRaw : [];

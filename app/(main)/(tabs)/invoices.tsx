@@ -107,6 +107,7 @@ export default function InvoicesScreen() {
     queryKey: ["invoices"],
     queryFn: invoicesApi.getAll,
     retry: 1,
+    refetchInterval: 60000,
   });
 
   const invoices = Array.isArray(invoicesRaw) ? invoicesRaw : [];

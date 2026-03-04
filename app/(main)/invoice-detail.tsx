@@ -114,8 +114,20 @@ export default function InvoiceDetailScreen() {
     minute: "2-digit",
   });
 
-  const invoiceItems = parseItems(invoice.items || (invoice as any).lignes || (invoice as any).lines || (invoice as any).prestations);
-  const viewToken = (invoice as any).viewToken as string | undefined;
+  const invoiceItems = parseItems(
+    invoice.items ||
+    (invoice as any).lineItems ||
+    (invoice as any).line_items ||
+    (invoice as any).lignes ||
+    (invoice as any).lines ||
+    (invoice as any).prestations ||
+    (invoice as any).invoiceLines ||
+    (invoice as any).invoice_lines ||
+    (invoice as any).details ||
+    (invoice as any).rows
+  );
+  const viewToken = ((invoice as any).viewToken || (invoice as any).pdfToken || (invoice as any).token || (invoice as any).publicToken || (invoice as any).shareToken || (invoice as any).accessToken || (invoice as any).publicId) as string | undefined;
+  const directPdfUrl = (invoice as any).pdfUrl || (invoice as any).pdf_url || (invoice as any).documentUrl || (invoice as any).document_url;
   const displayRef = invoice.invoiceNumber || invoice.id;
   const clientInfo = (invoice as any).client || null;
   const quoteRef = (invoice as any).quoteNumber || (invoice as any).quoteReference || null;
@@ -191,7 +203,7 @@ export default function InvoiceDetailScreen() {
   const isUnpaid = statusLower === "pending" || statusLower === "en_attente"
     || statusLower === "overdue" || statusLower === "en_retard"
     || statusLower === "sent" || statusLower === "envoyee" || statusLower === "envoyée";
-  const pdfUrl = viewToken ? `${getBackendUrl()}/api/proxy/invoice-pdf/${viewToken}` : null;
+  const pdfUrl = viewToken ? `${getBackendUrl()}/api/proxy/invoice-pdf/${viewToken}` : directPdfUrl || null;
 
   const handleDownloadPdf = async () => {
     const url = pdfUrl;

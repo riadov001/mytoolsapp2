@@ -34,6 +34,7 @@ export default function HomeScreen() {
   const { data: quotesRaw, refetch: refetchQuotes } = useQuery({
     queryKey: ["quotes"],
     queryFn: quotesApi.getAll,
+    refetchInterval: 30000,
   });
 
   const quotes = Array.isArray(quotesRaw) ? quotesRaw : [];
@@ -42,12 +43,14 @@ export default function HomeScreen() {
     queryKey: ["invoices"],
     queryFn: invoicesApi.getAll,
     retry: 1,
+    refetchInterval: 60000,
   });
 
   const { data: reservationsRaw = [], refetch: refetchReservations } = useQuery({
     queryKey: ["reservations"],
     queryFn: reservationsApi.getAll,
     retry: 1,
+    refetchInterval: 60000,
   });
 
   const invoices = Array.isArray(invoicesRaw) ? invoicesRaw : [];
@@ -75,7 +78,8 @@ export default function HomeScreen() {
   });
   const upcomingReservations = reservations.filter((r) => {
     const s = r.status?.toLowerCase();
-    return (s === "confirmed" || s === "confirmée" || s === "confirmé" || s === "pending" || s === "en_attente") && new Date(r.date) >= new Date();
+    const dateStr = (r as any).scheduledDate || r.date;
+    return (s === "confirmed" || s === "confirmée" || s === "confirmé" || s === "pending" || s === "en_attente") && (!dateStr || new Date(dateStr) >= new Date());
   });
   const greeting = user?.firstName ? `Bonjour ${user.firstName}` : "Bonjour";
 
@@ -206,7 +210,7 @@ export default function HomeScreen() {
               <Pressable
                 key={service.id}
                 style={({ pressed }) => [styles.serviceCard, pressed && styles.serviceCardPressed]}
-                onPress={() => router.push("/(main)/new-quote")}
+                onPress={() => router.push({ pathname: "/(main)/new-quote", params: { serviceId: service.id } })}
               >
                 <View style={styles.serviceIconContainer}>
                   <Ionicons name="construct" size={24} color={Colors.primary} />

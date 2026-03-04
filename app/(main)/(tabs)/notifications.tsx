@@ -9,7 +9,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -142,6 +142,13 @@ export default function NotificationsScreen() {
   });
 
   const [lastNotificationId, setLastNotificationId] = useState<string | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      notificationsApi.markAllRead().then(() => {
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      }).catch(() => {});
+    }, [])
+  );
 
   const playNotificationSound = useCallback(() => {
     try {
