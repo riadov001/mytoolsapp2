@@ -466,62 +466,7 @@ export const chatApi = {
       method: "POST",
       body: { content },
     }),
-  sendMessageWithImage: async (conversationId: string, imageUri: string, imageFilename: string, imageType: string) => {
-    const uploaded = await uploadApi.upload(imageUri, imageFilename, imageType);
-    const imageUrl = uploaded?.url || uploaded?.key || uploaded?.objectPath || uploaded?.path || "";
-    const content = imageUrl ? `[image]${imageUrl}[/image]` : imageUri;
-    return apiCall<ChatMessage>(`/api/chat/conversations/${conversationId}/messages`, {
-      method: "POST",
-      body: { content },
-    });
-  },
   getUsers: () => apiCall<any[]>("/api/chat/users"),
-};
-
-export const uploadApi = {
-  upload: async (uri: string, filename: string, type: string) => {
-    const formData = new FormData();
-
-    if (Platform.OS === "web") {
-      try {
-        const response = await globalThis.fetch(uri);
-        const blob = await response.blob();
-        formData.append("media", blob, filename);
-      } catch {
-        const file = new File([new Blob()], filename, { type });
-        formData.append("media", file);
-      }
-    } else {
-      formData.append("media", {
-        uri: uri,
-        name: filename,
-        type: type,
-      } as any);
-    }
-
-    return apiCall<{ objectPath: string; url?: string; key?: string; path?: string; id?: string }>("/api/upload", {
-      method: "POST",
-      body: formData,
-      isFormData: true,
-    });
-  },
-  uploadMultiple: async (assets: any[]) => {
-    const formData = new FormData();
-    for (const asset of assets) {
-      if (Platform.OS === "web") {
-        const response = await globalThis.fetch(asset.uri);
-        const blob = await response.blob();
-        formData.append("images", blob, asset.filename || `photo_${Date.now()}.jpg`);
-      } else {
-        formData.append("images", {
-          uri: asset.uri,
-          name: asset.filename || `photo_${Date.now()}.jpg`,
-          type: asset.type || "image/jpeg",
-        } as any);
-      }
-    }
-    return formData;
-  }
 };
 
 export const adminQuotesApi = {

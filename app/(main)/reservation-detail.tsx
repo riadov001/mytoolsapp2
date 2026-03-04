@@ -172,43 +172,7 @@ export default function ReservationDetailScreen() {
   const isCancelled = statusLower === "cancelled" || statusLower === "annulée";
   const isCompleted = statusLower === "completed" || statusLower === "terminée" || statusLower === "terminé";
 
-  const scheduledDateObj = startDate ? new Date(startDate) : null;
-  const now = new Date();
-  const hoursUntilStart = scheduledDateObj ? (scheduledDateObj.getTime() - now.getTime()) / (1000 * 60 * 60) : Infinity;
-  const canModifyOrCancel = hoursUntilStart > 24 && !isCancelled && !isCompleted;
   const isActiveReservation = !isCancelled && !isCompleted;
-
-  const handleContactSupportForModify = () => {
-    showAlert({
-      type: "info",
-      title: "Modifier la réservation",
-      message: "Pour toute modification de réservation, veuillez contacter notre équipe support qui traitera votre demande dans les meilleurs délais.",
-      buttons: [
-        { text: "Plus tard" },
-        {
-          text: "Contacter le support",
-          style: "primary",
-          onPress: () => router.push("/(main)/(tabs)/messages"),
-        },
-      ],
-    });
-  };
-
-  const handleContactSupportForCancel = () => {
-    showAlert({
-      type: "warning",
-      title: "Annuler la réservation",
-      message: "L'annulation d'une réservation doit passer par notre équipe support. Contactez-nous et nous traiterons votre demande rapidement.",
-      buttons: [
-        { text: "Retour" },
-        {
-          text: "Contacter le support",
-          style: "primary",
-          onPress: () => router.push("/(main)/(tabs)/messages"),
-        },
-      ],
-    });
-  };
 
   const handleAddToCalendar = async () => {
     if (Platform.OS === "web") {
@@ -484,13 +448,7 @@ export default function ReservationDetailScreen() {
             </View>
             <View style={styles.actionsRow}>
               <Pressable
-                style={({ pressed }) => [styles.actionBtnSecondary, pressed && { opacity: 0.7 }]}
-                onPress={handleContactSupportForCancel}
-              >
-                <Text style={styles.actionBtnSecondaryText}>Refuser</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.actionBtnPrimary, pressed && { opacity: 0.7 }]}
+                style={({ pressed }) => [styles.actionBtnPrimary, { flex: 1 }, pressed && { opacity: 0.7 }]}
                 onPress={handleConfirm}
                 disabled={confirming}
               >
