@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -18,30 +18,31 @@ import * as Linking from "expo-linking";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { quotesApi, reservationsApi, getBackendUrl, getSessionCookie, Quote } from "@/lib/api";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 
 const EXTERNAL_API_BASE = "https://saas2.mytoolsgroup.eu";
 
-function getStatusInfo(status: string) {
+function getStatusInfo(status: string, isDark: boolean) {
   const s = status?.toLowerCase() || "";
   if (s === "pending" || s === "en_attente")
-    return { label: "En attente", color: Colors.pending, bg: "#FEF3C7", icon: "time-outline" as const };
+    return { label: "En attente", color: "#F59E0B", bg: isDark ? "rgba(245,158,11,0.15)" : "#FEF3C7", icon: "time-outline" as const };
   if (s === "sent" || s === "envoyé")
-    return { label: "Envoyé", color: "#3B82F6", bg: "#DBEAFE", icon: "send-outline" as const };
+    return { label: "Envoyé", color: "#3B82F6", bg: isDark ? "rgba(59,130,246,0.15)" : "#DBEAFE", icon: "send-outline" as const };
   if (s === "approved" || s === "approuvé")
-    return { label: "Approuvé", color: "#8B5CF6", bg: "#EDE9FE", icon: "eye-outline" as const };
+    return { label: "Approuvé", color: "#8B5CF6", bg: isDark ? "rgba(139,92,246,0.15)" : "#EDE9FE", icon: "eye-outline" as const };
   if (s === "accepted" || s === "accepté")
-    return { label: "Accepté", color: Colors.accepted, bg: "#DCFCE7", icon: "checkmark-circle-outline" as const };
+    return { label: "Accepté", color: "#22C55E", bg: isDark ? "rgba(34,197,94,0.15)" : "#DCFCE7", icon: "checkmark-circle-outline" as const };
   if (s === "confirmed" || s === "confirmé")
-    return { label: "Confirmé", color: Colors.accepted, bg: "#DCFCE7", icon: "checkmark-circle-outline" as const };
+    return { label: "Confirmé", color: "#22C55E", bg: isDark ? "rgba(34,197,94,0.15)" : "#DCFCE7", icon: "checkmark-circle-outline" as const };
   if (s === "rejected" || s === "refusé" || s === "refused")
-    return { label: "Refusé", color: Colors.rejected, bg: "#FEE2E2", icon: "close-circle-outline" as const };
+    return { label: "Refusé", color: "#F87171", bg: isDark ? "rgba(239,68,68,0.15)" : "#FEE2E2", icon: "close-circle-outline" as const };
   if (s === "completed" || s === "terminé")
-    return { label: "Terminé", color: Colors.accepted, bg: "#DCFCE7", icon: "checkmark-done-outline" as const };
+    return { label: "Terminé", color: "#22C55E", bg: isDark ? "rgba(34,197,94,0.15)" : "#DCFCE7", icon: "checkmark-done-outline" as const };
   if (s === "in_progress" || s === "en_cours")
-    return { label: "En cours", color: "#3B82F6", bg: "#DBEAFE", icon: "hourglass-outline" as const };
-  return { label: status || "Inconnu", color: Colors.textSecondary, bg: Colors.surfaceSecondary, icon: "help-outline" as const };
+    return { label: "En cours", color: "#3B82F6", bg: isDark ? "rgba(59,130,246,0.15)" : "#DBEAFE", icon: "hourglass-outline" as const };
+  return { label: status || "Inconnu", color: isDark ? "#888" : "#666", bg: isDark ? "rgba(255,255,255,0.06)" : "#F0F0F0", icon: "help-outline" as const };
 }
 
 function parseVehicleInfo(vehicleInfo: any) {
@@ -65,11 +66,11 @@ function parseItems(items: any): any[] {
   return [];
 }
 
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+function InfoRow({ icon, label, value, theme, styles }: { icon: string; label: string; value: string; theme: ThemeColors; styles: any }) {
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoLabel}>
-        <Ionicons name={icon as any} size={16} color={Colors.textSecondary} />
+        <Ionicons name={icon as any} size={16} color={theme.textSecondary} />
         <Text style={styles.infoLabelText}>{label}</Text>
       </View>
       <Text style={styles.infoValue}>{value}</Text>
@@ -79,6 +80,8 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 
 export default function QuoteDetailScreen() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { showAlert, AlertComponent } = useCustomAlert();
@@ -118,7 +121,7 @@ export default function QuoteDetailScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -126,7 +129,7 @@ export default function QuoteDetailScreen() {
   if (!quote) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Ionicons name="alert-circle-outline" size={48} color={Colors.textTertiary} />
+        <Ionicons name="alert-circle-outline" size={48} color={theme.textTertiary} />
         <Text style={styles.errorText}>Devis introuvable</Text>
         <Pressable onPress={() => router.back()} style={styles.backLink}>
           <Text style={styles.backLinkText}>Retour</Text>
@@ -135,7 +138,7 @@ export default function QuoteDetailScreen() {
     );
   }
 
-  const statusInfo = getStatusInfo(quote.status);
+  const statusInfo = getStatusInfo(quote.status, theme.isDark);
   const date = new Date(quote.createdAt);
   const formattedDate = date.toLocaleDateString("fr-FR", {
     day: "numeric",
@@ -347,7 +350,7 @@ export default function QuoteDetailScreen() {
         ]}
       >
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Détail du devis</Text>
         <View style={styles.headerBtn} />
@@ -380,7 +383,7 @@ export default function QuoteDetailScreen() {
         {isPending && hasNoContent && (
           <View style={styles.processingCard}>
             <View style={styles.processingIcon}>
-              <Ionicons name="hourglass-outline" size={24} color={Colors.primary} />
+              <Ionicons name="hourglass-outline" size={24} color={theme.primary} />
             </View>
             <Text style={styles.processingTitle}>Demande en cours de traitement</Text>
             <Text style={styles.processingText}>
@@ -392,13 +395,13 @@ export default function QuoteDetailScreen() {
         {(serviceName && quoteServices.length === 0) ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="construct-outline" size={18} color={Colors.primary} />
+              <Ionicons name="construct-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Service demandé</Text>
             </View>
             <View style={styles.sectionContent}>
               <View style={styles.serviceRow}>
                 <View style={styles.serviceIcon}>
-                  <Ionicons name="checkmark" size={14} color={Colors.primary} />
+                  <Ionicons name="checkmark" size={14} color={theme.primary} />
                 </View>
                 <Text style={styles.serviceName}>{serviceName}</Text>
               </View>
@@ -409,7 +412,7 @@ export default function QuoteDetailScreen() {
         {quoteServices.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="construct-outline" size={18} color={Colors.primary} />
+              <Ionicons name="construct-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Services inclus</Text>
             </View>
             <View style={styles.sectionContent}>
@@ -419,7 +422,7 @@ export default function QuoteDetailScreen() {
                 return (
                   <View key={idx} style={styles.serviceRow}>
                     <View style={styles.serviceIcon}>
-                      <Ionicons name="checkmark" size={14} color={Colors.primary} />
+                      <Ionicons name="checkmark" size={14} color={theme.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.serviceName}>{sName}</Text>
@@ -437,7 +440,7 @@ export default function QuoteDetailScreen() {
         {requestDetails ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
+              <Ionicons name="document-text-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Détails de la demande</Text>
             </View>
             <View style={styles.sectionContent}>
@@ -449,15 +452,15 @@ export default function QuoteDetailScreen() {
         {clientInfo && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="person-outline" size={18} color={Colors.primary} />
+              <Ionicons name="person-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Client</Text>
             </View>
             <View style={styles.sectionContent}>
               {(clientInfo.firstName || clientInfo.lastName) && (
-                <InfoRow icon="person-outline" label="Nom" value={`${clientInfo.firstName || ''} ${clientInfo.lastName || ''}`.trim()} />
+                <InfoRow theme={theme} styles={styles} icon="person-outline" label="Nom" value={`${clientInfo.firstName || ''} ${clientInfo.lastName || ''}`.trim()} />
               )}
-              {clientInfo.email && <InfoRow icon="mail-outline" label="Email" value={clientInfo.email} />}
-              {clientInfo.phone && <InfoRow icon="call-outline" label="Téléphone" value={clientInfo.phone} />}
+              {clientInfo.email && <InfoRow theme={theme} styles={styles} icon="mail-outline" label="Email" value={clientInfo.email} />}
+              {clientInfo.phone && <InfoRow theme={theme} styles={styles} icon="call-outline" label="Téléphone" value={clientInfo.phone} />}
             </View>
           </View>
         )}
@@ -465,14 +468,14 @@ export default function QuoteDetailScreen() {
         {vehicleInfo && typeof vehicleInfo === "object" && Object.keys(vehicleInfo).length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="car-outline" size={18} color={Colors.primary} />
+              <Ionicons name="car-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Véhicule</Text>
             </View>
             <View style={styles.sectionContent}>
-              {vehicleInfo.marque && <InfoRow icon="car-outline" label="Marque" value={vehicleInfo.marque} />}
-              {vehicleInfo.modele && <InfoRow icon="car-sport-outline" label="Modèle" value={vehicleInfo.modele} />}
-              {vehicleInfo.immatriculation && <InfoRow icon="card-outline" label="Immatriculation" value={vehicleInfo.immatriculation} />}
-              {vehicleInfo.annee && <InfoRow icon="calendar-outline" label="Année" value={vehicleInfo.annee} />}
+              {vehicleInfo.marque && <InfoRow theme={theme} styles={styles} icon="car-outline" label="Marque" value={vehicleInfo.marque} />}
+              {vehicleInfo.modele && <InfoRow theme={theme} styles={styles} icon="car-sport-outline" label="Modèle" value={vehicleInfo.modele} />}
+              {vehicleInfo.immatriculation && <InfoRow theme={theme} styles={styles} icon="card-outline" label="Immatriculation" value={vehicleInfo.immatriculation} />}
+              {vehicleInfo.annee && <InfoRow theme={theme} styles={styles} icon="calendar-outline" label="Année" value={vehicleInfo.annee} />}
             </View>
           </View>
         )}
@@ -480,7 +483,7 @@ export default function QuoteDetailScreen() {
         {quoteItems.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="list-outline" size={18} color={Colors.primary} />
+              <Ionicons name="list-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Lignes du devis ({quoteItems.length})</Text>
             </View>
             {quoteItems.map((item: any, idx: number) => {
@@ -517,7 +520,7 @@ export default function QuoteDetailScreen() {
         {(totalHTNum > 0 || totalTTCNum > 0) && (
           <View style={styles.amountsCard}>
             <View style={styles.amountsHeader}>
-              <Ionicons name="calculator-outline" size={18} color={Colors.primary} />
+              <Ionicons name="calculator-outline" size={18} color={theme.primary} />
               <Text style={styles.amountsTitle}>Récapitulatif</Text>
             </View>
             {totalHTNum > 0 && (
@@ -542,7 +545,7 @@ export default function QuoteDetailScreen() {
         {quotePhotos.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="images-outline" size={18} color={Colors.primary} />
+              <Ionicons name="images-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Photos ({quotePhotos.length})</Text>
             </View>
             <View style={styles.photosGrid}>
@@ -566,7 +569,7 @@ export default function QuoteDetailScreen() {
         {quoteNotes ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="chatbubble-outline" size={18} color={Colors.primary} />
+              <Ionicons name="chatbubble-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Notes</Text>
             </View>
             <View style={styles.sectionContent}>
@@ -583,8 +586,8 @@ export default function QuoteDetailScreen() {
               disabled={downloading}
             >
               {downloading
-                ? <ActivityIndicator size="small" color={Colors.primary} />
-                : <Ionicons name="download-outline" size={18} color={Colors.primary} />
+                ? <ActivityIndicator size="small" color={theme.primary} />
+                : <Ionicons name="download-outline" size={18} color={theme.primary} />
               }
               <Text style={styles.btnSecondaryText}>{downloading ? "Téléchargement…" : "Télécharger le devis"}</Text>
             </Pressable>
@@ -611,9 +614,9 @@ export default function QuoteDetailScreen() {
                 disabled={accepting || rejecting}
               >
                 {rejecting ? (
-                  <ActivityIndicator size="small" color={Colors.rejected} />
+                  <ActivityIndicator size="small" color={theme.rejected} />
                 ) : (
-                  <Ionicons name="close-circle-outline" size={18} color={Colors.rejected} />
+                  <Ionicons name="close-circle-outline" size={18} color={theme.rejected} />
                 )}
                 <Text style={styles.btnRejectText}>Refuser</Text>
               </Pressable>
@@ -652,10 +655,10 @@ export default function QuoteDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   center: {
     justifyContent: "center",
@@ -667,7 +670,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: theme.border,
   },
   headerBtn: {
     width: 40,
@@ -680,7 +683,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -706,20 +709,20 @@ const styles = StyleSheet.create({
   quoteNumber: {
     fontSize: 18,
     fontFamily: "Inter_700Bold",
-    color: Colors.text,
+    color: theme.text,
   },
   quoteDate: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   expiryText: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
+    color: theme.textTertiary,
   },
   totalBadgeTop: {
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 12,
@@ -728,36 +731,36 @@ const styles = StyleSheet.create({
   totalBadgeTopText: {
     fontSize: 18,
     fontFamily: "Inter_700Bold",
-    color: Colors.primary,
+    color: theme.primary,
   },
   processingCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 20,
     marginBottom: 20,
     alignItems: "center",
     gap: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   processingIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
   processingTitle: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
     textAlign: "center",
   },
   processingText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     textAlign: "center",
     lineHeight: 20,
   },
@@ -773,14 +776,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   sectionContent: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   serviceRow: {
     flexDirection: "row",
@@ -788,13 +791,13 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: theme.borderLight,
   },
   serviceIcon: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 1,
@@ -802,13 +805,13 @@ const styles = StyleSheet.create({
   serviceName: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
-    color: Colors.text,
+    color: theme.text,
     flex: 1,
   },
   servicePrice: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     marginTop: 2,
   },
   infoRow: {
@@ -817,7 +820,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: theme.borderLight,
   },
   infoLabel: {
     flexDirection: "row",
@@ -828,33 +831,33 @@ const styles = StyleSheet.create({
   infoLabelText: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   infoValue: {
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
     textAlign: "right",
     flex: 1,
   },
   lineItemCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 10,
     padding: 14,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   lineItemName: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
-    color: Colors.text,
+    color: theme.text,
     marginBottom: 2,
   },
   lineItemSubtext: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
+    color: theme.textTertiary,
     marginBottom: 8,
   },
   lineItemDetails: {
@@ -866,20 +869,20 @@ const styles = StyleSheet.create({
   lineItemMeta: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   lineItemTotal: {
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.primary,
+    color: theme.primary,
   },
   amountsCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     gap: 10,
   },
   amountsHeader: {
@@ -891,23 +894,23 @@ const styles = StyleSheet.create({
   amountsTitle: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   amountRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  amountLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
-  amountHT: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text },
-  amountTVA: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  amountLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary },
+  amountHT: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
+  amountTVA: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
   totalRow: {
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: theme.borderLight,
   },
-  totalLabel: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.text },
-  totalValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.primary },
+  totalLabel: { fontSize: 16, fontFamily: "Inter_700Bold", color: theme.text },
+  totalValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: theme.primary },
   photosGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -919,7 +922,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   photoImage: {
     width: "100%",
@@ -928,7 +931,7 @@ const styles = StyleSheet.create({
   notesText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 22,
   },
   footerActions: {
@@ -946,7 +949,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: Colors.accepted,
+    backgroundColor: theme.accepted,
     borderRadius: 12,
     paddingVertical: 14,
   },
@@ -961,16 +964,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 12,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: Colors.rejected,
+    borderColor: theme.rejected,
   },
   btnRejectText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.rejected,
+    color: theme.rejected,
   },
   btnDisabled: {
     opacity: 0.5,
@@ -980,38 +983,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 12,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: theme.primary,
   },
   btnSecondaryPressed: {
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
   },
   btnSecondaryText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.primary,
+    color: theme.primary,
   },
   btnReservation: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
     borderRadius: 12,
     paddingVertical: 14,
   },
   btnReservationPressed: {
-    backgroundColor: Colors.primaryDark,
+    backgroundColor: theme.primaryDark,
   },
   btnReservationText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     color: "#FFFFFF",
   },
-  errorText: { fontSize: 16, fontFamily: "Inter_500Medium", color: Colors.textSecondary, marginTop: 12 },
-  backLink: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: 10 },
+  errorText: { fontSize: 16, fontFamily: "Inter_500Medium", color: theme.textSecondary, marginTop: 12 },
+  backLink: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: theme.primary, borderRadius: 10 },
   backLinkText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

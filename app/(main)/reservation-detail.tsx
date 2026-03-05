@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Calendar from "expo-calendar";
 import { reservationsApi, servicesApi, apiCall, Reservation } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 
 function getReservationStatusInfo(status: string) {
@@ -30,7 +31,7 @@ function getReservationStatusInfo(status: string) {
     return { label: "Terminée", color: "#16A34A", bg: "#DCFCE7", icon: "checkmark-done-outline" as const };
   if (s === "in_progress" || s === "en_cours")
     return { label: "En cours", color: "#3B82F6", bg: "#DBEAFE", icon: "hourglass-outline" as const };
-  return { label: status || "Inconnu", color: Colors.textSecondary, bg: Colors.surfaceSecondary, icon: "help-outline" as const };
+  return { label: status || "Inconnu", color: "#888", bg: "#F0F0F0", icon: "help-outline" as const };
 }
 
 function parseVehicleInfo(vehicleInfo: any) {
@@ -73,11 +74,11 @@ function formatTimeOnly(dateStr: string | null | undefined) {
   }
 }
 
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+function InfoRow({ icon, label, value, theme, styles }: { icon: string; label: string; value: string; theme: ThemeColors; styles: any }) {
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoLabel}>
-        <Ionicons name={icon as any} size={16} color={Colors.textSecondary} />
+        <Ionicons name={icon as any} size={16} color={theme.textSecondary} />
         <Text style={styles.infoLabelText}>{label}</Text>
       </View>
       <Text style={styles.infoValue}>{value}</Text>
@@ -87,6 +88,8 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 
 export default function ReservationDetailScreen() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -115,7 +118,7 @@ export default function ReservationDetailScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -123,7 +126,7 @@ export default function ReservationDetailScreen() {
   if (!reservation) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Ionicons name="alert-circle-outline" size={48} color={Colors.textTertiary} />
+        <Ionicons name="alert-circle-outline" size={48} color={theme.textTertiary} />
         <Text style={styles.errorText}>Réservation introuvable</Text>
         <Pressable onPress={() => router.back()} style={styles.backLink}>
           <Text style={styles.backLinkText}>Retour</Text>
@@ -300,7 +303,7 @@ export default function ReservationDetailScreen() {
         ]}
       >
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Détail réservation</Text>
         <View style={styles.headerBtn} />
@@ -326,14 +329,14 @@ export default function ReservationDetailScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
+            <Ionicons name="calendar-outline" size={18} color={theme.primary} />
             <Text style={styles.sectionTitle}>Dates et horaires</Text>
           </View>
           <View style={styles.dateCard}>
             <View style={styles.dateBlock}>
               <View style={styles.dateIconRow}>
-                <View style={[styles.dateIconCircle, { backgroundColor: Colors.acceptedBg }]}>
-                  <Ionicons name="play" size={14} color={Colors.accepted} />
+                <View style={[styles.dateIconCircle, { backgroundColor: theme.acceptedBg }]}>
+                  <Ionicons name="play" size={14} color={theme.accepted} />
                 </View>
                 <Text style={styles.dateBlockLabel}>Début</Text>
               </View>
@@ -348,12 +351,12 @@ export default function ReservationDetailScreen() {
             {(endDate || formattedEnd) && (
               <>
                 <View style={styles.dateSeparator}>
-                  <Ionicons name="arrow-down" size={16} color={Colors.textTertiary} />
+                  <Ionicons name="arrow-down" size={16} color={theme.textTertiary} />
                 </View>
                 <View style={styles.dateBlock}>
                   <View style={styles.dateIconRow}>
-                    <View style={[styles.dateIconCircle, { backgroundColor: Colors.pendingBg }]}>
-                      <Ionicons name="stop" size={14} color={Colors.pending} />
+                    <View style={[styles.dateIconCircle, { backgroundColor: theme.pendingBg }]}>
+                      <Ionicons name="stop" size={14} color={theme.pending} />
                     </View>
                     <Text style={styles.dateBlockLabel}>Fin estimée</Text>
                   </View>
@@ -369,12 +372,12 @@ export default function ReservationDetailScreen() {
         {linkedService && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="construct-outline" size={18} color={Colors.primary} />
+              <Ionicons name="construct-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Service</Text>
             </View>
             <View style={styles.serviceCard}>
               <View style={styles.serviceIconCircle}>
-                <Ionicons name="build-outline" size={20} color={Colors.primary} />
+                <Ionicons name="build-outline" size={20} color={theme.primary} />
               </View>
               <View style={styles.serviceInfo}>
                 <Text style={styles.serviceName}>{linkedService.name}</Text>
@@ -383,13 +386,13 @@ export default function ReservationDetailScreen() {
                 ) : null}
                 {linkedService.estimatedDuration && (
                   <View style={styles.serviceMeta}>
-                    <Ionicons name="time-outline" size={13} color={Colors.textTertiary} />
+                    <Ionicons name="time-outline" size={13} color={theme.textTertiary} />
                     <Text style={styles.serviceMetaText}>Durée estimée : {linkedService.estimatedDuration}</Text>
                   </View>
                 )}
                 {linkedService.basePrice && parseFloat(linkedService.basePrice) > 0 && (
                   <View style={styles.serviceMeta}>
-                    <Ionicons name="pricetag-outline" size={13} color={Colors.textTertiary} />
+                    <Ionicons name="pricetag-outline" size={13} color={theme.textTertiary} />
                     <Text style={styles.serviceMetaText}>À partir de {parseFloat(linkedService.basePrice).toFixed(2)} €</Text>
                   </View>
                 )}
@@ -401,11 +404,11 @@ export default function ReservationDetailScreen() {
         {(wheelCount || diameter || productDetails) && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="settings-outline" size={18} color={Colors.primary} />
+              <Ionicons name="settings-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Détails prestation</Text>
             </View>
-            {wheelCount && <InfoRow icon="apps-outline" label="Nombre de jantes" value={`${wheelCount}`} />}
-            {diameter && <InfoRow icon="resize-outline" label="Diamètre" value={`${diameter}"`} />}
+            {wheelCount && <InfoRow theme={theme} styles={styles} icon="apps-outline" label="Nombre de jantes" value={`${wheelCount}`} />}
+            {diameter && <InfoRow theme={theme} styles={styles} icon="resize-outline" label="Diamètre" value={`${diameter}"`} />}
             {productDetails && (
               <View style={styles.productDetailsCard}>
                 <Text style={styles.productDetailsText}>{productDetails}</Text>
@@ -417,7 +420,7 @@ export default function ReservationDetailScreen() {
         {priceHTNum > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="receipt-outline" size={18} color={Colors.primary} />
+              <Ionicons name="receipt-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Tarification</Text>
             </View>
             <View style={styles.priceCard}>
@@ -440,28 +443,28 @@ export default function ReservationDetailScreen() {
         {vehicleInfo && typeof vehicleInfo === "object" && Object.keys(vehicleInfo).length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="car-outline" size={18} color={Colors.primary} />
+              <Ionicons name="car-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Véhicule</Text>
             </View>
             {(vehicleInfo.marque || vehicleInfo.brand || vehicleInfo.make) && (
-              <InfoRow icon="car-outline" label="Marque" value={vehicleInfo.marque || vehicleInfo.brand || vehicleInfo.make} />
+              <InfoRow theme={theme} styles={styles} icon="car-outline" label="Marque" value={vehicleInfo.marque || vehicleInfo.brand || vehicleInfo.make} />
             )}
             {(vehicleInfo.modele || vehicleInfo.model) && (
-              <InfoRow icon="car-sport-outline" label="Modèle" value={vehicleInfo.modele || vehicleInfo.model} />
+              <InfoRow theme={theme} styles={styles} icon="car-sport-outline" label="Modèle" value={vehicleInfo.modele || vehicleInfo.model} />
             )}
             {(vehicleInfo.immatriculation || vehicleInfo.plate || vehicleInfo.registration) && (
-              <InfoRow icon="card-outline" label="Immatriculation" value={vehicleInfo.immatriculation || vehicleInfo.plate || vehicleInfo.registration} />
+              <InfoRow theme={theme} styles={styles} icon="card-outline" label="Immatriculation" value={vehicleInfo.immatriculation || vehicleInfo.plate || vehicleInfo.registration} />
             )}
-            {vehicleInfo.annee && <InfoRow icon="calendar-outline" label="Année" value={vehicleInfo.annee} />}
-            {vehicleInfo.vin && <InfoRow icon="barcode-outline" label="VIN" value={vehicleInfo.vin} />}
-            {vehicleInfo.couleur && <InfoRow icon="color-palette-outline" label="Couleur" value={vehicleInfo.couleur} />}
+            {vehicleInfo.annee && <InfoRow theme={theme} styles={styles} icon="calendar-outline" label="Année" value={vehicleInfo.annee} />}
+            {vehicleInfo.vin && <InfoRow theme={theme} styles={styles} icon="barcode-outline" label="VIN" value={vehicleInfo.vin} />}
+            {vehicleInfo.couleur && <InfoRow theme={theme} styles={styles} icon="color-palette-outline" label="Couleur" value={vehicleInfo.couleur} />}
           </View>
         )}
 
         {notes ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="chatbubble-outline" size={18} color={Colors.primary} />
+              <Ionicons name="chatbubble-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Notes</Text>
             </View>
             <Text style={styles.notesText}>{notes}</Text>
@@ -496,7 +499,7 @@ export default function ReservationDetailScreen() {
                   disabled={cancelling}
                 >
                   {cancelling
-                    ? <ActivityIndicator size="small" color={Colors.rejected} />
+                    ? <ActivityIndicator size="small" color={theme.rejected} />
                     : <Text style={styles.actionBtnSecondaryText}>Annuler la réservation</Text>
                   }
                 </Pressable>
@@ -514,7 +517,7 @@ export default function ReservationDetailScreen() {
                 disabled={cancelling}
               >
                 {cancelling
-                  ? <ActivityIndicator size="small" color={Colors.rejected} />
+                  ? <ActivityIndicator size="small" color={theme.rejected} />
                   : <Text style={styles.actionBtnSecondaryText}>Annuler la réservation</Text>
                 }
               </Pressable>
@@ -528,7 +531,7 @@ export default function ReservationDetailScreen() {
             style={({ pressed }) => [styles.calendarBtn, pressed && { opacity: 0.8 }]}
             onPress={handleAddToCalendar}
           >
-            <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
+            <Ionicons name="calendar-outline" size={18} color={theme.primary} />
             <Text style={styles.calendarBtnText}>Ajouter au calendrier</Text>
           </Pressable>
         )}
@@ -538,8 +541,8 @@ export default function ReservationDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
   center: { justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
@@ -547,7 +550,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: theme.border,
   },
   headerBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
   headerTitle: {
@@ -555,7 +558,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   scrollContent: { paddingHorizontal: 20, paddingTop: 20 },
   statusCard: { alignItems: "center", marginBottom: 24, gap: 8 },
@@ -568,17 +571,17 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   statusTextLarge: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  referenceText: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
-  createdDate: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
+  referenceText: { fontSize: 18, fontFamily: "Inter_700Bold", color: theme.text },
+  createdDate: { fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textSecondary },
   section: { marginBottom: 24 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text },
   dateCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     gap: 4,
   },
   dateBlock: { gap: 6 },
@@ -590,95 +593,95 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  dateBlockLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary },
+  dateBlockLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: theme.textSecondary },
   dateBlockValue: {
     fontSize: 15,
     fontFamily: "Inter_500Medium",
-    color: Colors.text,
+    color: theme.text,
     paddingLeft: 36,
     textTransform: "capitalize" as const,
   },
   timeSlotText: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
+    color: theme.textTertiary,
     paddingLeft: 36,
   },
   dateSeparator: { alignItems: "center", paddingVertical: 6 },
   serviceCard: {
     flexDirection: "row",
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     gap: 14,
   },
   serviceIconCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
   serviceInfo: { flex: 1, gap: 4 },
-  serviceName: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text },
-  serviceDesc: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textSecondary, lineHeight: 19 },
+  serviceName: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
+  serviceDesc: { fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textSecondary, lineHeight: 19 },
   serviceMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  serviceMetaText: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
+  serviceMetaText: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textTertiary },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: theme.borderLight,
   },
   infoLabel: { flexDirection: "row", alignItems: "center", gap: 8 },
-  infoLabelText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
-  infoValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  infoLabelText: { fontSize: 13, fontFamily: "Inter_500Medium", color: theme.textSecondary },
+  infoValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text },
   productDetailsCard: {
     marginTop: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 10,
     padding: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   productDetailsText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 22,
   },
   priceCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     gap: 10,
   },
   priceRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  priceLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
-  priceValue: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text },
-  totalRow: { paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight },
-  totalLabel: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.text },
-  totalValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.primary },
+  priceLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary },
+  priceValue: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
+  totalRow: { paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.borderLight },
+  totalLabel: { fontSize: 16, fontFamily: "Inter_700Bold", color: theme.text },
+  totalValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: theme.primary },
   notesText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 22,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 10,
     padding: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
-  errorText: { fontSize: 16, fontFamily: "Inter_500Medium", color: Colors.textSecondary, marginTop: 12 },
-  backLink: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: 10 },
+  errorText: { fontSize: 16, fontFamily: "Inter_500Medium", color: theme.textSecondary, marginTop: 12 },
+  backLink: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: theme.primary, borderRadius: 10 },
   backLinkText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
   actionsSection: {
     marginTop: 24,
@@ -708,7 +711,7 @@ const styles = StyleSheet.create({
   },
   actionBtnPrimary: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
@@ -722,66 +725,35 @@ const styles = StyleSheet.create({
   actionBtnSecondary: {
     flex: 1,
     flexDirection: "row",
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   actionBtnSecondaryText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.rejected,
   },
-  actionsSection: { marginTop: 8, gap: 12 },
-  actionsBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#FFFBEB",
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#FEF3C7",
-  },
-  actionsBannerText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "#92400E", flex: 1 },
-  actionsRow: { flexDirection: "row", gap: 12 },
-  actionBtnPrimary: {
-    backgroundColor: Colors.primary,
-    height: 48,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  actionBtnPrimaryText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  actionBtnSecondary: {
-    backgroundColor: "#fff",
-    height: 48,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: Colors.rejected,
-  },
-  actionBtnSecondaryText: { color: Colors.rejected, fontSize: 15, fontFamily: "Inter_600SemiBold" },
   calendarBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 12,
     paddingVertical: 14,
     marginTop: 12,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: theme.primary,
   },
   calendarBtnText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.primary,
+    color: theme.primary,
   },
 });

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -17,26 +17,27 @@ import * as Linking from "expo-linking";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { invoicesApi, getBackendUrl, getSessionCookie } from "@/lib/api";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 
 const API_BASE = "https://saas2.mytoolsgroup.eu";
 
-function getInvoiceStatusInfo(status: string) {
+function getInvoiceStatusInfo(status: string, isDark: boolean) {
   const s = status?.toLowerCase() || "";
   if (s === "paid" || s === "payée" || s === "payé")
-    return { label: "Payée", color: "#16A34A", bg: "#DCFCE7", icon: "checkmark-circle-outline" as const };
+    return { label: "Payée", color: "#22C55E", bg: isDark ? "rgba(34,197,94,0.15)" : "#DCFCE7", icon: "checkmark-circle-outline" as const };
   if (s === "pending" || s === "en_attente")
-    return { label: "En attente", color: "#D97706", bg: "#FEF3C7", icon: "time-outline" as const };
+    return { label: "En attente", color: "#F59E0B", bg: isDark ? "rgba(245,158,11,0.15)" : "#FEF3C7", icon: "time-outline" as const };
   if (s === "overdue" || s === "en_retard")
-    return { label: "En retard", color: "#DC2626", bg: "#FEE2E2", icon: "alert-circle-outline" as const };
+    return { label: "En retard", color: "#F87171", bg: isDark ? "rgba(239,68,68,0.15)" : "#FEE2E2", icon: "alert-circle-outline" as const };
   if (s === "sent" || s === "envoyée" || s === "envoyee")
-    return { label: "Envoyée", color: "#3B82F6", bg: "#DBEAFE", icon: "send-outline" as const };
+    return { label: "Envoyée", color: "#3B82F6", bg: isDark ? "rgba(59,130,246,0.15)" : "#DBEAFE", icon: "send-outline" as const };
   if (s === "cancelled" || s === "annulée" || s === "annulee")
-    return { label: "Annulée", color: Colors.textTertiary, bg: Colors.surfaceSecondary, icon: "close-circle-outline" as const };
+    return { label: "Annulée", color: isDark ? "#888" : "#666", bg: isDark ? "rgba(255,255,255,0.06)" : "#F0F0F0", icon: "close-circle-outline" as const };
   if (s === "draft" || s === "brouillon")
-    return { label: "Brouillon", color: Colors.textSecondary, bg: Colors.surfaceSecondary, icon: "create-outline" as const };
-  return { label: status || "Inconnu", color: Colors.textSecondary, bg: Colors.surfaceSecondary, icon: "help-outline" as const };
+    return { label: "Brouillon", color: isDark ? "#888" : "#666", bg: isDark ? "rgba(255,255,255,0.06)" : "#F0F0F0", icon: "create-outline" as const };
+  return { label: status || "Inconnu", color: isDark ? "#888" : "#666", bg: isDark ? "rgba(255,255,255,0.06)" : "#F0F0F0", icon: "help-outline" as const };
 }
 
 function parseItems(items: any): any[] {
@@ -51,11 +52,11 @@ function parseItems(items: any): any[] {
   return [];
 }
 
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+function InfoRow({ icon, label, value, theme, styles }: { icon: string; label: string; value: string; theme: ThemeColors; styles: any }) {
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoLabel}>
-        <Ionicons name={icon as any} size={16} color={Colors.textSecondary} />
+        <Ionicons name={icon as any} size={16} color={theme.textSecondary} />
         <Text style={styles.infoLabelText}>{label}</Text>
       </View>
       <Text style={styles.infoValue}>{value}</Text>
@@ -65,6 +66,8 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 
 export default function InvoiceDetailScreen() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { showAlert, AlertComponent } = useCustomAlert();
   const [downloading, setDownloading] = React.useState(false);
@@ -90,7 +93,7 @@ export default function InvoiceDetailScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -98,7 +101,7 @@ export default function InvoiceDetailScreen() {
   if (!invoice) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Ionicons name="alert-circle-outline" size={48} color={Colors.textTertiary} />
+        <Ionicons name="alert-circle-outline" size={48} color={theme.textTertiary} />
         <Text style={styles.errorText}>Facture introuvable</Text>
         <Pressable onPress={() => router.back()} style={styles.backLink}>
           <Text style={styles.backLinkText}>Retour</Text>
@@ -109,7 +112,7 @@ export default function InvoiceDetailScreen() {
 
   console.log("[INVOICE DEBUG] invoice keys:", Object.keys(invoice), "invoice data:", JSON.stringify(invoice).substring(0, 1000));
 
-  const statusInfo = getInvoiceStatusInfo(invoice.status);
+  const statusInfo = getInvoiceStatusInfo(invoice.status, theme.isDark);
   const createdDate = new Date(invoice.createdAt).toLocaleDateString("fr-FR", {
     day: "numeric",
     month: "short",
@@ -260,7 +263,7 @@ export default function InvoiceDetailScreen() {
         ]}
       >
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Détail facture</Text>
         <View style={styles.headerBtn} />
@@ -289,7 +292,7 @@ export default function InvoiceDetailScreen() {
 
         {quoteRef && (
           <View style={styles.refCard}>
-            <Ionicons name="link-outline" size={16} color={Colors.textSecondary} />
+            <Ionicons name="link-outline" size={16} color={theme.textSecondary} />
             <Text style={styles.refText}>Devis associé : {quoteRef}</Text>
           </View>
         )}
@@ -297,18 +300,18 @@ export default function InvoiceDetailScreen() {
         {clientInfo && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="person-outline" size={18} color={Colors.primary} />
+              <Ionicons name="person-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Client</Text>
             </View>
             <View style={styles.sectionContent}>
               {(clientInfo.firstName || clientInfo.lastName) && (
-                <InfoRow icon="person-outline" label="Nom" value={`${clientInfo.firstName || ''} ${clientInfo.lastName || ''}`.trim()} />
+                <InfoRow theme={theme} styles={styles} icon="person-outline" label="Nom" value={`${clientInfo.firstName || ''} ${clientInfo.lastName || ''}`.trim()} />
               )}
-              {clientInfo.email && <InfoRow icon="mail-outline" label="Email" value={clientInfo.email} />}
-              {clientInfo.phone && <InfoRow icon="call-outline" label="Téléphone" value={clientInfo.phone} />}
-              {clientInfo.address && <InfoRow icon="location-outline" label="Adresse" value={`${clientInfo.address}${clientInfo.postalCode ? ', ' + clientInfo.postalCode : ''}${clientInfo.city ? ' ' + clientInfo.city : ''}`} />}
-              {clientInfo.companyName && <InfoRow icon="business-outline" label="Société" value={clientInfo.companyName} />}
-              {clientInfo.siret && <InfoRow icon="card-outline" label="SIRET" value={clientInfo.siret} />}
+              {clientInfo.email && <InfoRow theme={theme} styles={styles} icon="mail-outline" label="Email" value={clientInfo.email} />}
+              {clientInfo.phone && <InfoRow theme={theme} styles={styles} icon="call-outline" label="Téléphone" value={clientInfo.phone} />}
+              {clientInfo.address && <InfoRow theme={theme} styles={styles} icon="location-outline" label="Adresse" value={`${clientInfo.address}${clientInfo.postalCode ? ', ' + clientInfo.postalCode : ''}${clientInfo.city ? ' ' + clientInfo.city : ''}`} />}
+              {clientInfo.companyName && <InfoRow theme={theme} styles={styles} icon="business-outline" label="Société" value={clientInfo.companyName} />}
+              {clientInfo.siret && <InfoRow theme={theme} styles={styles} icon="card-outline" label="SIRET" value={clientInfo.siret} />}
             </View>
           </View>
         )}
@@ -316,7 +319,7 @@ export default function InvoiceDetailScreen() {
         {invoiceItems.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="list-outline" size={18} color={Colors.primary} />
+              <Ionicons name="list-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Lignes de la facture ({invoiceItems.length})</Text>
             </View>
             {invoiceItems.map((item: any, idx: number) => {
@@ -353,7 +356,7 @@ export default function InvoiceDetailScreen() {
         {(totalTTCNum > 0 || totalHTNum > 0 || invoiceItems.length > 0) && (
           <View style={styles.amountsCard}>
             <View style={styles.amountsHeader}>
-              <Ionicons name="calculator-outline" size={18} color={Colors.primary} />
+              <Ionicons name="calculator-outline" size={18} color={theme.primary} />
               <Text style={styles.amountsTitle}>Récapitulatif</Text>
             </View>
             {totalHTNum > 0 && (
@@ -377,7 +380,7 @@ export default function InvoiceDetailScreen() {
 
         {invoice.dueDate && (
           <View style={styles.dateCard}>
-            <Ionicons name="hourglass-outline" size={18} color={isUnpaid ? Colors.pending : Colors.textSecondary} />
+            <Ionicons name="hourglass-outline" size={18} color={isUnpaid ? theme.pending : theme.textSecondary} />
             <View style={{ flex: 1 }}>
               <Text style={styles.dateCardLabel}>Date d'échéance</Text>
               <Text style={styles.dateCardValue}>
@@ -389,7 +392,7 @@ export default function InvoiceDetailScreen() {
 
         {invoice.paidAt && (
           <View style={styles.dateCard}>
-            <Ionicons name="checkmark-circle" size={18} color={Colors.accepted} />
+            <Ionicons name="checkmark-circle" size={18} color={theme.accepted} />
             <View style={{ flex: 1 }}>
               <Text style={styles.dateCardLabel}>Payée le</Text>
               <Text style={styles.dateCardValue}>
@@ -402,7 +405,7 @@ export default function InvoiceDetailScreen() {
         {invoice.notes ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="chatbubble-outline" size={18} color={Colors.primary} />
+              <Ionicons name="chatbubble-outline" size={18} color={theme.primary} />
               <Text style={styles.sectionTitle}>Notes</Text>
             </View>
             <View style={styles.sectionContent}>
@@ -419,8 +422,8 @@ export default function InvoiceDetailScreen() {
               disabled={downloading}
             >
               {downloading
-                ? <ActivityIndicator size="small" color={Colors.primary} />
-                : <Ionicons name="download-outline" size={18} color={Colors.primary} />
+                ? <ActivityIndicator size="small" color={theme.primary} />
+                : <Ionicons name="download-outline" size={18} color={theme.primary} />
               }
               <Text style={styles.btnPdfText}>{downloading ? "Téléchargement…" : "Télécharger la facture"}</Text>
             </Pressable>
@@ -433,8 +436,8 @@ export default function InvoiceDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
   center: { justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
@@ -442,7 +445,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: theme.border,
   },
   headerBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
   headerTitle: {
@@ -450,7 +453,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   scrollContent: { paddingHorizontal: 20, paddingTop: 20 },
   statusCard: { alignItems: "center", marginBottom: 20, gap: 8 },
@@ -463,10 +466,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   statusTextLarge: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  invoiceNumber: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
-  invoiceDate: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
+  invoiceNumber: { fontSize: 18, fontFamily: "Inter_700Bold", color: theme.text },
+  invoiceDate: { fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textSecondary },
   totalBadge: {
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 12,
@@ -475,33 +478,33 @@ const styles = StyleSheet.create({
   totalBadgeText: {
     fontSize: 18,
     fontFamily: "Inter_700Bold",
-    color: Colors.primary,
+    color: theme.primary,
   },
   refCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 10,
     padding: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   refText: {
     fontSize: 13,
     fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   section: { marginBottom: 20 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text },
   sectionContent: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   infoRow: {
     flexDirection: "row",
@@ -509,7 +512,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: theme.borderLight,
   },
   infoLabel: {
     flexDirection: "row",
@@ -520,33 +523,33 @@ const styles = StyleSheet.create({
   infoLabelText: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   infoValue: {
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
     textAlign: "right",
     flex: 1,
   },
   lineItemCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 10,
     padding: 14,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   lineItemName: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
-    color: Colors.text,
+    color: theme.text,
     marginBottom: 2,
   },
   lineItemSubtext: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
+    color: theme.textTertiary,
     marginBottom: 8,
   },
   lineItemDetails: {
@@ -558,20 +561,20 @@ const styles = StyleSheet.create({
   lineItemMeta: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   lineItemTotal: {
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.primary,
+    color: theme.primary,
   },
   amountsCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     gap: 10,
   },
   amountsHeader: {
@@ -583,44 +586,44 @@ const styles = StyleSheet.create({
   amountsTitle: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   amountRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  amountLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
-  amountHT: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text },
-  amountTVA: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  amountLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary },
+  amountHT: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
+  amountTVA: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
   totalRow: {
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: theme.borderLight,
   },
-  totalLabel: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.text },
-  totalValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.primary },
+  totalLabel: { fontSize: 16, fontFamily: "Inter_700Bold", color: theme.text },
+  totalValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: theme.primary },
   dateCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
-  dateCardLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
-  dateCardValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  dateCardLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary },
+  dateCardValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text },
   notesText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 22,
   },
-  errorText: { fontSize: 16, fontFamily: "Inter_500Medium", color: Colors.textSecondary, marginTop: 12 },
-  backLink: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: 10 },
+  errorText: { fontSize: 16, fontFamily: "Inter_500Medium", color: theme.textSecondary, marginTop: 12 },
+  backLink: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: theme.primary, borderRadius: 10 },
   backLinkText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
   footerActions: {
     marginTop: 8,
@@ -632,18 +635,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 12,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: Colors.primary,
+    borderColor: theme.primary,
   },
   btnPdfPressed: {
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
   },
   btnPdfText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.primary,
+    color: theme.primary,
   },
 });

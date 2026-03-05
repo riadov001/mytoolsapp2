@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { quotesApi, invoicesApi, reservationsApi } from "@/lib/api";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 
 type FilterType = "all" | "quotes" | "invoices" | "reservations";
 
@@ -36,7 +37,7 @@ function getQuoteStatusInfo(status: string) {
   if (s === "rejected" || s === "refusé" || s === "refuse") return { label: "Refusé", color: "#DC2626", bg: "#FEE2E2" };
   if (s === "completed" || s === "terminé" || s === "termine") return { label: "Terminé", color: "#7C3AED", bg: "#EDE9FE" };
   if (s === "sent" || s === "envoyé" || s === "envoye") return { label: "Envoyé", color: "#0891B2", bg: "#CFFAFE" };
-  return { label: status || "Inconnu", color: Colors.textSecondary, bg: Colors.surfaceSecondary };
+  return { label: status || "Inconnu", color: "#888", bg: "#F0F0F0" };
 }
 
 function getInvoiceStatusInfo(status: string) {
@@ -45,7 +46,7 @@ function getInvoiceStatusInfo(status: string) {
   if (s === "paid" || s === "payée" || s === "payé") return { label: "Payée", color: "#16A34A", bg: "#DCFCE7" };
   if (s === "overdue" || s === "en_retard") return { label: "En retard", color: "#DC2626", bg: "#FEE2E2" };
   if (s === "cancelled" || s === "annulée") return { label: "Annulée", color: "#6B7280", bg: "#F3F4F6" };
-  return { label: status || "Inconnu", color: Colors.textSecondary, bg: Colors.surfaceSecondary };
+  return { label: status || "Inconnu", color: "#888", bg: "#F0F0F0" };
 }
 
 function getReservationStatusInfo(status: string) {
@@ -54,7 +55,7 @@ function getReservationStatusInfo(status: string) {
   if (s === "confirmed" || s === "confirmée" || s === "confirmé") return { label: "Confirmé", color: "#2563EB", bg: "#DBEAFE" };
   if (s === "completed" || s === "terminée" || s === "terminé") return { label: "Terminé", color: "#16A34A", bg: "#DCFCE7" };
   if (s === "cancelled" || s === "annulée" || s === "annulé") return { label: "Annulé", color: "#DC2626", bg: "#FEE2E2" };
-  return { label: status || "Inconnu", color: Colors.textSecondary, bg: Colors.surfaceSecondary };
+  return { label: status || "Inconnu", color: "#888", bg: "#F0F0F0" };
 }
 
 function getTypeBadge(type: "quote" | "invoice" | "reservation") {
@@ -72,6 +73,8 @@ const FILTERS: { id: FilterType; label: string }[] = [
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
   const [filter, setFilter] = useState<FilterType>("all");
   const [refreshing, setRefreshing] = useState(false);
 
@@ -186,7 +189,7 @@ export default function HistoryScreen() {
           </View>
         </View>
 
-        <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+        <Ionicons name="chevron-forward" size={18} color={theme.textTertiary} />
       </Pressable>
     );
   };
@@ -195,7 +198,7 @@ export default function HistoryScreen() {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: Platform.OS === "web" ? 67 + 8 : insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Historique</Text>
         <View style={styles.headerBtn} />
@@ -217,7 +220,7 @@ export default function HistoryScreen() {
 
       {isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : (
         <FlatList
@@ -234,13 +237,13 @@ export default function HistoryScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={Colors.primary}
-              colors={[Colors.primary]}
+              tintColor={theme.primary}
+              colors={[theme.primary]}
             />
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="time-outline" size={56} color={Colors.textTertiary} />
+              <Ionicons name="time-outline" size={56} color={theme.textTertiary} />
               <Text style={styles.emptyTitle}>Aucune activité</Text>
               <Text style={styles.emptySubtitle}>Votre historique apparaîtra ici</Text>
             </View>
@@ -252,10 +255,10 @@ export default function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: "row",
@@ -263,7 +266,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 8,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   headerBtn: {
     width: 40,
@@ -274,7 +277,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontFamily: "Inter_700Bold",
-    color: Colors.text,
+    color: theme.text,
   },
   filterRow: {
     flexDirection: "row",
@@ -282,24 +285,24 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: theme.border,
   },
   filterChip: {
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   filterChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   filterChipText: {
     fontSize: 13,
     fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   filterChipTextActive: {
     color: "#fff",
@@ -315,16 +318,16 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     gap: 12,
   },
   cardPressed: {
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
   },
   typeIconWrapper: {
     width: 44,
@@ -354,12 +357,12 @@ const styles = StyleSheet.create({
   cardDate: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
+    color: theme.textTertiary,
   },
   cardRef: {
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   cardBottomRow: {
     flexDirection: "row",
@@ -378,7 +381,7 @@ const styles = StyleSheet.create({
   cardAmount: {
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   center: {
     flex: 1,
@@ -393,11 +396,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   emptySubtitle: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
+    color: theme.textTertiary,
   },
 });

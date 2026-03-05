@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 import { useAuth } from "@/lib/auth-context";
 import { supportApi, SupportContactData, apiCall } from "@/lib/api";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -35,6 +36,8 @@ export default function SupportScreen() {
   const { user } = useAuth();
   const { showAlert, AlertComponent } = useCustomAlert();
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
 
   const [name, setName] = useState(
     user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : ""
@@ -174,7 +177,7 @@ export default function SupportScreen() {
         <View style={styles.grabberBar} />
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="close" size={24} color={Colors.text} />
+            <Ionicons name="close" size={24} color={theme.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Nous contacter</Text>
           <View style={{ width: 24 }} />
@@ -200,7 +203,7 @@ export default function SupportScreen() {
               value={name}
               onChangeText={setName}
               placeholder="Votre nom"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={theme.textTertiary}
               autoCapitalize="words"
             />
           </View>
@@ -212,7 +215,7 @@ export default function SupportScreen() {
               value={email}
               onChangeText={setEmail}
               placeholder="votre@email.com"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={theme.textTertiary}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -245,7 +248,7 @@ export default function SupportScreen() {
               value={subject}
               onChangeText={setSubject}
               placeholder="Objet de votre demande"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={theme.textTertiary}
             />
           </View>
 
@@ -258,7 +261,7 @@ export default function SupportScreen() {
                   onPress={handlePickPhoto}
                   disabled={loading}
                 >
-                  <Ionicons name="attach" size={18} color={Colors.primary} />
+                  <Ionicons name="attach" size={18} color={theme.primary} />
                   <Text style={styles.attachBtnText}>Joindre une photo</Text>
                 </Pressable>
               )}
@@ -268,7 +271,7 @@ export default function SupportScreen() {
               value={message}
               onChangeText={setMessage}
               placeholder="Décrivez votre demande..."
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={theme.textTertiary}
               multiline
               numberOfLines={5}
               textAlignVertical="top"
@@ -286,13 +289,13 @@ export default function SupportScreen() {
                       style={styles.photoRemoveBtn}
                       onPress={() => handleRemovePhoto(index)}
                     >
-                      <Ionicons name="close-circle" size={20} color={Colors.primary} />
+                      <Ionicons name="close-circle" size={20} color={theme.primary} />
                     </Pressable>
                   </View>
                 ))}
                 {photos.length < MAX_PHOTOS && (
                   <Pressable style={styles.photoAddBtn} onPress={handlePickPhoto}>
-                    <Ionicons name="add" size={24} color={Colors.textTertiary} />
+                    <Ionicons name="add" size={24} color={theme.textTertiary} />
                   </Pressable>
                 )}
               </View>
@@ -330,10 +333,10 @@ export default function SupportScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   header: {
     paddingHorizontal: 20,
@@ -344,7 +347,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.textTertiary,
+    backgroundColor: theme.textTertiary,
     alignSelf: "center",
     marginBottom: 16,
   },
@@ -356,7 +359,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   scrollView: {
     flex: 1,
@@ -378,18 +381,18 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
     marginBottom: 6,
   },
   input: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     borderRadius: 10,
     padding: 14,
     fontSize: 15,
     fontFamily: "Inter_400Regular",
-    color: Colors.text,
+    color: theme.text,
   },
   textArea: {
     minHeight: 120,
@@ -404,18 +407,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   chipSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   chipText: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
   chipTextSelected: {
     color: "#fff",
@@ -428,12 +431,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
-    backgroundColor: `${Colors.primary}15`,
+    backgroundColor: `${theme.primary}15`,
   },
   attachBtnText: {
     fontSize: 12,
     fontFamily: "Inter_500Medium",
-    color: Colors.primary,
+    color: theme.primary,
   },
   photosField: {
     marginBottom: 16,
@@ -453,13 +456,13 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 10,
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
   },
   photoRemoveBtn: {
     position: "absolute",
     top: -6,
     right: -6,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
     borderRadius: 12,
   },
   photoAddBtn: {
@@ -467,21 +470,21 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     borderStyle: "dashed",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
   },
   bottomBar: {
     paddingHorizontal: 20,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.background,
+    borderTopColor: theme.border,
+    backgroundColor: theme.background,
   },
   submitButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
     borderRadius: 12,
     height: 52,
     flexDirection: "row",
@@ -492,7 +495,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   submitButtonPressed: {
-    backgroundColor: Colors.primaryDark,
+    backgroundColor: theme.primaryDark,
   },
   submitButtonText: {
     color: "#fff",

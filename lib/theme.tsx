@@ -10,6 +10,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
 }
 
+export function ForceDarkProvider({ children }: { children: React.ReactNode }) {
+  return <ThemeContext.Provider value={DarkTheme}>{children}</ThemeContext.Provider>;
+}
+
 export function useTheme(): ThemeColors {
   return useContext(ThemeContext);
 }

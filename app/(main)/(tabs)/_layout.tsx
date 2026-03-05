@@ -5,7 +5,7 @@ import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
 
 function NativeTabLayout() {
   return (
@@ -39,6 +39,7 @@ function NativeTabLayout() {
 }
 
 function ClassicTabLayout() {
+  const theme = useTheme();
   const isWeb = Platform.OS === "web";
   const isIOS = Platform.OS === "ios";
 
@@ -46,17 +47,17 @@ function ClassicTabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textTertiary,
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.textTertiary,
         tabBarLabelStyle: {
           fontFamily: "Inter_500Medium",
           fontSize: 11,
         },
         tabBarStyle: {
           position: "absolute" as const,
-          backgroundColor: isIOS ? "transparent" : Colors.surface,
+          backgroundColor: isIOS ? "transparent" : theme.surface,
           borderTopWidth: 1,
-          borderTopColor: Colors.border,
+          borderTopColor: theme.border,
           elevation: 0,
           ...(isWeb ? { height: 84 } : {}),
         },
@@ -64,7 +65,7 @@ function ClassicTabLayout() {
           isIOS ? (
             <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
           ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.surface }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]} />
           ) : null,
       }}
     >
@@ -112,15 +113,11 @@ function ClassicTabLayout() {
       />
       <Tabs.Screen
         name="more"
-        options={{
-          href: null,
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="notifications"
-        options={{
-          href: null,
-        }}
+        options={{ href: null }}
       />
     </Tabs>
   );

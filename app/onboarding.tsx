@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 
 const { width } = Dimensions.get("window");
 
@@ -27,7 +28,7 @@ const slides: OnboardingSlide[] = [
   {
     id: "1",
     icon: "rocket",
-    iconColor: Colors.primary,
+    iconColor: "#DC2626",
     title: "Bienvenue sur MyTools",
     description:
       "Built for Performance. La solution SaaS complète pour les garages d'élite qui visent le sommet.",
@@ -68,6 +69,8 @@ const slides: OnboardingSlide[] = [
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
@@ -99,7 +102,7 @@ export default function OnboardingScreen() {
         ]}
       >
         <Pressable style={styles.closeBtn} onPress={() => router.back()}>
-          <Ionicons name="close" size={24} color={Colors.text} />
+          <Ionicons name="close" size={24} color={theme.text} />
         </Pressable>
       </View>
 
@@ -156,10 +159,10 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: "row",
@@ -171,11 +174,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   slide: {
     flex: 1,
@@ -194,14 +197,14 @@ const styles = StyleSheet.create({
   slideTitle: {
     fontSize: 24,
     fontFamily: "Inter_700Bold",
-    color: Colors.text,
+    color: theme.text,
     textAlign: "center",
     marginBottom: 16,
   },
   slideDescription: {
     fontSize: 15,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     textAlign: "center",
     lineHeight: 24,
   },
@@ -219,18 +222,18 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
   },
   dotActive: {
     width: 24,
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
   },
   nextBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
     borderRadius: 12,
     height: 52,
     width: "100%",
@@ -246,6 +249,6 @@ const styles = StyleSheet.create({
   skipBtnText: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
 });

@@ -14,7 +14,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { reservationsApi, quotesApi, apiCall } from "@/lib/api";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 
 const TIME_SLOTS = [
@@ -55,6 +56,8 @@ interface CalendarProps {
 }
 
 function Calendar({ selected, onSelect }: CalendarProps) {
+  const theme = useTheme();
+  const calStyles = useMemo(() => getCalStyles(theme), [theme]);
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -92,13 +95,13 @@ function Calendar({ selected, onSelect }: CalendarProps) {
           disabled={!canGoPrev()}
           style={[calStyles.navBtn, !canGoPrev() && calStyles.navBtnDisabled]}
         >
-          <Ionicons name="chevron-back" size={20} color={canGoPrev() ? Colors.text : Colors.textTertiary} />
+          <Ionicons name="chevron-back" size={20} color={canGoPrev() ? theme.text : theme.textTertiary} />
         </Pressable>
         <Text style={calStyles.monthTitle}>
           {MONTHS_FR[viewMonth]} {viewYear}
         </Text>
         <Pressable onPress={nextMonth} style={calStyles.navBtn}>
-          <Ionicons name="chevron-forward" size={20} color={Colors.text} />
+          <Ionicons name="chevron-forward" size={20} color={theme.text} />
         </Pressable>
       </View>
 
@@ -147,12 +150,12 @@ function Calendar({ selected, onSelect }: CalendarProps) {
   );
 }
 
-const calStyles = StyleSheet.create({
+const getCalStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     padding: 14,
   },
   nav: {
@@ -165,7 +168,7 @@ const calStyles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -175,7 +178,7 @@ const calStyles = StyleSheet.create({
   monthTitle: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
     textTransform: "capitalize" as const,
   },
   dayHeaders: {
@@ -187,7 +190,7 @@ const calStyles = StyleSheet.create({
     textAlign: "center",
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.textTertiary,
+    color: theme.textTertiary,
     paddingVertical: 4,
   },
   grid: {
@@ -202,10 +205,10 @@ const calStyles = StyleSheet.create({
     borderRadius: 8,
   },
   cellSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
   },
   cellToday: {
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
   },
   cellPast: {
     opacity: 0.3,
@@ -213,23 +216,25 @@ const calStyles = StyleSheet.create({
   cellText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.text,
+    color: theme.text,
   },
   cellTextSelected: {
     color: "#FFFFFF",
     fontFamily: "Inter_700Bold",
   },
   cellTextToday: {
-    color: Colors.primary,
+    color: theme.primary,
     fontFamily: "Inter_600SemiBold",
   },
   cellTextPast: {
-    color: Colors.textTertiary,
+    color: theme.textTertiary,
   },
 });
 
 export default function RequestReservationScreen() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
   const queryClient = useQueryClient();
   const { showAlert, AlertComponent } = useCustomAlert();
   const { quoteId, serviceId, quoteName, modifyReservationId } = useLocalSearchParams<{
@@ -348,7 +353,7 @@ export default function RequestReservationScreen() {
   if (!isModification && !quoteId && loadingQuotes) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -358,14 +363,14 @@ export default function RequestReservationScreen() {
       <View style={styles.container}>
         <View style={[styles.header, { paddingTop: Platform.OS === "web" ? 67 + 8 : insets.top + 8 }]}>
           <Pressable onPress={() => router.back()} style={styles.headerBtn}>
-            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Demande de réservation</Text>
           <View style={styles.headerBtn} />
         </View>
         <View style={styles.gateContainer}>
           <View style={styles.gateIconWrapper}>
-            <Ionicons name="document-text-outline" size={56} color={Colors.textTertiary} />
+            <Ionicons name="document-text-outline" size={56} color={theme.textTertiary} />
           </View>
           <Text style={styles.gateTitle}>Devis accepté requis</Text>
           <Text style={styles.gateSubtitle}>
@@ -393,7 +398,7 @@ export default function RequestReservationScreen() {
         ]}
       >
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={styles.headerTitle}>{isModification ? "Modifier la réservation" : "Demande de réservation"}</Text>
         <View style={styles.headerBtn} />
@@ -409,20 +414,20 @@ export default function RequestReservationScreen() {
       >
         {quoteName ? (
           <View style={styles.quoteRef}>
-            <Ionicons name="document-text-outline" size={16} color={Colors.primary} />
+            <Ionicons name="document-text-outline" size={16} color={theme.primary} />
             <Text style={styles.quoteRefText}>Devis : {quoteName}</Text>
           </View>
         ) : null}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
+            <Ionicons name="calendar-outline" size={20} color={theme.primary} />
             <Text style={styles.sectionTitle}>Choisir une date</Text>
           </View>
           <Calendar selected={selectedDate} onSelect={setSelectedDate} />
           {selectedDate && (
             <View style={styles.selectedDateBadge}>
-              <Ionicons name="checkmark-circle" size={16} color={Colors.accepted} />
+              <Ionicons name="checkmark-circle" size={16} color={theme.accepted} />
               <Text style={styles.selectedDateText} numberOfLines={1}>
                 {formattedDate}
               </Text>
@@ -432,7 +437,7 @@ export default function RequestReservationScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="time-outline" size={20} color={Colors.primary} />
+            <Ionicons name="time-outline" size={20} color={theme.primary} />
             <Text style={styles.sectionTitle}>Choisir un créneau</Text>
           </View>
           <View style={styles.slotsGrid}>
@@ -455,7 +460,7 @@ export default function RequestReservationScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="chatbubble-outline" size={20} color={Colors.primary} />
+            <Ionicons name="chatbubble-outline" size={20} color={theme.primary} />
             <Text style={styles.sectionTitle}>Notes (optionnel)</Text>
           </View>
           <TextInput
@@ -463,7 +468,7 @@ export default function RequestReservationScreen() {
             value={notes}
             onChangeText={setNotes}
             placeholder="Informations complémentaires pour la réservation..."
-            placeholderTextColor={Colors.textTertiary}
+            placeholderTextColor={theme.textTertiary}
             multiline
             numberOfLines={3}
             textAlignVertical="top"
@@ -471,7 +476,7 @@ export default function RequestReservationScreen() {
         </View>
 
         <View style={styles.infoCard}>
-          <Ionicons name="information-circle-outline" size={20} color={Colors.primary} />
+          <Ionicons name="information-circle-outline" size={20} color={theme.primary} />
           <Text style={styles.infoText}>
             Votre demande sera examinée par notre équipe. Vous recevrez une confirmation ou une proposition alternative.
           </Text>
@@ -504,10 +509,10 @@ export default function RequestReservationScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: "row",
@@ -516,7 +521,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: theme.border,
   },
   headerBtn: {
     width: 40,
@@ -529,7 +534,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -539,18 +544,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   quoteRefText: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     flex: 1,
   },
   section: {
@@ -565,7 +570,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   selectedDateBadge: {
     flexDirection: "row",
@@ -595,50 +600,50 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   slotBtnSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   slotText: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
-    color: Colors.text,
+    color: theme.text,
   },
   slotTextSelected: {
     color: "#FFFFFF",
     fontFamily: "Inter_600SemiBold",
   },
   notesInput: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     padding: 14,
     fontSize: 15,
     fontFamily: "Inter_400Regular",
-    color: Colors.text,
+    color: theme.text,
     minHeight: 90,
   },
   infoCard: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 14,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   infoText: {
     flex: 1,
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 20,
   },
   footer: {
@@ -646,14 +651,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: theme.border,
     paddingHorizontal: 20,
     paddingTop: 12,
   },
   submitBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
     borderRadius: 12,
     height: 52,
     flexDirection: "row",
@@ -662,7 +667,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   submitBtnPressed: {
-    backgroundColor: Colors.primaryDark,
+    backgroundColor: theme.primaryDark,
   },
   submitBtnDisabled: {
     opacity: 0.4,
@@ -683,23 +688,23 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 24,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     marginBottom: 8,
   },
   gateTitle: {
     fontSize: 20,
     fontFamily: "Inter_700Bold",
-    color: Colors.text,
+    color: theme.text,
     textAlign: "center",
   },
   gateSubtitle: {
     fontSize: 15,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     textAlign: "center",
     lineHeight: 22,
   },
@@ -707,7 +712,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
     borderRadius: 12,
     paddingHorizontal: 24,
     paddingVertical: 14,

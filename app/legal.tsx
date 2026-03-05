@@ -1,10 +1,13 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, ScrollView, StyleSheet, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 
 export default function LegalScreen() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
 
   return (
     <ScrollView
@@ -73,10 +76,10 @@ export default function LegalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   content: {
     padding: 20,
@@ -84,7 +87,7 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 22,
     fontFamily: "Inter_700Bold",
-    color: Colors.text,
+    color: theme.text,
     marginBottom: 20,
   },
   section: {
@@ -93,13 +96,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
     marginBottom: 8,
   },
   text: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     lineHeight: 22,
     marginBottom: 4,
   },

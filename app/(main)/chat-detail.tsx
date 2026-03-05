@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { chatApi, ChatConversation, ChatMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 
 function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleTimeString("fr-FR", {
@@ -35,7 +36,7 @@ function extractImageUrl(content: string) {
   return match ? match[1] : null;
 }
 
-function MessageBubble({ message, isMe }: { message: ChatMessage; isMe: boolean }) {
+function MessageBubble({ message, isMe, styles }: { message: ChatMessage; isMe: boolean; styles: any }) {
   const senderName = isMe
     ? "Vous"
     : message.sender
@@ -67,6 +68,8 @@ function MessageBubble({ message, isMe }: { message: ChatMessage; isMe: boolean 
 export default function ChatDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [messageText, setMessageText] = useState("");
@@ -126,7 +129,7 @@ export default function ChatDetailScreen() {
         ]}
       >
         <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="chevron-back" size={26} color={Colors.text} />
+          <Ionicons name="chevron-back" size={26} color={theme.text} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
           {conversation?.title || "Conversation"}
@@ -135,10 +138,10 @@ export default function ChatDetailScreen() {
       </View>
 
       {isLoading ? (
-        <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
+        <ActivityIndicator size="large" color={theme.primary} style={styles.loader} />
       ) : messages.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubble-outline" size={40} color={Colors.textTertiary} />
+          <Ionicons name="chatbubble-outline" size={40} color={theme.textTertiary} />
           <Text style={styles.emptyText}>Aucun message</Text>
         </View>
       ) : (
@@ -146,7 +149,7 @@ export default function ChatDetailScreen() {
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <MessageBubble message={item} isMe={item.senderId === user?.id} />
+            <MessageBubble message={item} isMe={item.senderId === user?.id} styles={styles} />
           )}
           inverted
           contentContainerStyle={styles.messagesList}
@@ -165,7 +168,7 @@ export default function ChatDetailScreen() {
         <TextInput
           style={styles.textInput}
           placeholder="Votre message..."
-          placeholderTextColor={Colors.textTertiary}
+          placeholderTextColor={theme.textTertiary}
           value={messageText}
           onChangeText={setMessageText}
           multiline
@@ -187,10 +190,10 @@ export default function ChatDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: "row",
@@ -198,14 +201,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: theme.borderLight,
     gap: 12,
   },
   headerTitle: {
     flex: 1,
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
     textAlign: "center",
   },
   loader: {
@@ -234,25 +237,25 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   bubbleMe: {
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   senderName: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.primary,
+    color: theme.primary,
     marginBottom: 3,
   },
   messageText: {
     fontSize: 15,
     fontFamily: "Inter_400Regular",
-    color: Colors.text,
+    color: theme.text,
     lineHeight: 21,
     flexShrink: 1,
   },
@@ -268,7 +271,7 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 11,
     fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
+    color: theme.textTertiary,
     marginTop: 5,
     alignSelf: "flex-end",
   },
@@ -281,8 +284,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    backgroundColor: Colors.background,
+    borderTopColor: theme.borderLight,
+    backgroundColor: theme.background,
     gap: 8,
   },
   attachButton: {
@@ -294,32 +297,32 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === "ios" ? 10 : 8,
     fontSize: 15,
     fontFamily: "Inter_400Regular",
-    color: Colors.text,
+    color: theme.text,
     minHeight: 42,
     maxHeight: 120,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   sendButton: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 0,
   },
   sendButtonDisabled: {
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
   },
   sendButtonPressed: {
-    backgroundColor: Colors.primaryDark,
+    backgroundColor: theme.primaryDark,
   },
   emptyContainer: {
     flex: 1,
@@ -330,6 +333,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
 });

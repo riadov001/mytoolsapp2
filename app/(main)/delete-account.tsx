@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { apiCall } from "@/lib/api";
 import { useCustomAlert } from "@/components/CustomAlert";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 
 async function clearAllStorage() {
   try {
@@ -31,6 +32,8 @@ async function clearAllStorage() {
 
 export default function DeleteAccountScreen() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
   const { showAlert, AlertComponent } = useCustomAlert();
   const [modalVisible, setModalVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -77,7 +80,7 @@ export default function DeleteAccountScreen() {
         ]}
       >
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color={Colors.text} />
+          <Ionicons name="chevron-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Supprimer mon compte</Text>
         <View style={{ width: 40 }} />
@@ -166,10 +169,10 @@ export default function DeleteAccountScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: "row",
@@ -178,22 +181,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: theme.border,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   headerTitle: {
     fontSize: 18,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   content: {
     flex: 1,
@@ -201,7 +204,7 @@ const styles = StyleSheet.create({
     paddingTop: 32,
   },
   warningCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 16,
     padding: 24,
     alignItems: "center",
@@ -221,22 +224,22 @@ const styles = StyleSheet.create({
   warningTitle: {
     fontSize: 20,
     fontFamily: "Inter_700Bold",
-    color: Colors.text,
+    color: theme.text,
     marginBottom: 8,
   },
   warningText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     textAlign: "center",
     lineHeight: 20,
   },
   infoSection: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     gap: 14,
     marginBottom: 32,
   },
@@ -248,7 +251,7 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     flex: 1,
   },
   deleteBtn: {
@@ -276,14 +279,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   modalContent: {
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 20,
     padding: 28,
     alignItems: "center",
     width: "100%",
     maxWidth: 340,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   modalIconContainer: {
     marginBottom: 12,
@@ -291,13 +294,13 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontFamily: "Inter_700Bold",
-    color: Colors.text,
+    color: theme.text,
     marginBottom: 8,
   },
   modalMessage: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
     textAlign: "center",
     lineHeight: 20,
     marginBottom: 24,
@@ -313,14 +316,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   modalCancelText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   modalDeleteBtn: {
     flex: 1,
