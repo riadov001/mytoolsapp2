@@ -1,12 +1,15 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 
 export default function IndexScreen() {
   const { isAuthenticated, isLoading } = useAuth();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -27,18 +30,18 @@ export default function IndexScreen() {
           contentFit="contain"
         />
       </View>
-      <ActivityIndicator size="small" color={Colors.primary} style={styles.loader} />
+      <ActivityIndicator size="small" color={theme.primary} style={styles.loader} />
       <Text style={styles.versionText}>v1.0</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   logoWrapper: {
     width: 240,
@@ -57,9 +60,10 @@ const styles = StyleSheet.create({
   versionText: {
     position: "absolute",
     bottom: 40,
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    opacity: 0.6,
+    fontSize: 11,
+    fontFamily: "Michroma_400Regular",
+    color: theme.textTertiary,
+    opacity: 0.5,
+    letterSpacing: 2,
   },
 });

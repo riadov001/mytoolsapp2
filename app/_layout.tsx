@@ -2,27 +2,35 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Text } from "react-native";
+import { View, StyleSheet, Text, useColorScheme } from "react-native";
 import { Image } from "expo-image";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from "@expo-google-fonts/inter";
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from "@expo-google-fonts/inter";
+import { Michroma_400Regular } from "@expo-google-fonts/michroma";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { AuthProvider } from "@/lib/auth-context";
-import Colors from "@/constants/colors";
+import { ThemeProvider, useTheme } from "@/lib/theme";
 
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
+  const theme = useTheme();
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: Colors.background },
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTintColor: Colors.text,
-        headerTitleStyle: { fontFamily: "Inter_600SemiBold", color: Colors.text },
+        contentStyle: { backgroundColor: theme.background },
+        headerStyle: { backgroundColor: theme.headerBg },
+        headerTintColor: theme.text,
+        headerTitleStyle: { fontFamily: theme.fontSemiBold, color: theme.text },
       }}
     >
       <Stack.Screen name="index" />
@@ -36,6 +44,26 @@ function RootLayoutNav() {
   );
 }
 
+function SplashView() {
+  const theme = useTheme();
+  return (
+    <View style={[styles.splashContainer, { backgroundColor: theme.background }]}>
+      <View style={styles.logoWrapper}>
+        <Image
+          source={require("@/assets/images/logo_rounded.png")}
+          style={styles.splashLogo}
+          contentFit="contain"
+        />
+      </View>
+      <View style={styles.versionBottom}>
+        <Text style={[styles.versionTextSplash, { color: theme.textTertiary, fontFamily: theme.fontTitle }]}>
+          v1.0
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
   const [fontsLoaded, fontError] = useFonts({
@@ -43,11 +71,11 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    Michroma_400Regular,
   });
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
-      // Simulate a small delay for the splash screen
       const timer = setTimeout(() => {
         setAppReady(true);
         SplashScreen.hideAsync().catch(() => {});
@@ -60,29 +88,22 @@ export default function RootLayout() {
 
   if (!appReady) {
     return (
-      <View style={styles.splashContainer}>
-        <View style={styles.logoWrapper}>
-          <Image
-            source={require("@/assets/images/logo_rounded.png")}
-            style={styles.splashLogo}
-            contentFit="contain"
-          />
-        </View>
-        <View style={styles.versionBottom}>
-          <Text style={styles.versionTextSplash}>v1.0</Text>
-        </View>
-      </View>
+      <ThemeProvider>
+        <SplashView />
+      </ThemeProvider>
     );
   }
 
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.background }}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
           <KeyboardProvider>
-            <AuthProvider>
-              <RootLayoutNav />
-            </AuthProvider>
+            <ThemeProvider>
+              <AuthProvider>
+                <RootLayoutNav />
+              </AuthProvider>
+            </ThemeProvider>
           </KeyboardProvider>
         </GestureHandlerRootView>
       </QueryClientProvider>
@@ -93,7 +114,6 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   splashContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -113,9 +133,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   versionTextSplash: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    opacity: 0.6,
+    fontSize: 12,
+    opacity: 0.5,
+    letterSpacing: 2,
   },
 });

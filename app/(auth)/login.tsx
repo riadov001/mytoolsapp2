@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,8 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth-context";
-import Colors from "@/constants/colors";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 
 let LocalAuthentication: any = null;
@@ -29,6 +30,9 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { login, biometricLogin } = useAuth();
   const { showAlert, AlertComponent } = useCustomAlert();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -66,12 +70,10 @@ export default function LoginScreen() {
     try {
       const success = await biometricLogin();
       if (success) {
-        setTimeout(() => {
-          router.replace("/(main)/(tabs)" as any);
-        }, 50);
+        setTimeout(() => router.replace("/(main)/(tabs)" as any), 50);
       } else {
         setBiometricAvailable(false);
-        showAlert({ type: "error", title: "Session expirée", message: "Votre session a expiré. Veuillez vous reconnecter avec vos identifiants. La biométrie sera de nouveau disponible après.", buttons: [{ text: "OK", style: "primary" }] });
+        showAlert({ type: "error", title: "Session expirée", message: "Veuillez vous reconnecter avec vos identifiants.", buttons: [{ text: "OK", style: "primary" }] });
         setLoading(false);
       }
     } catch {
@@ -81,24 +83,22 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      showAlert({ type: 'error', title: 'Erreur', message: 'Veuillez remplir tous les champs.', buttons: [{ text: 'OK', style: 'primary' }] });
+      showAlert({ type: "error", title: "Erreur", message: "Veuillez remplir tous les champs.", buttons: [{ text: "OK", style: "primary" }] });
       return;
     }
     setLoading(true);
     try {
       await login({ email: email.trim().toLowerCase(), password });
-      setTimeout(() => {
-        router.replace("/(main)/(tabs)" as any);
-      }, 50);
+      setTimeout(() => router.replace("/(main)/(tabs)" as any), 50);
     } catch (err: any) {
-      showAlert({ type: 'error', title: 'Erreur de connexion', message: err.message || 'Identifiants incorrects.', buttons: [{ text: 'OK', style: 'primary' }] });
+      showAlert({ type: "error", title: "Erreur de connexion", message: err.message || "Identifiants incorrects.", buttons: [{ text: "OK", style: "primary" }] });
       setLoading(false);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: "#FFFFFF" }]}
+      style={[styles.flex, { backgroundColor: theme.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
@@ -107,7 +107,6 @@ export default function LoginScreen() {
           {
             paddingTop: Platform.OS === "web" ? 67 + 40 : insets.top + 40,
             paddingBottom: Platform.OS === "web" ? 34 + 20 : insets.bottom + 20,
-            backgroundColor: "#FFFFFF",
           },
         ]}
         keyboardShouldPersistTaps="handled"
@@ -121,20 +120,21 @@ export default function LoginScreen() {
               contentFit="contain"
             />
           </View>
-          <Text style={styles.subtitle}>MyTools — Built for Performance</Text>
+          <Text style={styles.appName}>MYTOOLS</Text>
+          <Text style={styles.subtitle}>Built for Performance</Text>
         </View>
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email</Text>
             <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+              <Ionicons name="mail-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="votre@email.com"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={theme.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -145,21 +145,21 @@ export default function LoginScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Mot de passe</Text>
             <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+              <Ionicons name="lock-closed-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Votre mot de passe"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={theme.textTertiary}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
               <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
                 <Ionicons
                   name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={20}
-                  color={Colors.textSecondary}
+                  size={18}
+                  color={theme.textTertiary}
                 />
               </Pressable>
             </View>
@@ -169,11 +169,7 @@ export default function LoginScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [
-              styles.loginBtn,
-              pressed && styles.loginBtnPressed,
-              loading && styles.loginBtnDisabled,
-            ]}
+            style={({ pressed }) => [styles.loginBtn, pressed && { opacity: 0.85 }, loading && { opacity: 0.7 }]}
             onPress={handleLogin}
             disabled={loading}
           >
@@ -191,7 +187,7 @@ export default function LoginScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.registerBtn, pressed && styles.registerBtnPressed]}
+            style={({ pressed }) => [styles.registerBtn, pressed && { opacity: 0.8 }]}
             onPress={() => router.push("/(auth)/register")}
           >
             <Text style={styles.registerBtnText}>Créer un compte</Text>
@@ -199,11 +195,11 @@ export default function LoginScreen() {
 
           {biometricAvailable && (
             <Pressable
-              style={({ pressed }) => [styles.biometricBtn, pressed && styles.biometricBtnPressed]}
+              style={({ pressed }) => [styles.biometricBtn, pressed && { opacity: 0.8 }]}
               onPress={handleBiometricLogin}
               disabled={loading}
             >
-              <Ionicons name="finger-print" size={22} color={Colors.primary} />
+              <Ionicons name="finger-print" size={22} color={theme.primary} />
               <Text style={styles.biometricBtnText}>Se connecter avec {biometricType}</Text>
             </Pressable>
           )}
@@ -218,21 +214,21 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.background },
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
+  flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     justifyContent: "center",
   },
   header: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 44,
   },
   logoWrapper: {
-    width: 220,
-    height: 220,
-    marginBottom: 16,
+    width: 180,
+    height: 180,
+    marginBottom: 12,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -240,48 +236,50 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  title: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    color: "#000",
-    textAlign: "center",
-    marginBottom: 8,
+  appName: {
+    fontSize: 26,
+    fontFamily: "Michroma_400Regular",
+    color: theme.text,
+    letterSpacing: 6,
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: "#4B5563",
+    color: theme.textTertiary,
+    letterSpacing: 1,
   },
   form: {
-    gap: 16,
+    gap: 14,
   },
   inputGroup: {
-    gap: 6,
+    gap: 7,
   },
   label: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    color: "#000000",
-    marginLeft: 4,
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: theme.textSecondary,
+    marginLeft: 2,
+    letterSpacing: 0.3,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
+    backgroundColor: theme.inputBg,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    paddingHorizontal: 12,
-    height: 52,
+    borderColor: theme.inputBorder,
+    paddingHorizontal: 14,
+    height: 54,
   },
   inputIcon: {
     marginRight: 10,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: "Inter_400Regular",
-    color: "#000000",
+    color: theme.text,
     height: "100%",
   },
   eyeBtn: {
@@ -298,96 +296,78 @@ const styles = StyleSheet.create({
   forgotText: {
     fontSize: 13,
     fontFamily: "Inter_500Medium",
-    color: Colors.primary,
+    color: theme.primary,
   },
   loginBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    height: 52,
+    backgroundColor: theme.primary,
+    borderRadius: 14,
+    height: 54,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
-  },
-  loginBtnPressed: {
-    backgroundColor: Colors.primaryDark,
-  },
-  loginBtnDisabled: {
-    opacity: 0.7,
+    marginTop: 6,
   },
   loginBtnText: {
     color: "#fff",
     fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
-  resendBtn: {
-    alignItems: "center",
-    marginTop: 12,
-    paddingVertical: 8,
-  },
-  resendBtnText: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    color: Colors.primary,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.5,
   },
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 8,
+    marginVertical: 4,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: theme.border,
   },
   dividerText: {
     marginHorizontal: 16,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: "#6B7280",
+    color: theme.textTertiary,
   },
   registerBtn: {
-    borderRadius: 12,
-    height: 52,
+    borderRadius: 14,
+    height: 54,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1.5,
-    borderColor: Colors.primary,
-  },
-  registerBtnPressed: {
-    backgroundColor: Colors.surface,
+    borderColor: theme.primary,
+    backgroundColor: "transparent",
   },
   registerBtnText: {
-    color: Colors.primary,
+    color: theme.primary,
     fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.5,
   },
   biometricBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    borderRadius: 12,
-    height: 52,
+    borderRadius: 14,
+    height: 54,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  biometricBtnPressed: {
-    backgroundColor: Colors.surfaceSecondary,
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
   },
   biometricBtnText: {
-    color: Colors.primary,
-    fontSize: 15,
+    color: theme.primary,
+    fontSize: 14,
     fontFamily: "Inter_500Medium",
   },
   versionContainer: {
     alignItems: "center",
     marginTop: 24,
-    opacity: 0.5,
+    opacity: 0.4,
   },
   versionText: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    fontSize: 11,
+    fontFamily: "Michroma_400Regular",
+    color: theme.textTertiary,
+    letterSpacing: 2,
   },
 });

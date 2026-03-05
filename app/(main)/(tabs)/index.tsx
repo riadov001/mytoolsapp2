@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -15,13 +15,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
+import { useTheme } from "@/lib/theme";
+import { ThemeColors } from "@/constants/theme";
 import { servicesApi, quotesApi, invoicesApi, reservationsApi, notificationsApi, Service } from "@/lib/api";
-import Colors from "@/constants/colors";
 import { FloatingSupport } from "@/components/FloatingSupport";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const theme = useTheme();
+  const styles = useMemo(() => getStyles(theme), [theme]);
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: servicesRaw, isLoading: loadingServices, refetch: refetchServices } = useQuery({
@@ -81,7 +84,7 @@ export default function HomeScreen() {
     const dateStr = (r as any).scheduledDate || r.date;
     return (s === "confirmed" || s === "confirmée" || s === "confirmé" || s === "pending" || s === "en_attente") && (!dateStr || new Date(dateStr) >= new Date());
   });
-  const greeting = user?.firstName ? `Bonjour ${user.firstName}` : "Bonjour";
+  const greeting = user?.firstName ? `Bonjour, ${user.firstName}` : "Bonjour";
 
   return (
     <View style={styles.container}>
@@ -95,11 +98,16 @@ export default function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
         }
       >
         <View style={styles.header}>
-          <View style={{ flex: 1 }}>
+          <Image
+            source={require("@/assets/images/logo_rounded.png")}
+            style={styles.headerLogo}
+            contentFit="contain"
+          />
+          <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.greeting}>{greeting}</Text>
             <Text style={styles.welcomeText}>Bienvenue sur MyTools</Text>
           </View>
@@ -107,89 +115,84 @@ export default function HomeScreen() {
             style={styles.notifBtn}
             onPress={() => router.push("/(main)/(tabs)/notifications")}
           >
-            <Ionicons name="notifications-outline" size={24} color={Colors.text} />
+            <Ionicons name="notifications-outline" size={22} color={theme.textSecondary} />
             {unreadCount > 0 && (
               <View style={styles.notifBadge}>
-                <Text style={styles.notifBadgeText}>
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </Text>
+                <Text style={styles.notifBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
               </View>
             )}
           </Pressable>
-          <Image
-            source={require("@/assets/images/logo_rounded.png")}
-            style={styles.headerLogo}
-            contentFit="contain"
-          />
         </View>
 
         <Pressable
-          style={({ pressed }) => [styles.ctaCard, pressed && styles.ctaCardPressed]}
+          style={({ pressed }) => [styles.ctaCard, pressed && { opacity: 0.9 }]}
           onPress={() => router.push("/(main)/new-quote")}
         >
           <View style={styles.ctaContent}>
             <View style={styles.ctaIconContainer}>
-              <Ionicons name="add-circle" size={32} color="#fff" />
+              <Ionicons name="add-circle-outline" size={28} color="#fff" />
             </View>
             <View style={styles.ctaTextContainer}>
               <Text style={styles.ctaTitle}>Demander un devis</Text>
               <Text style={styles.ctaSubtitle}>Gratuit et sans engagement</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.7)" />
+          <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.7)" />
         </Pressable>
+
+        <Text style={styles.sectionTitle}>Vue d'ensemble</Text>
 
         <View style={styles.statsRow}>
           <Pressable
-            style={[styles.statCard, { backgroundColor: Colors.pendingBg }]}
+            style={[styles.statCard, { backgroundColor: theme.pendingBg }]}
             onPress={() => router.push("/(main)/(tabs)/quotes")}
           >
-            <Ionicons name="time-outline" size={22} color={Colors.pending} />
-            <Text style={[styles.statNumber, { color: Colors.pending }]}>{pendingQuotes.length}</Text>
+            <Ionicons name="time-outline" size={20} color={theme.pending} />
+            <Text style={[styles.statNumber, { color: theme.pending }]}>{pendingQuotes.length}</Text>
             <Text style={styles.statLabel}>En attente</Text>
           </Pressable>
           <Pressable
-            style={[styles.statCard, { backgroundColor: Colors.acceptedBg }]}
+            style={[styles.statCard, { backgroundColor: theme.acceptedBg }]}
             onPress={() => router.push("/(main)/(tabs)/quotes")}
           >
-            <Ionicons name="checkmark-circle-outline" size={22} color={Colors.accepted} />
-            <Text style={[styles.statNumber, { color: Colors.accepted }]}>{acceptedQuotes.length}</Text>
+            <Ionicons name="checkmark-circle-outline" size={20} color={theme.accepted} />
+            <Text style={[styles.statNumber, { color: theme.accepted }]}>{acceptedQuotes.length}</Text>
             <Text style={styles.statLabel}>Acceptés</Text>
           </Pressable>
           <Pressable
-            style={[styles.statCard, { backgroundColor: Colors.surfaceSecondary }]}
+            style={[styles.statCard, { backgroundColor: theme.surfaceSecondary }]}
             onPress={() => router.push("/(main)/(tabs)/quotes")}
           >
-            <Ionicons name="documents-outline" size={22} color={Colors.primary} />
-            <Text style={[styles.statNumber, { color: Colors.primary }]}>{quotes.length}</Text>
+            <Ionicons name="documents-outline" size={20} color={theme.primary} />
+            <Text style={[styles.statNumber, { color: theme.primary }]}>{quotes.length}</Text>
             <Text style={styles.statLabel}>Devis</Text>
           </Pressable>
         </View>
 
-        {(unpaidInvoices.length > 0 || invoices.length > 0 || upcomingReservations.length > 0) && (
+        {(invoices.length > 0 || upcomingReservations.length > 0) && (
           <View style={styles.statsRow}>
             <Pressable
-              style={[styles.statCard, { backgroundColor: unpaidInvoices.length > 0 ? Colors.pendingBg : Colors.surfaceSecondary }]}
+              style={[styles.statCard, { backgroundColor: unpaidInvoices.length > 0 ? theme.pendingBg : theme.surfaceSecondary }]}
               onPress={() => router.push("/(main)/(tabs)/invoices")}
             >
-              <Ionicons name="receipt-outline" size={22} color={unpaidInvoices.length > 0 ? Colors.pending : Colors.textSecondary} />
-              <Text style={[styles.statNumber, { color: unpaidInvoices.length > 0 ? Colors.pending : Colors.textSecondary }]}>{unpaidInvoices.length}</Text>
+              <Ionicons name="receipt-outline" size={20} color={unpaidInvoices.length > 0 ? theme.pending : theme.textSecondary} />
+              <Text style={[styles.statNumber, { color: unpaidInvoices.length > 0 ? theme.pending : theme.textSecondary }]}>{unpaidInvoices.length}</Text>
               <Text style={styles.statLabel}>Impayées</Text>
             </Pressable>
             <Pressable
-              style={[styles.statCard, { backgroundColor: Colors.surfaceSecondary }]}
+              style={[styles.statCard, { backgroundColor: theme.surfaceSecondary }]}
               onPress={() => router.push("/(main)/(tabs)/invoices")}
             >
-              <Ionicons name="document-text-outline" size={22} color={Colors.textSecondary} />
-              <Text style={[styles.statNumber, { color: Colors.textSecondary }]}>{invoices.length}</Text>
+              <Ionicons name="document-text-outline" size={20} color={theme.textSecondary} />
+              <Text style={[styles.statNumber, { color: theme.textSecondary }]}>{invoices.length}</Text>
               <Text style={styles.statLabel}>Factures</Text>
             </Pressable>
             <Pressable
-              style={[styles.statCard, { backgroundColor: upcomingReservations.length > 0 ? Colors.acceptedBg : Colors.surfaceSecondary }]}
+              style={[styles.statCard, { backgroundColor: upcomingReservations.length > 0 ? theme.acceptedBg : theme.surfaceSecondary }]}
               onPress={() => router.push("/(main)/(tabs)/reservations")}
             >
-              <Ionicons name="calendar-outline" size={22} color={upcomingReservations.length > 0 ? Colors.accepted : Colors.textSecondary} />
-              <Text style={[styles.statNumber, { color: upcomingReservations.length > 0 ? Colors.accepted : Colors.textSecondary }]}>{upcomingReservations.length}</Text>
+              <Ionicons name="calendar-outline" size={20} color={upcomingReservations.length > 0 ? theme.accepted : theme.textSecondary} />
+              <Text style={[styles.statNumber, { color: upcomingReservations.length > 0 ? theme.accepted : theme.textSecondary }]}>{upcomingReservations.length}</Text>
               <Text style={styles.statLabel}>RDV</Text>
             </Pressable>
           </View>
@@ -198,10 +201,10 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>Nos services</Text>
 
         {loadingServices ? (
-          <ActivityIndicator color={Colors.primary} style={{ marginTop: 20 }} />
+          <ActivityIndicator color={theme.primary} style={{ marginTop: 20 }} />
         ) : services.length === 0 ? (
           <View style={styles.emptyServices}>
-            <Ionicons name="construct-outline" size={40} color={Colors.textTertiary} />
+            <Ionicons name="construct-outline" size={36} color={theme.textTertiary} />
             <Text style={styles.emptyText}>Aucun service disponible</Text>
           </View>
         ) : (
@@ -213,7 +216,7 @@ export default function HomeScreen() {
                 onPress={() => router.push({ pathname: "/(main)/new-quote", params: { serviceId: service.id } })}
               >
                 <View style={styles.serviceIconContainer}>
-                  <Ionicons name="construct" size={24} color={Colors.primary} />
+                  <Ionicons name="construct" size={22} color={theme.primary} />
                 </View>
                 <Text style={styles.serviceName} numberOfLines={2}>
                   {service.name}
@@ -233,73 +236,70 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: theme.background,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 24,
-    gap: 12,
+    marginBottom: 22,
   },
   greeting: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
+    fontSize: 20,
+    fontFamily: "Michroma_400Regular",
+    color: theme.text,
+    letterSpacing: 0.5,
   },
   welcomeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    marginTop: 2,
+    color: theme.textSecondary,
+    marginTop: 3,
   },
   notifBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.surface,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: theme.surface,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
   },
   notifBadge: {
     position: "absolute",
     top: 6,
     right: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.primary,
     borderRadius: 8,
     minWidth: 16,
     height: 16,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
   },
   notifBadgeText: {
     color: "#fff",
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: "Inter_700Bold",
   },
   headerLogo: {
-    width: 52,
-    height: 52,
+    width: 46,
+    height: 46,
   },
   ctaCard: {
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: theme.primary,
+    borderRadius: 18,
+    padding: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  ctaCardPressed: {
-    backgroundColor: Colors.primaryDark,
+    marginBottom: 24,
   },
   ctaContent: {
     flexDirection: "row",
@@ -308,38 +308,44 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   ctaIconContainer: {
-    width: 48,
-    height: 48,
+    width: 46,
+    height: 46,
     borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
-  ctaTextContainer: {
-    flex: 1,
-  },
+  ctaTextContainer: { flex: 1 },
   ctaTitle: {
-    fontSize: 17,
-    fontFamily: "Inter_700Bold",
+    fontSize: 16,
+    fontFamily: "Michroma_400Regular",
     color: "#fff",
+    letterSpacing: 0.3,
   },
   ctaSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 2,
+    color: "rgba(255,255,255,0.75)",
+    marginTop: 3,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontFamily: "Michroma_400Regular",
+    color: theme.text,
+    marginBottom: 14,
+    letterSpacing: 1,
   },
   statsRow: {
     flexDirection: "row",
     gap: 10,
-    marginBottom: 20,
+    marginBottom: 22,
   },
   statCard: {
     flex: 1,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
     alignItems: "center",
-    gap: 6,
+    gap: 5,
   },
   statNumber: {
     fontSize: 22,
@@ -348,13 +354,8 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 11,
     fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
-    marginBottom: 14,
+    color: theme.textSecondary,
+    textAlign: "center",
   },
   emptyServices: {
     alignItems: "center",
@@ -364,7 +365,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
+    color: theme.textTertiary,
   },
   servicesGrid: {
     flexDirection: "row",
@@ -373,32 +374,32 @@ const styles = StyleSheet.create({
   },
   serviceCard: {
     width: "48%",
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
+    backgroundColor: theme.card,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     gap: 8,
   },
   serviceCardPressed: {
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
   },
   serviceIconContainer: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 12,
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: theme.surfaceSecondary,
     justifyContent: "center",
     alignItems: "center",
   },
   serviceName: {
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
+    color: theme.text,
   },
   servicePrice: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: theme.textSecondary,
   },
 });
