@@ -416,8 +416,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (capturedCookie) {
-        console.log(`[LOGIN] Captured session cookie: ${capturedCookie.substring(0, 40)}...`);
-        res.setHeader("X-Session-Cookie", capturedCookie);
+        const cookie = capturedCookie as string;
+        console.log(`[LOGIN] Captured session cookie: ${cookie.substring(0, 40)}...`);
+        res.setHeader("X-Session-Cookie", cookie);
       }
 
       res.status(response.status);
