@@ -62,12 +62,23 @@ export default function LoginScreen() {
     } catch {}
   };
 
+  const ADMIN_ROLES = ["admin", "super_admin", "superadmin", "root_admin", "root"];
+  const EMPLOYEE_ROLES = ["employe", "employee", "manager"];
+
+  const resolveRoute = (userData: any) => {
+    const role = (userData?.role || "").toLowerCase();
+    const isAdminUser = ADMIN_ROLES.includes(role) || userData?.isAdmin === true || userData?.is_admin === true;
+    const isEmployeeUser = EMPLOYEE_ROLES.includes(role) || userData?.isEmployee === true || userData?.is_employee === true;
+    if (isAdminUser || isEmployeeUser) return "/(admin)" as any;
+    return "/(main)/(tabs)" as any;
+  };
+
   const handleBiometricLogin = async () => {
     setLoading(true);
     try {
       const success = await biometricLogin();
       if (success) {
-        setTimeout(() => router.replace("/(main)/(tabs)" as any), 50);
+        setTimeout(() => router.replace("/" as any), 100);
       } else {
         setBiometricAvailable(false);
         showAlert({ type: "error", title: "Session expirée", message: "Veuillez vous reconnecter avec vos identifiants.", buttons: [{ text: "OK", style: "primary" }] });
@@ -83,8 +94,9 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      await login({ email: email.trim().toLowerCase(), password });
-      setTimeout(() => router.replace("/(main)/(tabs)" as any), 50);
+      const userData = await login({ email: email.trim().toLowerCase(), password });
+      const route = resolveRoute(userData);
+      setTimeout(() => router.replace(route), 100);
     } catch (err: any) {
       showAlert({ type: "error", title: "Erreur de connexion", message: err.message || "Identifiants incorrects.", buttons: [{ text: "OK", style: "primary" }] });
       setLoading(false);

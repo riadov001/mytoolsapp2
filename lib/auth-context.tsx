@@ -14,6 +14,25 @@ if (Platform.OS !== "web") {
   } catch {}
 }
 
+const ADMIN_ROLES = ["admin", "super_admin", "superadmin", "root_admin", "root", "ROOT", "ROOT_ADMIN", "SUPER_ADMIN", "superAdmin"];
+const EMPLOYEE_ROLES = ["employe", "employee", "manager", "EMPLOYE", "EMPLOYEE", "MANAGER"];
+
+function detectIsAdmin(user: any): boolean {
+  if (!user) return false;
+  const role = (user.role || "").toLowerCase();
+  if (["admin", "super_admin", "superadmin", "root_admin", "root"].includes(role)) return true;
+  if (user.isAdmin === true || user.is_admin === true) return true;
+  return false;
+}
+
+function detectIsEmployee(user: any): boolean {
+  if (!user) return false;
+  const role = (user.role || "").toLowerCase();
+  if (["employe", "employee", "manager"].includes(role)) return true;
+  if (user.isEmployee === true || user.is_employee === true) return true;
+  return false;
+}
+
 interface AuthContextValue {
   user: UserProfile | null;
   isLoading: boolean;
@@ -22,7 +41,7 @@ interface AuthContextValue {
   isEmployee: boolean;
   isAdminOrEmployee: boolean;
   accessToken: string | null;
-  login: (data: LoginData) => Promise<void>;
+  login: (data: LoginData) => Promise<UserProfile | null>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -140,42 +159,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (data: LoginData) => {
+  const login = async (data: LoginData): Promise<UserProfile | null> => {
+    let resolvedUser: any = null;
+
     try {
       const result = await adminLogin(data.email, data.password);
 
       if (result?.accessToken && result?.user) {
-        const userData = result.user;
-        setUser(userData);
+        resolvedUser = result.user;
+        setUser(resolvedUser);
         setStoredAccessToken(result.accessToken);
         await storeToken("access_token", result.accessToken);
         if (result.refreshToken) {
           await storeToken("refresh_token", result.refreshToken);
         }
-        return;
+        return resolvedUser as UserProfile;
       }
 
       if (result?.user) {
-        setUser(result.user);
+        resolvedUser = result.user;
+        setUser(resolvedUser);
       } else if ((result as any)?.id) {
-        setUser(result as any);
+        resolvedUser = result as any;
+        setUser(resolvedUser);
       }
-    } catch {
-      try {
-        const result = await authApi.login(data);
-        if (result?.user) {
-          setUser(result.user);
-        } else if ((result as any)?.id) {
-          setUser(result as any);
-        }
-        const cookie = getSessionCookie();
-        if (cookie) {
-          await storeToken("session_cookie", cookie);
-        }
-      } catch (error) {
-        console.error("Login error:", error instanceof Error ? error.message : error);
-        throw error;
+
+      if (resolvedUser) return resolvedUser as UserProfile;
+    } catch {}
+
+    try {
+      const result = await authApi.login(data);
+      if (result?.user) {
+        resolvedUser = result.user;
+      } else if ((result as any)?.id) {
+        resolvedUser = result as any;
       }
+      if (resolvedUser) setUser(resolvedUser);
+      const cookie = getSessionCookie();
+      if (cookie) {
+        await storeToken("session_cookie", cookie);
+      }
+      return resolvedUser as UserProfile | null;
+    } catch (error) {
+      console.error("Login error:", error instanceof Error ? error.message : error);
+      throw error;
     }
   };
 
@@ -268,8 +295,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const isAdmin = user?.role === "admin";
-  const isEmployee = user?.role === "employe";
+  const isAdmin = detectIsAdmin(user);
+  const isEmployee = detectIsEmployee(user);
   const isAdminOrEmployee = isAdmin || isEmployee;
 
   const value = useMemo(

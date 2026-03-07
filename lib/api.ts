@@ -167,7 +167,7 @@ export interface UserProfile {
   postalCode: string | null;
   city: string | null;
   profileImageUrl: string | null;
-  role: "client" | "client_professionnel" | "admin" | "super_admin" | "superadmin";
+  role: "client" | "client_professionnel" | "admin" | "super_admin" | "superadmin" | "root_admin" | "root" | "ROOT" | "employe" | "employee" | "manager";
   garageId: string | null;
   companyName: string | null;
   siret: string | null;
