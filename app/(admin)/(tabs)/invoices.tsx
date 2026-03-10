@@ -4,6 +4,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
@@ -109,6 +110,11 @@ export default function AdminInvoicesScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topPad }]}>
+        <Image
+          source={require("@/assets/images/logo_new.png")}
+          style={styles.headerLogo}
+          contentFit="contain"
+        />
         <Text style={styles.screenTitle}>Factures</Text>
         <Pressable
           style={styles.addBtn}
@@ -168,8 +174,9 @@ export default function AdminInvoicesScreen() {
 
 const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12 },
-  screenTitle: { fontSize: 24, fontFamily: "Michroma_400Regular", color: theme.text, letterSpacing: 0.5 },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingBottom: 12 },
+  headerLogo: { width: 34, height: 34, borderRadius: 8 },
+  screenTitle: { flex: 1, fontSize: 22, fontFamily: "Michroma_400Regular", color: theme.text, letterSpacing: 0.5 },
   addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center" },
   searchRow: { paddingHorizontal: 16, marginBottom: 10 },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, height: 44 },

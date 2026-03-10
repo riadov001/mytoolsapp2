@@ -4,6 +4,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
@@ -69,7 +70,12 @@ export default function AdminDashboard() {
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.primary} />}
       >
         <View style={styles.headerRow}>
-          <View>
+          <Image
+            source={require("@/assets/images/logo_new.png")}
+            style={styles.headerLogo}
+            contentFit="contain"
+          />
+          <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={styles.greeting}>Bonjour,</Text>
             <Text style={styles.userName}>{user?.firstName || "Admin"}</Text>
           </View>
@@ -218,7 +224,8 @@ function StatusBadge({ status, theme }: { status: string; theme: ThemeColors }) 
 const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   scroll: { paddingHorizontal: 16 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 },
+  headerRow: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
+  headerLogo: { width: 38, height: 38, borderRadius: 10 },
   greeting: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary },
   userName: { fontSize: 24, fontFamily: "Michroma_400Regular", color: theme.text, letterSpacing: 0.5 },
   logoutBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.surface, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: theme.border },

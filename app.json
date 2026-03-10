@@ -4,12 +4,12 @@
     "slug": "mytools",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo_new.png",
     "scheme": "mytools",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/logo_new.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0A"
     },
@@ -34,7 +34,7 @@
       "package": "com.mytools.app",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0A",
-        "foregroundImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/logo_new.png"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -43,7 +43,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/logo_new.png"
     },
     "plugins": [
       [
