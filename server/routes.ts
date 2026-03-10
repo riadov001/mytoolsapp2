@@ -69,10 +69,32 @@ function getAuthHeaders(req: Request): Record<string, string> {
   return headers;
 }
 
+function splitSetCookieHeader(header: string): string[] {
+  const cookies: string[] = [];
+  let current = "";
+  let i = 0;
+  while (i < header.length) {
+    if (header[i] === ",") {
+      const rest = header.substring(i + 1).trimStart();
+      const nextToken = rest.split(/[=;]/)[0]?.trim() || "";
+      if (nextToken && /^[a-zA-Z_][a-zA-Z0-9_.-]*$/.test(nextToken) && rest.includes("=")) {
+        cookies.push(current.trim());
+        current = "";
+        i++;
+        continue;
+      }
+    }
+    current += header[i];
+    i++;
+  }
+  if (current.trim()) cookies.push(current.trim());
+  return cookies;
+}
+
 function forwardSetCookie(externalRes: globalThis.Response, expressRes: Response) {
   const setCookie = externalRes.headers.get("set-cookie");
   if (setCookie) {
-    const parts = setCookie.split(",").map(c => c.trim());
+    const parts = splitSetCookieHeader(setCookie);
     for (const part of parts) {
       expressRes.appendHeader("set-cookie", part);
     }

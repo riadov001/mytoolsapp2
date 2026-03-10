@@ -91,3 +91,6 @@ PORT = "8081"
 EXTERNAL_API_URL = "https://saas.mytoolsgroup.eu/api"
 
 [userenv.shared]
+
+[objectStorage]
+defaultBucketID = "replit-objstore-744ef2e8-1b04-48ff-a81a-df6594af2930"

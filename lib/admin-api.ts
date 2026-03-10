@@ -8,7 +8,11 @@ const getApiBase = () => {
     return process.env.EXPO_PUBLIC_API_URL;
   }
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    return window.location.origin;
+    const origin = window.location.origin;
+    if (origin.includes("localhost:8081") || origin.includes("127.0.0.1:8081")) {
+      return origin.replace(/:8081\b/, ":5000");
+    }
+    return origin;
   }
   if (process.env.EXPO_PUBLIC_DOMAIN) {
     return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
@@ -223,6 +227,6 @@ export const adminProfile = {
 export const adminNotifications = {
   getAll: () => adminApiCall<any[]>("/api/notifications"),
   getUnreadCount: () => adminApiCall<{ count: number }>("/api/notifications/unread-count"),
-  markRead: (id: string) => adminApiCall<any>(`/api/notifications/${id}/read`, { method: "PATCH" }),
+  markRead: (id: string) => adminApiCall<any>(`/api/notifications/${id}/read`, { method: "POST" }),
   markAllRead: () => adminApiCall<any>("/api/notifications/read-all", { method: "POST" }),
 };

@@ -6,7 +6,11 @@ const getApiBase = () => {
     return process.env.EXPO_PUBLIC_API_URL;
   }
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    return window.location.origin;
+    const origin = window.location.origin;
+    if (origin.includes("localhost:8081") || origin.includes("127.0.0.1:8081")) {
+      return origin.replace(/:8081\b/, ":5000");
+    }
+    return origin;
   }
   if (process.env.EXPO_PUBLIC_DOMAIN) {
     return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
@@ -107,17 +111,13 @@ export async function apiCall<T = any>(
   } else {
     const setCookie = res.headers.get("set-cookie");
     if (setCookie) {
-      const parts = setCookie.split(",").map(c => c.trim());
-      const knownSession = parts.find(c =>
-        c.startsWith("myjantes.sid=") ||
-        c.startsWith("connect.sid=") ||
-        c.startsWith("laravel_session=") ||
-        c.startsWith("PHPSESSID=") ||
-        c.toLowerCase().includes("session=") ||
-        c.toLowerCase().includes("sid=")
-      );
-      if (knownSession) {
-        sessionCookie = knownSession.split(";")[0];
+      const sessionNames = ["myjantes.sid", "connect.sid", "laravel_session", "phpsessid"];
+      const nameValuePart = setCookie.split(";")[0]?.trim() || "";
+      const cookieName = nameValuePart.split("=")[0]?.toLowerCase() || "";
+      const isSession = sessionNames.some(n => cookieName === n) ||
+        cookieName.includes("session") || cookieName.includes("sid");
+      if (isSession && nameValuePart) {
+        sessionCookie = nameValuePart;
       }
     }
   }
@@ -494,170 +494,6 @@ export const chatApi = {
       body: { content },
     }),
   getUsers: () => apiCall<any[]>("/api/chat/users"),
-};
-
-export const adminQuotesApi = {
-  getAll: () => apiCall<any[]>("/api/admin/quotes"),
-  getById: (id: string) => apiCall<any>(`/api/admin/quotes/${id}`),
-  update: (id: string, data: any) =>
-    apiCall<any>(`/api/admin/quotes/${id}`, { method: "PUT", body: data }),
-  delete: (id: string) =>
-    apiCall(`/api/admin/quotes/${id}`, { method: "DELETE" }),
-};
-
-export const adminInvoicesApi = {
-  getAll: () => apiCall<any[]>("/api/admin/invoices"),
-  getById: (id: string) => apiCall<any>(`/api/admin/invoices/${id}`),
-  create: (data: any) =>
-    apiCall<any>("/api/admin/invoices", { method: "POST", body: data }),
-  createDirect: (data: any) =>
-    apiCall<any>("/api/admin/invoices/direct", { method: "POST", body: data }),
-  update: (id: string, data: any) =>
-    apiCall<any>(`/api/admin/invoices/${id}`, { method: "PUT", body: data }),
-  delete: (id: string) =>
-    apiCall(`/api/admin/invoices/${id}`, { method: "DELETE" }),
-};
-
-export const adminClientsApi = {
-  getAll: () => apiCall<any[]>("/api/admin/clients"),
-  getById: (id: string) => apiCall<any>(`/api/admin/clients/${id}`),
-  create: (data: any) =>
-    apiCall<any>("/api/admin/clients", { method: "POST", body: data }),
-  update: (id: string, data: any) =>
-    apiCall<any>(`/api/admin/clients/${id}`, { method: "PUT", body: data }),
-  delete: (id: string) =>
-    apiCall(`/api/admin/clients/${id}`, { method: "DELETE" }),
-};
-
-export const adminServicesApi = {
-  getAll: () => apiCall<Service[]>("/api/admin/services"),
-  getById: (id: string) => apiCall<Service>(`/api/admin/services/${id}`),
-  create: (data: any) =>
-    apiCall<Service>("/api/admin/services", { method: "POST", body: data }),
-  update: (id: string, data: any) =>
-    apiCall<Service>(`/api/admin/services/${id}`, { method: "PUT", body: data }),
-  delete: (id: string) =>
-    apiCall(`/api/admin/services/${id}`, { method: "DELETE" }),
-};
-
-export const adminUsersApi = {
-  getAll: () => apiCall<any[]>("/api/admin/users"),
-  getById: (id: string) => apiCall<any>(`/api/admin/users/${id}`),
-  update: (id: string, data: any) =>
-    apiCall<any>(`/api/admin/users/${id}`, { method: "PUT", body: data }),
-  delete: (id: string) =>
-    apiCall(`/api/admin/users/${id}`, { method: "DELETE" }),
-};
-
-export const adminAnalyticsApi = {
-  get: () => apiCall<any>("/api/admin/analytics"),
-};
-
-export const adminReservationsApi = {
-  getAll: () => apiCall<any[]>("/api/admin/reservations"),
-  getById: (id: string) => apiCall<any>(`/api/admin/reservations/${id}`),
-  create: (data: any) =>
-    apiCall<any>("/api/admin/reservations", { method: "POST", body: data }),
-  update: (id: string, data: any) =>
-    apiCall<any>(`/api/admin/reservations/${id}`, { method: "PUT", body: data }),
-  delete: (id: string) =>
-    apiCall(`/api/admin/reservations/${id}`, { method: "DELETE" }),
-};
-
-
-export const adminSettingsApi = {
-  get: () => apiCall<any>("/api/admin/settings"),
-  update: (data: any) =>
-    apiCall<any>("/api/admin/settings", { method: "PUT", body: data }),
-  getGarageLegal: () => apiCall<any>("/api/admin/garage-legal"),
-  updateGarageLegal: (data: any) =>
-    apiCall<any>("/api/admin/garage-legal", { method: "PUT", body: data }),
-};
-
-export const adminRepairOrdersApi = {
-  getAll: () => apiCall<any[]>("/api/admin/repair-orders"),
-  getById: (id: string) => apiCall<any>(`/api/admin/repair-orders/${id}`),
-  create: (data: any) =>
-    apiCall<any>("/api/admin/repair-orders", { method: "POST", body: data }),
-  update: (id: string, data: any) =>
-    apiCall<any>(`/api/admin/repair-orders/${id}`, { method: "PUT", body: data }),
-};
-
-export const adminCreditNotesApi = {
-  getAll: () => apiCall<any[]>("/api/admin/credit-notes"),
-  getById: (id: string) => apiCall<any>(`/api/admin/credit-notes/${id}`),
-  create: (data: any) =>
-    apiCall<any>("/api/admin/credit-notes", { method: "POST", body: data }),
-};
-
-export const adminDeliveryNotesApi = {
-  getAll: () => apiCall<any[]>("/api/admin/delivery-notes"),
-  getById: (id: string) => apiCall<any>(`/api/admin/delivery-notes/${id}`),
-  create: (data: any) =>
-    apiCall<any>("/api/admin/delivery-notes", { method: "POST", body: data }),
-};
-
-export const adminExpensesApi = {
-  getAll: () => apiCall<any[]>("/api/admin/expenses"),
-  getCategories: () => apiCall<any[]>("/api/admin/expense-categories"),
-  create: (data: any) =>
-    apiCall<any>("/api/admin/expenses", { method: "POST", body: data }),
-  update: (id: string, data: any) =>
-    apiCall<any>(`/api/admin/expenses/${id}`, { method: "PUT", body: data }),
-  delete: (id: string) =>
-    apiCall(`/api/admin/expenses/${id}`, { method: "DELETE" }),
-};
-
-export const adminAccountingApi = {
-  getProfitLoss: (params?: string) =>
-    apiCall<any>(`/api/admin/accounting/profit-loss${params ? `?${params}` : ""}`),
-  getTvaReport: (params?: string) =>
-    apiCall<any>(`/api/admin/accounting/tva-report${params ? `?${params}` : ""}`),
-  getCashFlow: (params?: string) =>
-    apiCall<any>(`/api/admin/accounting/cash-flow${params ? `?${params}` : ""}`),
-  getEntries: (params?: string) =>
-    apiCall<any[]>(`/api/admin/accounting/entries${params ? `?${params}` : ""}`),
-  exportFec: (params?: string) =>
-    apiCall<any>(`/api/admin/accounting/fec-export${params ? `?${params}` : ""}`),
-};
-
-export const adminReviewsApi = {
-  getAll: () => apiCall<any[]>("/api/admin/reviews"),
-  update: (id: string, data: any) =>
-    apiCall<any>(`/api/admin/reviews/${id}`, { method: "PUT", body: data }),
-  delete: (id: string) =>
-    apiCall(`/api/admin/reviews/${id}`, { method: "DELETE" }),
-};
-
-export const adminExportApi = {
-  exportData: (data: any) =>
-    apiCall<any>("/api/admin/export-data", { method: "POST", body: data }),
-  exportDatabase: () =>
-    apiCall<any>("/api/admin/export-database", { method: "POST" }),
-};
-
-export const adminAuditLogsApi = {
-  getAll: () => apiCall<any[]>("/api/admin/audit-logs"),
-};
-
-export const adminEngagementsApi = {
-  getAll: () => apiCall<any[]>("/api/admin/engagements"),
-  getSummary: () => apiCall<any>("/api/admin/engagements/summary"),
-  create: (data: any) =>
-    apiCall<any>("/api/admin/engagements", { method: "POST", body: data }),
-  update: (id: string, data: any) =>
-    apiCall<any>(`/api/admin/engagements/${id}`, { method: "PUT", body: data }),
-};
-
-export const superAdminApi = {
-  getGarages: () => apiCall<any[]>("/api/superadmin/garages"),
-  getGarageById: (id: string) => apiCall<any>(`/api/superadmin/garages/${id}`),
-  createGarage: (data: any) =>
-    apiCall<any>("/api/superadmin/garages", { method: "POST", body: data }),
-  updateGarage: (id: string, data: any) =>
-    apiCall<any>(`/api/superadmin/garages/${id}`, { method: "PUT", body: data }),
-  deleteGarage: (id: string) =>
-    apiCall(`/api/superadmin/garages/${id}`, { method: "DELETE" }),
 };
 
 export const supportApi = {

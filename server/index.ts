@@ -41,6 +41,7 @@ function setupCors(app: express.Application) {
         "GET, POST, PUT, PATCH, DELETE, OPTIONS",
       );
       res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie, X-Requested-With");
+      res.header("Access-Control-Expose-Headers", "X-Session-Cookie, set-cookie");
       res.header("Access-Control-Allow-Credentials", "true");
     }
 
