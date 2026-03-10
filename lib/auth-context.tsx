@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { authApi, UserProfile, LoginData, RegisterData, setSessionCookie, getSessionCookie } from "./api";
-import { adminLogin, setAdminTokens, setOnTokenExpired, getAdminAccessToken } from "./admin-api";
+import { adminLogin, adminGetMe, setAdminTokens, setOnTokenExpired, getAdminAccessToken } from "./admin-api";
 import { registerForPushNotificationsAsync, startNotificationPolling, stopNotificationPolling, addNotificationResponseListener } from "./push-notifications";
 
 let LocalAuthentication: any = null;
@@ -138,6 +138,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (savedAccessToken || savedCookie) {
+        if (savedAccessToken) {
+          try {
+            const userData = await adminGetMe();
+            if (userData && (userData.id || userData.email)) {
+              setUser(userData);
+              return;
+            }
+          } catch {}
+        }
+
         try {
           const { adminApiCall } = require("./admin-api");
           const userData = await adminApiCall("/api/auth/user");

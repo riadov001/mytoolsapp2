@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminReservations, adminClients } from "@/lib/admin-api";
+import { adminReservations, adminClients, adminServices } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -26,8 +26,10 @@ const TIME_SLOTS = [
 ];
 
 export default function ReservationFormScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const isEdit = !!id;
+  const params = useLocalSearchParams();
+  const rawId = params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : (typeof rawId === "string" ? rawId : "");
+  const isEdit = id.length > 0;
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
@@ -43,9 +45,11 @@ export default function ReservationFormScreen() {
   const [vehicleMake, setVehicleMake] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
   const [serviceType, setServiceType] = useState("");
+  const [serviceId, setServiceId] = useState("");
   const [saving, setSaving] = useState(false);
 
   const { data: clients = [] } = useQuery({ queryKey: ["admin-clients"], queryFn: adminClients.getAll });
+  const { data: services = [] } = useQuery({ queryKey: ["admin-services"], queryFn: adminServices.getAll });
   const { data: existing, isLoading: loadingExisting } = useQuery({
     queryKey: ["admin-reservation", id],
     queryFn: () => adminReservations.getById(id!),
@@ -68,6 +72,7 @@ export default function ReservationFormScreen() {
       setVehicleMake(existing.vehicleMake || "");
       setVehicleModel(existing.vehicleModel || "");
       setServiceType(existing.serviceType || "");
+      setServiceId(existing.serviceId || "");
     }
   }, [existing]);
 
@@ -84,8 +89,10 @@ export default function ReservationFormScreen() {
     try {
       let dateStr = scheduledDate;
       if (scheduledTime) dateStr += `T${scheduledTime}:00`;
+      const servicesArr = Array.isArray(services) ? services : [];
+      const fallbackServiceId = servicesArr[0]?.id || serviceId;
       const body: any = {
-        clientId: parseInt(clientId),
+        clientId: clientId,
         status,
         scheduledDate: dateStr,
         notes,
@@ -94,7 +101,8 @@ export default function ReservationFormScreen() {
         vehicleModel,
         serviceType,
       };
-      if (isEdit) await adminReservations.update(id!, body);
+      if (fallbackServiceId) body.serviceId = fallbackServiceId;
+      if (isEdit) await adminReservations.update(id, body);
       else await adminReservations.create(body);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       queryClient.invalidateQueries({ queryKey: ["admin-reservations"] });

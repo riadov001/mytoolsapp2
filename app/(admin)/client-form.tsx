@@ -18,8 +18,10 @@ const ROLE_OPTIONS = [
 ];
 
 export default function ClientFormScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const isEdit = !!id;
+  const params = useLocalSearchParams();
+  const rawId = params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : (typeof rawId === "string" ? rawId : "");
+  const isEdit = id.length > 0;
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);

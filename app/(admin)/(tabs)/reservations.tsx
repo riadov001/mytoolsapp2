@@ -18,11 +18,16 @@ const STATUSES = ["all", "pending", "confirmed", "cancelled", "completed"] as co
 const STATUS_LABELS: Record<string, string> = { all: "Tous", pending: "En attente", confirmed: "Confirmé", cancelled: "Annulé", completed: "Terminé" };
 const STATUS_COLORS: Record<string, string> = { pending: "#F59E0B", confirmed: "#22C55E", cancelled: "#EF4444", completed: "#3B82F6" };
 
+const ROOT_ROLES = ["root", "root_admin"];
+const SUPER_ROLES = ["super_admin", "superadmin"];
+
 export default function AdminReservationsScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const loggedRole = (user?.role || "").toLowerCase();
+  const loggedGarageId = (user as any)?.garageId || null;
   const { showAlert, AlertComponent } = useCustomAlert();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -65,6 +70,7 @@ export default function AdminReservationsScreen() {
 
   const arr = Array.isArray(reservations) ? reservations : [];
   const filtered = arr.filter((r: any) => {
+    if (loggedRole === "admin" && loggedGarageId && r.garageId && r.garageId !== loggedGarageId) return false;
     if (filter !== "all" && r.status?.toLowerCase() !== filter) return false;
     if (search) {
       const s = search.toLowerCase();

@@ -22,7 +22,9 @@ export default function AdminInvoicesScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const loggedRole = (user?.role || "").toLowerCase();
+  const loggedGarageId = (user as any)?.garageId || null;
   const { showAlert, AlertComponent } = useCustomAlert();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -56,6 +58,7 @@ export default function AdminInvoicesScreen() {
 
   const arr = Array.isArray(invoices) ? invoices : [];
   const filtered = arr.filter((inv: any) => {
+    if (loggedRole === "admin" && loggedGarageId && inv.garageId && inv.garageId !== loggedGarageId) return false;
     if (filter !== "all" && inv.status?.toLowerCase() !== filter) return false;
     if (search) {
       const s = search.toLowerCase();

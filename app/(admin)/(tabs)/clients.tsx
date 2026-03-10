@@ -14,14 +14,27 @@ import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 
+const ROOT_ROLES = ["root", "root_admin"];
+const SUPER_ROLES = ["super_admin", "superadmin"];
+const ADMIN_HIDDEN_ROLES = [...ROOT_ROLES, ...SUPER_ROLES];
+
+function canEditUser(loggedRole: string, targetRole: string): boolean {
+  if (ROOT_ROLES.includes(loggedRole)) return true;
+  if (SUPER_ROLES.includes(loggedRole)) return !ROOT_ROLES.includes(targetRole);
+  return !ADMIN_HIDDEN_ROLES.includes(targetRole);
+}
+
 export default function AdminClientsScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { showAlert, AlertComponent } = useCustomAlert();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+
+  const loggedRole = (user?.role || "").toLowerCase();
+  const loggedGarageId = (user as any)?.garageId || null;
 
   const { data: clients = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["admin-clients"],
@@ -50,7 +63,20 @@ export default function AdminClientsScreen() {
   };
 
   const arr = Array.isArray(clients) ? clients : [];
-  const filtered = arr.filter((c: any) => {
+
+  const roleFiltered = arr.filter((c: any) => {
+    const targetRole = (c.role || "").toLowerCase();
+    if (ROOT_ROLES.includes(loggedRole)) return true;
+    if (SUPER_ROLES.includes(loggedRole)) return !ROOT_ROLES.includes(targetRole);
+    if (loggedRole === "admin") {
+      if (ADMIN_HIDDEN_ROLES.includes(targetRole)) return false;
+      if (loggedGarageId && c.garageId && c.garageId !== loggedGarageId) return false;
+      return true;
+    }
+    return true;
+  });
+
+  const filtered = roleFiltered.filter((c: any) => {
     if (!search) return true;
     const s = search.toLowerCase();
     const name = `${c.firstName || ""} ${c.lastName || ""}`.toLowerCase();
@@ -61,16 +87,21 @@ export default function AdminClientsScreen() {
 
   const renderItem = useCallback(({ item }: { item: any }) => {
     const name = `${item.firstName || ""} ${item.lastName || ""}`.trim() || item.email;
+    const itemRole = (item.role || "").toLowerCase();
     const isPro = item.role === "client_professionnel";
+    const isAdminRole = [...ROOT_ROLES, ...SUPER_ROLES, "admin"].includes(itemRole);
+    const canEdit = canEditUser(loggedRole, itemRole);
     const initials = [item.firstName?.[0], item.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "?";
+    const roleBadgeColor = isAdminRole ? "#8B5CF6" : (isPro ? "#F59E0B" : theme.primary);
+    const roleLabel = ROOT_ROLES.includes(itemRole) ? "Root" : SUPER_ROLES.includes(itemRole) ? "SuperAdmin" : itemRole === "admin" ? "Admin" : isPro ? "Pro" : "Particulier";
     return (
       <Pressable
-        style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
-        onPress={() => router.push({ pathname: "/(admin)/client-form", params: { id: item.id } } as any)}
+        style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }, !canEdit && { opacity: 0.6 }]}
+        onPress={() => canEdit ? router.push({ pathname: "/(admin)/client-form", params: { id: item.id } } as any) : null}
       >
         <View style={styles.cardRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
+          <View style={[styles.avatar, { backgroundColor: isAdminRole ? "#8B5CF620" : theme.primary + "20" }]}>
+            <Text style={[styles.avatarText, { color: isAdminRole ? "#8B5CF6" : theme.primary }]}>{initials}</Text>
           </View>
           <View style={styles.cardInfo}>
             <Text style={styles.cardName}>{name}</Text>
@@ -78,12 +109,10 @@ export default function AdminClientsScreen() {
             {item.phone && <Text style={styles.cardPhone}>{item.phone}</Text>}
           </View>
           <View style={styles.cardRight}>
-            <View style={[styles.roleBadge, { backgroundColor: isPro ? "#F59E0B20" : theme.primary + "20" }]}>
-              <Text style={[styles.roleText, { color: isPro ? "#F59E0B" : theme.primary }]}>
-                {isPro ? "Pro" : "Particulier"}
-              </Text>
+            <View style={[styles.roleBadge, { backgroundColor: roleBadgeColor + "20" }]}>
+              <Text style={[styles.roleText, { color: roleBadgeColor }]}>{roleLabel}</Text>
             </View>
-            {isAdmin && (
+            {isAdmin && canEdit && (
               <Pressable
                 style={[styles.deleteBtn]}
                 onPress={() => confirmDelete(item.id, name)}
@@ -96,7 +125,7 @@ export default function AdminClientsScreen() {
         </View>
       </Pressable>
     );
-  }, [theme, isAdmin]);
+  }, [theme, isAdmin, loggedRole]);
 
   return (
     <View style={styles.container}>

@@ -22,7 +22,9 @@ export default function AdminQuotesScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const loggedRole = (user?.role || "").toLowerCase();
+  const loggedGarageId = (user as any)?.garageId || null;
   const { showAlert, AlertComponent } = useCustomAlert();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -65,6 +67,7 @@ export default function AdminQuotesScreen() {
 
   const arr = Array.isArray(quotes) ? quotes : [];
   const filtered = arr.filter((q: any) => {
+    if (loggedRole === "admin" && loggedGarageId && q.garageId && q.garageId !== loggedGarageId) return false;
     if (filter !== "all" && q.status?.toLowerCase() !== filter) return false;
     if (search) {
       const s = search.toLowerCase();

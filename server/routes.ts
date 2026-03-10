@@ -935,6 +935,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.use("/api/mobile/admin", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authHeaders: Record<string, string> = {
+        "host": new URL(EXTERNAL_API).host,
+        "accept": "application/json",
+        "x-requested-with": "XMLHttpRequest",
+      };
+      if (req.headers["authorization"]) authHeaders["authorization"] = req.headers["authorization"] as string;
+      if (req.headers["cookie"]) authHeaders["cookie"] = req.headers["cookie"] as string;
+
+      const buildBody = (): { body?: string | Buffer; contentType?: string } => {
+        if (req.method === "GET" || req.method === "HEAD") return {};
+        const ct = req.headers["content-type"] || "";
+        if (ct.includes("multipart/form-data")) return { body: req.rawBody as Buffer, contentType: ct };
+        return { body: JSON.stringify(req.body), contentType: "application/json" };
+      };
+      const { body, contentType } = buildBody();
+      if (contentType) authHeaders["content-type"] = contentType;
+
+      const fetchOpts: RequestInit = { method: req.method, headers: authHeaders, redirect: "manual" };
+      if (body) fetchOpts.body = body;
+
+      const tryUrl = async (url: string) => {
+        const r = await fetch(url, fetchOpts);
+        const txt = await r.text();
+        if (txt.includes("<!DOCTYPE") || txt.includes("<html")) return null;
+        return { status: r.status, text: txt, headers: r.headers };
+      };
+
+      const mobileUrl = `${EXTERNAL_API}/mobile/admin${req.url}`;
+      let result = await tryUrl(mobileUrl);
+
+      if (!result) {
+        const legacyUrl = `${EXTERNAL_API}/admin${req.url}`;
+        result = await tryUrl(legacyUrl);
+        if (result) console.log(`[MOBILE-ADMIN] ${req.method} /admin${req.url} => ${result.status} (legacy fallback)`);
+      } else {
+        console.log(`[MOBILE-ADMIN] ${req.method} /mobile/admin${req.url} => ${result.status}`);
+      }
+
+      if (!result) {
+        const isMutation = !["GET","HEAD"].includes(req.method);
+        return res.status(404).json({ success: false, message: isMutation ? "Cette fonctionnalité n'est pas disponible sur ce serveur." : "Endpoint non trouvé" });
+      }
+
+      result.headers.forEach((value, key) => {
+        const lk = key.toLowerCase();
+        if (["transfer-encoding","content-encoding","content-length"].includes(lk)) return;
+        if (lk === "set-cookie") { res.appendHeader("set-cookie", value); return; }
+      });
+
+      try {
+        const data = JSON.parse(result.text);
+        return res.status(result.status).json(data);
+      } catch {
+        return res.status(result.status).send(result.text);
+      }
+    } catch (err: any) {
+      console.error("[MOBILE-ADMIN] error:", err.message);
+      return res.status(502).json({ message: "Erreur de connexion au serveur API" });
+    }
+  });
+
   app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
     try {
       const targetUrl = `${EXTERNAL_API}${req.url}`;

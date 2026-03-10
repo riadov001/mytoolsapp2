@@ -20,8 +20,10 @@ const STATUS_OPTIONS = [
 ];
 
 export default function QuoteFormScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const isEdit = !!id;
+  const params = useLocalSearchParams();
+  const rawId = params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : (typeof rawId === "string" ? rawId : "");
+  const isEdit = id.length > 0;
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
@@ -82,7 +84,7 @@ export default function QuoteFormScreen() {
       const rate = parseFloat(taxRate) || 0;
       const taxAmount = ht * (rate / 100);
       const body = {
-        clientId: parseInt(clientId),
+        clientId: clientId,
         status,
         quoteAmount: ht + taxAmount,
         priceExcludingTax: ht,

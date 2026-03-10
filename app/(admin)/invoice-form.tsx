@@ -25,8 +25,10 @@ function genKey() {
 }
 
 export default function InvoiceFormScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const isEdit = !!id;
+  const params = useLocalSearchParams();
+  const rawId = params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : (typeof rawId === "string" ? rawId : "");
+  const isEdit = id.length > 0;
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
@@ -108,7 +110,7 @@ export default function InvoiceFormScreen() {
         };
       });
       const body: any = {
-        clientId: parseInt(clientId),
+        clientId: clientId,
         status,
         amount: totals.ttc,
         priceExcludingTax: totals.ht,
@@ -119,7 +121,7 @@ export default function InvoiceFormScreen() {
         items: builtItems,
       };
       if (dueDate) body.dueDate = dueDate;
-      if (isEdit) await adminInvoices.update(id!, body);
+      if (isEdit) await adminInvoices.update(id, body);
       else await adminInvoices.create(body);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       queryClient.invalidateQueries({ queryKey: ["admin-invoices"] });
