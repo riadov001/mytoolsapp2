@@ -65,12 +65,16 @@ export default function LoginScreen() {
   const ADMIN_ROLES = ["admin", "super_admin", "superadmin", "root_admin", "root"];
   const EMPLOYEE_ROLES = ["employe", "employee", "manager"];
 
-  const resolveRoute = (userData: any) => {
+  const isAuthorizedUser = (userData: any) => {
     const role = (userData?.role || "").toLowerCase();
-    const isAdminUser = ADMIN_ROLES.includes(role) || userData?.isAdmin === true || userData?.is_admin === true;
-    const isEmployeeUser = EMPLOYEE_ROLES.includes(role) || userData?.isEmployee === true || userData?.is_employee === true;
-    if (isAdminUser || isEmployeeUser) return "/(admin)" as any;
-    return "/(main)/(tabs)" as any;
+    return (
+      ADMIN_ROLES.includes(role) ||
+      EMPLOYEE_ROLES.includes(role) ||
+      userData?.isAdmin === true ||
+      userData?.is_admin === true ||
+      userData?.isEmployee === true ||
+      userData?.is_employee === true
+    );
   };
 
   const handleBiometricLogin = async () => {
@@ -78,7 +82,7 @@ export default function LoginScreen() {
     try {
       const success = await biometricLogin();
       if (success) {
-        setTimeout(() => router.replace("/" as any), 100);
+        setTimeout(() => router.replace("/(admin)" as any), 100);
       } else {
         setBiometricAvailable(false);
         showAlert({ type: "error", title: "Session expirée", message: "Veuillez vous reconnecter avec vos identifiants.", buttons: [{ text: "OK", style: "primary" }] });
@@ -95,8 +99,17 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const userData = await login({ email: email.trim().toLowerCase(), password });
-      const route = resolveRoute(userData);
-      setTimeout(() => router.replace(route), 100);
+      if (!isAuthorizedUser(userData)) {
+        showAlert({
+          type: "error",
+          title: "Accès refusé",
+          message: "Cette application est réservée aux administrateurs et employés de garage. Contactez le service client pour obtenir un accès.",
+          buttons: [{ text: "OK", style: "primary" }],
+        });
+        setLoading(false);
+        return;
+      }
+      setTimeout(() => router.replace("/(admin)" as any), 100);
     } catch (err: any) {
       showAlert({ type: "error", title: "Erreur de connexion", message: err.message || "Identifiants incorrects.", buttons: [{ text: "OK", style: "primary" }] });
       setLoading(false);
@@ -185,19 +198,6 @@ export default function LoginScreen() {
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginBtnText}>Se connecter</Text>}
           </Pressable>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <Pressable
-            style={({ pressed }) => [styles.registerBtn, pressed && { opacity: 0.8 }]}
-            onPress={() => router.push("/(auth)/register")}
-          >
-            <Text style={styles.registerBtnText}>Créer un compte</Text>
-          </Pressable>
-
           {biometricAvailable && (
             <Pressable
               style={({ pressed }) => [styles.biometricBtn, pressed && { opacity: 0.8 }]}
@@ -208,6 +208,23 @@ export default function LoginScreen() {
               <Text style={styles.biometricBtnText}>Se connecter avec {biometricType}</Text>
             </Pressable>
           )}
+
+          <View style={styles.accessInfoBox}>
+            <Ionicons name="lock-closed-outline" size={14} color="#666" />
+            <Text style={styles.accessInfoText}>
+              Accès réservé aux administrateurs de garage. Pour obtenir vos identifiants, contactez le service client.
+            </Text>
+          </View>
+
+          <View style={styles.legalRow}>
+            <Pressable onPress={() => router.push("/privacy" as any)}>
+              <Text style={styles.legalLink}>Politique de confidentialité</Text>
+            </Pressable>
+            <Text style={styles.legalSep}>·</Text>
+            <Pressable onPress={() => router.push("/legal" as any)}>
+              <Text style={styles.legalLink}>Mentions légales</Text>
+            </Pressable>
+          </View>
 
           <View style={styles.versionContainer}>
             <Text style={styles.versionText}>v1.0</Text>
@@ -339,36 +356,41 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
     fontFamily: "Michroma_400Regular",
     letterSpacing: 2,
   },
-  divider: {
+  accessInfoBox: {
     flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 4,
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    padding: 12,
+    marginTop: 8,
   },
-  dividerLine: {
+  accessInfoText: {
     flex: 1,
-    height: 1,
-    backgroundColor: theme.border,
-  },
-  dividerText: {
-    marginHorizontal: 16,
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: theme.textTertiary,
+    color: "#666",
+    lineHeight: 17,
   },
-  registerBtn: {
-    borderRadius: 14,
-    height: 54,
+  legalRow: {
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: theme.primary,
-    backgroundColor: "transparent",
+    gap: 8,
+    marginTop: 12,
+    opacity: 0.5,
   },
-  registerBtnText: {
-    color: theme.primary,
-    fontSize: 15,
-    fontFamily: "Michroma_400Regular",
-    letterSpacing: 1,
+  legalLink: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: theme.textSecondary,
+    textDecorationLine: "underline",
+  },
+  legalSep: {
+    fontSize: 11,
+    color: theme.textTertiary,
   },
   biometricBtn: {
     flexDirection: "row",

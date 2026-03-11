@@ -1,7 +1,7 @@
-# MyTools - Application Mobile (MyJantes Customer Portal)
+# MyTools Admin - Application Mobile
 
 ## Overview
-Application mobile Expo React Native pour MyJantes, un service professionnel de rénovation et personnalisation de jantes automobiles. L'app permet aux particuliers et professionnels de demander des devis gratuits en ligne.
+Application mobile Expo React Native **exclusivement réservée aux administrateurs de garages partenaires** MyTools. L'app permet la gestion complète des devis, factures, réservations, clients et services via le back-office MyTools Group. Les comptes admin sont créés uniquement par le service client.
 
 ## Architecture
 - **Frontend**: Expo React Native (Expo Router, file-based routing)

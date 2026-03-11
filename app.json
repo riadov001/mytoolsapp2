@@ -20,13 +20,13 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "MyTools nécessite l'accès à l'appareil photo pour vous permettre de prendre des photos de vos jantes lors de vos demandes de devis.",
-        "NSPhotoLibraryUsageDescription": "MyTools nécessite l'accès à votre bibliothèque de photos pour vous permettre de sélectionner des photos de vos jantes pour vos demandes de devis.",
-        "NSPhotoLibraryAddUsageDescription": "MyTools souhaite enregistrer des photos dans votre bibliothèque.",
-        "NSFaceIDUsageDescription": "MyTools utilise Face ID pour vous permettre de vous connecter de manière sécurisée et rapide à votre compte.",
-        "NSUserTrackingUsageDescription": "MyTools n'effectue aucun suivi publicitaire. Votre vie privée est notre priorité.",
-        "NSMicrophoneUsageDescription": "MyTools n'utilise pas le microphone.",
-        "NSLocationWhenInUseUsageDescription": "MyTools n'utilise pas votre localisation.",
+        "NSCameraUsageDescription": "MyTools Admin utilise l'appareil photo pour photographier les véhicules et pièces dans le cadre des devis.",
+        "NSPhotoLibraryUsageDescription": "MyTools Admin accède à la galerie pour joindre des photos aux devis et demandes de service.",
+        "NSPhotoLibraryAddUsageDescription": "MyTools Admin peut enregistrer des photos dans votre bibliothèque.",
+        "NSFaceIDUsageDescription": "MyTools Admin utilise Face ID pour sécuriser l'accès à votre compte administrateur.",
+        "NSUserTrackingUsageDescription": "MyTools Admin n'effectue aucun suivi publicitaire. Aucune donnée n'est partagée avec des tiers à des fins commerciales.",
+        "NSMicrophoneUsageDescription": "MyTools Admin peut accéder au microphone lors de la prise de vidéo pour les demandes de service.",
+        "NSLocationWhenInUseUsageDescription": "MyTools Admin n'utilise pas votre localisation.",
         "ITSAppUsesNonExemptEncryption": "NO"
       }
     },
@@ -39,7 +39,7 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.READ_MEDIA_IMAGES"
       ]
     },
     "web": {
@@ -66,13 +66,13 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "MyJantes a besoin de votre caméra pour prendre des photos de vos jantes."
+          "cameraPermission": "MyTools Admin utilise l'appareil photo pour photographier les véhicules et pièces lors des devis."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "MyJantes a besoin d'accéder à votre galerie pour sélectionner des photos de vos jantes."
+          "photosPermission": "MyTools Admin accède à la galerie pour joindre des photos aux devis et demandes de service."
         }
       ]
     ],
