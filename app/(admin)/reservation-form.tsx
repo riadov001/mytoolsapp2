@@ -22,25 +22,6 @@ const STATUS_OPTIONS = [
 ];
 
 
-function buildCalendarDays(year: number, month: number) {
-  const firstDay = new Date(year, month, 1).getDay();
-  const offset = firstDay === 0 ? 6 : firstDay - 1;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const days: Array<{ day: number | null; dateKey: string | null }> = [];
-  for (let i = 0; i < offset; i++) days.push({ day: null, dateKey: null });
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    days.push({ day: d, dateKey });
-  }
-  return days;
-}
-
-function formatDateFR(dateKey: string): string {
-  if (!dateKey) return "";
-  const [y, m, d] = dateKey.split("-");
-  return `${d}/${m}/${y}`;
-}
-
 export default function ReservationFormScreen() {
   const params = useLocalSearchParams();
   const rawId = params.id;
@@ -107,14 +88,6 @@ export default function ReservationFormScreen() {
       setServiceId(existing.serviceId || "");
     }
   }, [existing]);
-
-  const calYear = calMonth.getFullYear();
-  const calMonthIdx = calMonth.getMonth();
-  const calDays = useMemo(() => buildCalendarDays(calYear, calMonthIdx), [calYear, calMonthIdx]);
-  const today = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  })();
 
   const handleSave = async () => {
     if (!clientId) {
