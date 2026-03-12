@@ -48,12 +48,7 @@
     },
     "privacyPolicyUrl": "https://www.mytoolsgroup.eu/privacy",
     "plugins": [
-      [
-        "expo-router",
-        {
-          "origin": "https://www.mytoolsgroup.eu"
-        }
-      ],
+      "expo-router",
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
@@ -83,9 +78,6 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {
-        "origin": "https://www.mytoolsgroup.eu"
-      },
       "eas": {
         "projectId": "45e48f45-e421-4f67-9d02-d84a678fdfc5"
       }
