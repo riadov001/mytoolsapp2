@@ -193,6 +193,11 @@ export default function QuoteFormScreen() {
       showAlert({ type: "error", title: "Erreur", message: "Veuillez sélectionner un client.", buttons: [{ text: "OK", style: "primary" }] });
       return;
     }
+    const hasValidLine = items.some(it => it.description.trim() || parseFloat(it.unitPriceExcludingTax) > 0);
+    if (!hasValidLine) {
+      showAlert({ type: "error", title: "Erreur", message: "Ajoutez au moins une ligne avec une description ou un prix.", buttons: [{ text: "OK", style: "primary" }] });
+      return;
+    }
     setSaving(true);
     try {
       const builtItems = items.map(it => {
