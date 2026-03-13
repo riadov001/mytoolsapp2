@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminReservations, adminClients } from "@/lib/admin-api";
+import { adminReservations, adminClients, adminQuotes } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 
@@ -78,6 +78,12 @@ export default function ReservationDetailScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: allQuotes = [] } = useQuery({
+    queryKey: ["admin-quotes"],
+    queryFn: adminQuotes.getAll,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const clientMap = useMemo(() => {
     const map: Record<string, any> = {};
     for (const c of (Array.isArray(clients) ? clients : [])) {
@@ -85,6 +91,18 @@ export default function ReservationDetailScreen() {
     }
     return map;
   }, [clients]);
+
+  const linkedQuote = useMemo(() => {
+    if (!r?.quoteId) return null;
+    const quotesArr = Array.isArray(allQuotes) ? allQuotes : [];
+    return quotesArr.find((q: any) => String(q.id) === String(r.quoteId)) || null;
+  }, [r?.quoteId, allQuotes]);
+
+  const quoteDisplayRef = useMemo(() => {
+    if (linkedQuote) return linkedQuote.quoteNumber || linkedQuote.reference || null;
+    if (r?.quoteReference) return r.quoteReference;
+    return null;
+  }, [linkedQuote, r?.quoteReference]);
 
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
@@ -173,6 +191,27 @@ export default function ReservationDetailScreen() {
           </View>
         </View>
 
+        {/* Devis lié */}
+        {quoteDisplayRef ? (
+          <Pressable
+            style={styles.section}
+            onPress={() => {
+              if (linkedQuote?.id) {
+                router.push({ pathname: "/(admin)/quote-detail", params: { id: linkedQuote.id } } as any);
+              }
+            }}
+          >
+            <Text style={styles.sectionTitle}>Devis lié</Text>
+            <View style={styles.quoteLink}>
+              <Ionicons name="document-text-outline" size={18} color={theme.primary} />
+              <Text style={[styles.valueMain, { color: theme.primary, flex: 1 }]}>{quoteDisplayRef}</Text>
+              {linkedQuote?.id && (
+                <Ionicons name="chevron-forward" size={16} color={theme.textTertiary} />
+              )}
+            </View>
+          </Pressable>
+        ) : null}
+
         {/* Informations */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations</Text>
@@ -259,6 +298,7 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   valueSub: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary, flex: 1 },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   dateBlock: { flexDirection: "row", alignItems: "center", gap: 10 },
+  quoteLink: { flexDirection: "row", alignItems: "center", gap: 10 },
   label: { fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textTertiary, width: 110 },
   value: { fontSize: 13, fontFamily: "Inter_500Medium", color: theme.text, flex: 1 },
   prose: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text, lineHeight: 20 },

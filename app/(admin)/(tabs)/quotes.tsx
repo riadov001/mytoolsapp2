@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   View, Text, StyleSheet, FlatList, ScrollView, Pressable, Platform, RefreshControl, TextInput, ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +14,7 @@ import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 import { FilterChip } from "@/components/FilterChip";
+import { FloatingSupport } from "@/components/FloatingSupport";
 
 function buildClientMap(clients: any[]): Record<string, any> {
   const map: Record<string, any> = {};
@@ -24,7 +25,6 @@ function buildClientMap(clients: any[]): Record<string, any> {
 }
 
 function resolveClient(item: any, clientMap: Record<string, any>): { name: string; email: string; phone: string } {
-  // Try embedded client object first
   const c = item.client || (item.clientId && clientMap[String(item.clientId)]) || null;
 
   let name = "";
@@ -62,6 +62,15 @@ export default function AdminQuotesScreen() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("all");
+
+  const params = useLocalSearchParams();
+  const lastAppliedFilter = useRef<string | null>(null);
+  useEffect(() => {
+    if (params.filter && typeof params.filter === "string" && params.filter !== lastAppliedFilter.current) {
+      setFilter(params.filter);
+      lastAppliedFilter.current = params.filter;
+    }
+  }, [params.filter]);
 
   const { data: quotes = [], isLoading: quotesLoading, refetch, isRefetching } = useQuery({
     queryKey: ["admin-quotes"],
@@ -130,98 +139,96 @@ export default function AdminQuotesScreen() {
         style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
         onPress={() => router.push({ pathname: "/(admin)/quote-detail", params: { id: item.id } } as any)}
       >
-        {/* Header row */}
-        <View style={styles.cardTop}>
-          <View style={styles.cardLeft}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {name || "Client inconnu"}
+        <View style={[styles.cardAccent, { backgroundColor: color }]} />
+        <View style={styles.cardBody}>
+          <View style={styles.cardTop}>
+            <View style={styles.cardLeft}>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {name || "Client inconnu"}
+              </Text>
+              {ref ? (
+                <Text style={styles.cardRef}>{ref}</Text>
+              ) : null}
+            </View>
+            <View style={[styles.badge, { backgroundColor: color + "20" }]}>
+              <Text style={[styles.badgeText, { color }]}>{STATUS_LABELS[statusKey] || item.status}</Text>
+            </View>
+          </View>
+
+          {(email || phone) ? (
+            <View style={styles.contactRow}>
+              {email ? (
+                <View style={styles.contactItem}>
+                  <Ionicons name="mail-outline" size={12} color={theme.textTertiary} />
+                  <Text style={styles.contactText} numberOfLines={1}>{email}</Text>
+                </View>
+              ) : null}
+              {phone ? (
+                <View style={styles.contactItem}>
+                  <Ionicons name="call-outline" size={12} color={theme.textTertiary} />
+                  <Text style={styles.contactText}>{phone}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {serviceSummary ? (
+            <Text style={styles.cardServices} numberOfLines={1}>
+              <Ionicons name="construct-outline" size={11} color={theme.textTertiary} /> {serviceSummary}
             </Text>
-            {ref ? (
-              <Text style={styles.cardRef}>{ref}</Text>
-            ) : null}
+          ) : null}
+
+          <View style={styles.cardBottom}>
+            <Text style={styles.cardAmount}>
+              {totalTTC != null
+                ? parseFloat(String(totalTTC)).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
+                : "—"}
+            </Text>
+            <Text style={styles.cardDate}>
+              {item.createdAt ? new Date(item.createdAt).toLocaleDateString("fr-FR") : ""}
+            </Text>
           </View>
-          <View style={[styles.badge, { backgroundColor: color + "20" }]}>
-            <Text style={[styles.badgeText, { color }]}>{STATUS_LABELS[statusKey] || item.status}</Text>
-          </View>
-        </View>
 
-        {/* Contact info */}
-        {(email || phone) ? (
-          <View style={styles.contactRow}>
-            {email ? (
-              <View style={styles.contactItem}>
-                <Ionicons name="mail-outline" size={12} color={theme.textTertiary} />
-                <Text style={styles.contactText} numberOfLines={1}>{email}</Text>
-              </View>
-            ) : null}
-            {phone ? (
-              <View style={styles.contactItem}>
-                <Ionicons name="call-outline" size={12} color={theme.textTertiary} />
-                <Text style={styles.contactText}>{phone}</Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* Services */}
-        {serviceSummary ? (
-          <Text style={styles.cardServices} numberOfLines={1}>
-            <Ionicons name="construct-outline" size={11} color={theme.textTertiary} /> {serviceSummary}
-          </Text>
-        ) : null}
-
-        {/* Bottom row: amount + date */}
-        <View style={styles.cardBottom}>
-          <Text style={styles.cardAmount}>
-            {totalTTC != null
-              ? parseFloat(String(totalTTC)).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
-              : "—"}
-          </Text>
-          <Text style={styles.cardDate}>
-            {item.createdAt ? new Date(item.createdAt).toLocaleDateString("fr-FR") : ""}
-          </Text>
-        </View>
-
-        {/* Actions */}
-        {isAdmin ? (
-          <View style={styles.cardActions}>
-            {statusKey === "pending" && (
-              <>
+          {isAdmin ? (
+            <View style={styles.cardActions}>
+              {statusKey === "pending" && (
+                <>
+                  <ActionBtn
+                    icon="checkmark" color="#22C55E"
+                    label="Approuver"
+                    onPress={() => statusMutation.mutate({ id: item.id, status: "approved" })}
+                  />
+                  <ActionBtn
+                    icon="close" color="#EF4444"
+                    label="Rejeter"
+                    onPress={() => statusMutation.mutate({ id: item.id, status: "rejected" })}
+                  />
+                </>
+              )}
+              {(statusKey === "approved" || statusKey === "accepted") && (
                 <ActionBtn
-                  icon="checkmark" color="#22C55E"
-                  label="Approuver"
-                  onPress={() => statusMutation.mutate({ id: item.id, status: "approved" })}
+                  icon="arrow-undo" color="#F59E0B"
+                  label="En attente"
+                  onPress={() => statusMutation.mutate({ id: item.id, status: "pending" })}
                 />
+              )}
+              {statusKey === "rejected" && (
                 <ActionBtn
-                  icon="close" color="#EF4444"
-                  label="Rejeter"
-                  onPress={() => statusMutation.mutate({ id: item.id, status: "rejected" })}
+                  icon="refresh" color="#F59E0B"
+                  label="Remettre en attente"
+                  onPress={() => statusMutation.mutate({ id: item.id, status: "pending" })}
                 />
-              </>
-            )}
-            {(statusKey === "approved" || statusKey === "accepted") && (
-              <ActionBtn
-                icon="arrow-undo" color="#F59E0B"
-                label="En attente"
-                onPress={() => statusMutation.mutate({ id: item.id, status: "pending" })}
-              />
-            )}
-            {statusKey === "rejected" && (
-              <ActionBtn
-                icon="refresh" color="#F59E0B"
-                label="Remettre en attente"
-                onPress={() => statusMutation.mutate({ id: item.id, status: "pending" })}
-              />
-            )}
-            {statusKey !== "cancelled" && statusKey !== "converted" && (
-              <ActionBtn
-                icon="ban-outline" color="#6B7280"
-                label="Annuler"
-                onPress={() => cancelQuote(item.id, name)}
-              />
-            )}
-          </View>
-        ) : null}
+              )}
+              {statusKey !== "cancelled" && statusKey !== "converted" && (
+                <ActionBtn
+                  icon="ban-outline" color="#6B7280"
+                  label="Annuler"
+                  onPress={() => cancelQuote(item.id, name)}
+                />
+              )}
+            </View>
+          ) : null}
+        </View>
       </Pressable>
     );
   }, [theme, isAdmin, clientMap, statusMutation]);
@@ -255,7 +262,6 @@ export default function AdminQuotesScreen() {
         </View>
       </View>
 
-      <View style={styles.filterSeparator} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {STATUSES.map(s => (
           <FilterChip
@@ -287,6 +293,7 @@ export default function AdminQuotesScreen() {
         />
       )}
       {AlertComponent}
+      <FloatingSupport />
     </View>
   );
 }
@@ -308,14 +315,14 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingBottom: 12 },
   headerLogo: { width: 34, height: 34, borderRadius: 8 },
   screenTitle: { flex: 1, fontSize: 22, fontFamily: "Michroma_400Regular", color: theme.text, letterSpacing: 0.5 },
-  addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center" },
-  searchRow: { paddingHorizontal: 16, marginBottom: 10 },
+  searchRow: { paddingHorizontal: 16, marginBottom: 12 },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, height: 44 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },
-  filterSeparator: { height: 1, backgroundColor: theme.border, marginHorizontal: 16, marginBottom: 10, opacity: 0.5 },
-  filterRow: { paddingHorizontal: 16, gap: 6, paddingBottom: 10, flexDirection: "row" },
+  filterRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 12, flexDirection: "row" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  card: { backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, padding: 14, marginBottom: 10, gap: 8 },
+  card: { flexDirection: "row", backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, marginBottom: 10, overflow: "hidden" },
+  cardAccent: { width: 4 },
+  cardBody: { flex: 1, padding: 14, gap: 8 },
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   cardLeft: { flex: 1, marginRight: 8 },
   cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },

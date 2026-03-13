@@ -1,20 +1,21 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, Platform, RefreshControl, TextInput, ActivityIndicator, ScrollView,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminReservations, adminClients } from "@/lib/admin-api";
+import { adminReservations, adminClients, adminQuotes } from "@/lib/admin-api";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 import { syncReservationsToCalendar } from "@/lib/calendar";
 import { FilterChip } from "@/components/FilterChip";
+import { FloatingSupport } from "@/components/FloatingSupport";
 
 function resolveClient(item: any, clientMap: Record<string, any>): { name: string; email: string; phone: string } {
   const c = item.client || (item.clientId && clientMap[String(item.clientId)]) || null;
@@ -26,6 +27,14 @@ function resolveClient(item: any, clientMap: Record<string, any>): { name: strin
   const email = c?.email || item.clientEmail || "";
   const phone = c?.phone || c?.phoneNumber || item.clientPhone || "";
   return { name, email, phone };
+}
+
+function resolveQuoteRef(item: any, quoteMap: Record<string, any>): string | null {
+  const qid = item.quoteId;
+  if (!qid) return item.quoteReference || null;
+  const quote = quoteMap[String(qid)];
+  if (quote) return quote.quoteNumber || quote.reference || null;
+  return item.quoteReference || null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -76,6 +85,15 @@ export default function AdminReservationsScreen() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("all");
 
+  const params = useLocalSearchParams();
+  const lastAppliedFilter = useRef<string | null>(null);
+  useEffect(() => {
+    if (params.filter && typeof params.filter === "string" && params.filter !== lastAppliedFilter.current) {
+      setFilter(params.filter);
+      lastAppliedFilter.current = params.filter;
+    }
+  }, [params.filter]);
+
   const { data: reservations = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["admin-reservations"],
     queryFn: adminReservations.getAll,
@@ -87,6 +105,12 @@ export default function AdminReservationsScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: quotes = [] } = useQuery({
+    queryKey: ["admin-quotes"],
+    queryFn: adminQuotes.getAll,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const clientMap = useMemo(() => {
     const map: Record<string, any> = {};
     for (const c of (Array.isArray(clients) ? clients : [])) {
@@ -94,6 +118,14 @@ export default function AdminReservationsScreen() {
     }
     return map;
   }, [clients]);
+
+  const quoteMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    for (const q of (Array.isArray(quotes) ? quotes : [])) {
+      if (q?.id) map[String(q.id)] = q;
+    }
+    return map;
+  }, [quotes]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminReservations.delete(id),
@@ -210,6 +242,7 @@ export default function AdminReservationsScreen() {
     const dateStr = item.scheduledDate
       ? new Date(item.scheduledDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
       : "";
+    const quoteRef = resolveQuoteRef(item, quoteMap);
     return (
       <Pressable
         style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
@@ -238,7 +271,9 @@ export default function AdminReservationsScreen() {
                 </View>
               ) : null}
               <Text style={styles.cardSub}>{dateStr}</Text>
-              {item.quoteId || item.quoteReference ? <Text style={styles.cardService}>Devis: {item.quoteReference || item.quoteId}</Text> : null}
+              {quoteRef ? (
+                <Text style={styles.cardService}>Devis: {quoteRef}</Text>
+              ) : null}
               {item.serviceType ? (
                 <Text style={styles.cardService}>{item.serviceType}</Text>
               ) : null}
@@ -282,7 +317,7 @@ export default function AdminReservationsScreen() {
         </View>
       </Pressable>
     );
-  }, [theme, isAdmin, clientMap, statusMutation]);
+  }, [theme, isAdmin, clientMap, statusMutation, quoteMap]);
 
   return (
     <View style={styles.container}>
@@ -367,8 +402,7 @@ export default function AdminReservationsScreen() {
                   })}
                 </View>
               </View>
-              <View style={[styles.filterSeparator, { marginTop: 12 }]} />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.filterRow, { marginTop: 12 }]}>
                 {(["all", "pending", "confirmed", "completed", "cancelled"] as const).map(s => (
                   <FilterChip
                     key={s}
@@ -408,7 +442,6 @@ export default function AdminReservationsScreen() {
               />
             </View>
           </View>
-          <View style={styles.filterSeparator} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             {(["all", "pending", "confirmed", "completed", "cancelled"] as const).map(s => (
               <FilterChip
@@ -437,6 +470,7 @@ export default function AdminReservationsScreen() {
         </>
       )}
       {AlertComponent}
+      <FloatingSupport />
     </View>
   );
 }
@@ -446,8 +480,6 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingBottom: 10 },
   headerLogo: { width: 34, height: 34, borderRadius: 8 },
   screenTitle: { flex: 1, fontSize: 22, fontFamily: "Michroma_400Regular", color: theme.text, letterSpacing: 0.5 },
-  headerBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
-  addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center" },
   modeToggle: { flexDirection: "row", marginHorizontal: 16, marginBottom: 10, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, padding: 3, gap: 3 },
   modeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 10 },
   modeBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: theme.textSecondary },
@@ -462,11 +494,10 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   calDayNum: { fontSize: 13, fontFamily: "Inter_500Medium", color: theme.text },
   calDots: { flexDirection: "row", gap: 2, marginTop: 2, height: 5 },
   calDot: { width: 4, height: 4, borderRadius: 2 },
-  searchRow: { paddingHorizontal: 16, marginBottom: 8 },
+  searchRow: { paddingHorizontal: 16, marginBottom: 10 },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, height: 44 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },
-  filterSeparator: { height: 1, backgroundColor: theme.border, marginHorizontal: 16, marginBottom: 10, opacity: 0.5 },
-  filterRow: { paddingHorizontal: 16, gap: 6, marginBottom: 10, flexDirection: "row" },
+  filterRow: { paddingHorizontal: 16, gap: 8, marginBottom: 10, flexDirection: "row" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   card: { flexDirection: "row", backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, marginBottom: 10, overflow: "hidden" },
   cardAccent: { width: 4 },

@@ -212,6 +212,7 @@ server/
 - Mar 4 2026: PDF token detection expanded (7 field names + direct URL fallback)
 - Mar 4 2026: Invoice line items check 10 field name variants
 - Mar 4 2026: canRespond logic simplified (any non-final, non-pending status)
+- Mar 13 2026: Admin UX improvements — bell notification icon on dashboard, notifications screen, FilterChip with count badge support, KPI filter navigation, quote reference in reservations, FloatingSupport on all admin screens, tab layout simplified (no badge polling)
 - Mar 11 2026: Marketing site redesign (Next.js `/marketing-site`)
   - Hero: Reduced font size (text-3xl/sm:text-4xl/md:text-5xl), centered, removed store badges
   - Screenshots: JSX mockups of 5 screens (Login, Dashboard, Reservations, Services, Devis) with MyTools logo visible in each

@@ -2,28 +2,13 @@ import { Tabs } from "expo-router";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useTheme } from "@/lib/theme";
-import { adminNotifications } from "@/lib/admin-api";
 
 export default function AdminTabLayout() {
   const theme = useTheme();
   const isWeb = Platform.OS === "web";
   const isIOS = Platform.OS === "ios";
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    const fetchUnreadCount = async () => {
-      try {
-        const result = await adminNotifications.getUnreadCount();
-        setUnreadCount(result?.count || 0);
-      } catch {}
-    };
-    
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <Tabs
@@ -56,7 +41,6 @@ export default function AdminTabLayout() {
         options={{
           title: "Accueil",
           tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} />,
-          tabBarBadge: unreadCount > 0 ? unreadCount : null,
         }}
       />
       <Tabs.Screen

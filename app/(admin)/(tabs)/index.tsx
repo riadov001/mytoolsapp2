@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform, RefreshControl, ActivityIndicator,
 } from "react-native";
@@ -8,9 +8,10 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
-import { adminAnalytics } from "@/lib/admin-api";
+import { adminAnalytics, adminNotifications } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
+import { FloatingSupport } from "@/components/FloatingSupport";
 
 function formatCurrency(val: number | undefined | null) {
   if (val === undefined || val === null) return "0 €";
@@ -22,6 +23,21 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
+
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const all = await adminNotifications.getAll();
+        const arr = Array.isArray(all) ? all : [];
+        setUnreadCount(arr.filter((n: any) => !n.isRead && !n.read).length);
+      } catch {}
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["admin-analytics"],
@@ -90,6 +106,18 @@ export default function AdminDashboard() {
             <Text style={styles.greeting}>Bonjour,</Text>
             <Text style={styles.userName}>{user?.firstName || "Admin"}</Text>
           </View>
+          <Pressable
+            style={[styles.headerBtn, { backgroundColor: theme.primary + "10" }]}
+            onPress={() => router.push("/(admin)/notifications" as any)}
+            accessibilityLabel="Notifications"
+          >
+            <Ionicons name="notifications-outline" size={20} color={theme.primary} />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadCount > 99 ? "99+" : String(unreadCount)}</Text>
+              </View>
+            )}
+          </Pressable>
           {isRootAdmin && (
             <Pressable style={[styles.headerBtn, { backgroundColor: theme.primary + "10" }]} onPress={() => router.push("/(admin)/logs" as any)} accessibilityLabel="Logs serveur">
               <Ionicons name="terminal-outline" size={20} color={theme.primary} />
@@ -99,16 +127,16 @@ export default function AdminDashboard() {
 
         <Text style={styles.sectionLabel}>Ce mois — {cm.monthName || ""}</Text>
         <View style={styles.kpiGrid}>
-          <Pressable style={styles.kpiCardContainer} onPress={() => router.push("/(admin)/(tabs)/invoices" as any)}>
+          <Pressable style={styles.kpiCardContainer} onPress={() => router.push({ pathname: "/(admin)/(tabs)/invoices", params: { filter: "paid" } } as any)}>
             <KPICard theme={theme} icon="cash-outline" color="#22C55E" label="CA encaissé" value={formatCurrency(kpis.monthlyRevenue)} />
           </Pressable>
-          <Pressable style={styles.kpiCardContainer} onPress={() => router.push("/(admin)/(tabs)/invoices" as any)}>
+          <Pressable style={styles.kpiCardContainer} onPress={() => router.push({ pathname: "/(admin)/(tabs)/invoices", params: { filter: "pending" } } as any)}>
             <KPICard theme={theme} icon="time-outline" color="#F59E0B" label="CA en attente" value={formatCurrency(kpis.pendingRevenue)} />
           </Pressable>
-          <Pressable style={styles.kpiCardContainer} onPress={() => router.push("/(admin)/(tabs)/quotes" as any)}>
+          <Pressable style={styles.kpiCardContainer} onPress={() => router.push({ pathname: "/(admin)/(tabs)/quotes", params: { filter: "pending" } } as any)}>
             <KPICard theme={theme} icon="document-text-outline" color="#8B5CF6" label="Devis actifs" value={String(kpis.pendingQuotes)} />
           </Pressable>
-          <Pressable style={styles.kpiCardContainer} onPress={() => router.push("/(admin)/(tabs)/invoices" as any)}>
+          <Pressable style={styles.kpiCardContainer} onPress={() => router.push({ pathname: "/(admin)/(tabs)/invoices", params: { filter: "pending" } } as any)}>
             <KPICard theme={theme} icon="alert-circle-outline" color="#EF4444" label="Factures impayées" value={String(kpis.pendingInvoices)} />
           </Pressable>
           <Pressable style={styles.kpiCardContainer} onPress={() => router.push("/(admin)/(tabs)/clients" as any)}>
@@ -209,6 +237,7 @@ export default function AdminDashboard() {
           </>
         )}
       </ScrollView>
+      <FloatingSupport />
     </View>
   );
 }
@@ -245,7 +274,20 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   headerLogo: { width: 38, height: 38, borderRadius: 10 },
   greeting: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary },
   userName: { fontSize: 22, fontFamily: "Inter_700Bold", color: theme.text },
-  headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary + "10", justifyContent: "center", alignItems: "center", marginRight: 8 },
+  headerBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: "center", alignItems: "center", marginLeft: 8 },
+  bellBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#EF4444",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  bellBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#fff" },
   sectionLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: theme.textTertiary, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10, marginTop: 8, marginLeft: 2 },
   kpiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
   kpiCardContainer: { width: "48%", flexGrow: 1 },

@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   View, Text, StyleSheet, FlatList, ScrollView, Pressable, Platform, RefreshControl, TextInput, ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +14,7 @@ import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 import { FilterChip } from "@/components/FilterChip";
+import { FloatingSupport } from "@/components/FloatingSupport";
 
 function resolveClient(item: any, clientMap: Record<string, any>): { name: string; email: string; phone: string } {
   const c = item.client || (item.clientId && clientMap[String(item.clientId)]) || null;
@@ -42,6 +43,15 @@ export default function AdminInvoicesScreen() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("all");
+
+  const params = useLocalSearchParams();
+  const lastAppliedFilter = useRef<string | null>(null);
+  useEffect(() => {
+    if (params.filter && typeof params.filter === "string" && params.filter !== lastAppliedFilter.current) {
+      setFilter(params.filter);
+      lastAppliedFilter.current = params.filter;
+    }
+  }, [params.filter]);
 
   const { data: invoices = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["admin-invoices"],
@@ -98,7 +108,8 @@ export default function AdminInvoicesScreen() {
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
 
   const renderItem = useCallback(({ item }: { item: any }) => {
-    const color = STATUS_COLORS[item.status?.toLowerCase()] || theme.textTertiary;
+    const statusKey = (item.status || "").toLowerCase();
+    const color = STATUS_COLORS[statusKey] || theme.textTertiary;
     const { name, email, phone } = resolveClient(item, clientMap);
     const totalTTC = item.amount ?? item.totalTTC ?? item.total ?? item.totalAmount ?? null;
     return (
@@ -106,42 +117,43 @@ export default function AdminInvoicesScreen() {
         style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
         onPress={() => router.push({ pathname: "/(admin)/invoice-detail", params: { id: item.id } } as any)}
       >
-        <View style={styles.cardTop}>
-          <View style={styles.cardLeft}>
-            <Text style={styles.cardTitle} numberOfLines={1}>{name || "Client inconnu"}</Text>
-            {item.invoiceNumber || item.reference ? <Text style={styles.cardRef}>{item.invoiceNumber || item.reference}</Text> : null}
+        <View style={[styles.cardAccent, { backgroundColor: color }]} />
+        <View style={styles.cardBody}>
+          <View style={styles.cardTop}>
+            <View style={styles.cardLeft}>
+              <Text style={styles.cardTitle} numberOfLines={1}>{name || "Client inconnu"}</Text>
+              {item.invoiceNumber || item.reference ? <Text style={styles.cardRef}>{item.invoiceNumber || item.reference}</Text> : null}
+            </View>
+            <View style={[styles.badge, { backgroundColor: color + "20" }]}>
+              <Text style={[styles.badgeText, { color }]}>{STATUS_LABELS[statusKey] || item.status}</Text>
+            </View>
           </View>
-          <View style={[styles.badge, { backgroundColor: color + "20" }]}>
-            <Text style={[styles.badgeText, { color }]}>{STATUS_LABELS[item.status?.toLowerCase()] || item.status}</Text>
+          {(email || phone) ? (
+            <View style={styles.contactRow}>
+              {email ? (
+                <View style={styles.contactItem}>
+                  <Ionicons name="mail-outline" size={12} color={theme.textTertiary} />
+                  <Text style={styles.contactText} numberOfLines={1}>{email}</Text>
+                </View>
+              ) : null}
+              {phone ? (
+                <View style={styles.contactItem}>
+                  <Ionicons name="call-outline" size={12} color={theme.textTertiary} />
+                  <Text style={styles.contactText}>{phone}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          <View style={styles.cardBottom}>
+            <Text style={styles.cardAmount}>
+              {totalTTC != null ? parseFloat(String(totalTTC)).toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"}
+            </Text>
+            <Text style={styles.cardDate}>
+              {item.dueDate ? `Échéance: ${new Date(item.dueDate).toLocaleDateString("fr-FR")}` : item.createdAt ? new Date(item.createdAt).toLocaleDateString("fr-FR") : ""}
+            </Text>
           </View>
-        </View>
-        {(email || phone) ? (
-          <View style={styles.contactRow}>
-            {email ? (
-              <View style={styles.contactItem}>
-                <Ionicons name="mail-outline" size={12} color={theme.textTertiary} />
-                <Text style={styles.contactText} numberOfLines={1}>{email}</Text>
-              </View>
-            ) : null}
-            {phone ? (
-              <View style={styles.contactItem}>
-                <Ionicons name="call-outline" size={12} color={theme.textTertiary} />
-                <Text style={styles.contactText}>{phone}</Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-        <View style={styles.cardBottom}>
-          <Text style={styles.cardAmount}>
-            {totalTTC != null ? parseFloat(String(totalTTC)).toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"}
-          </Text>
-          <Text style={styles.cardDate}>
-            {item.dueDate ? `Échéance: ${new Date(item.dueDate).toLocaleDateString("fr-FR")}` : item.createdAt ? new Date(item.createdAt).toLocaleDateString("fr-FR") : ""}
-          </Text>
-        </View>
-        {isAdmin && item.status?.toLowerCase() !== "paid" && (
-          <View style={styles.cardActions}>
-            {item.status?.toLowerCase() === "pending" && (
+          {isAdmin && statusKey === "pending" && (
+            <View style={styles.cardActions}>
               <Pressable
                 style={[styles.actionBtn, { backgroundColor: "#22C55E20" }]}
                 onPress={() => {}}
@@ -149,9 +161,9 @@ export default function AdminInvoicesScreen() {
               >
                 <Ionicons name="checkmark" size={16} color="#22C55E" />
               </Pressable>
-            )}
-          </View>
-        )}
+            </View>
+          )}
+        </View>
       </Pressable>
     );
   }, [theme, isAdmin, clientMap]);
@@ -184,7 +196,6 @@ export default function AdminInvoicesScreen() {
         </View>
       </View>
 
-      <View style={styles.filterSeparator} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {STATUSES.map(s => (
           <FilterChip
@@ -216,6 +227,7 @@ export default function AdminInvoicesScreen() {
         />
       )}
       {AlertComponent}
+      <FloatingSupport />
     </View>
   );
 }
@@ -225,19 +237,18 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingBottom: 12 },
   headerLogo: { width: 34, height: 34, borderRadius: 8 },
   screenTitle: { flex: 1, fontSize: 22, fontFamily: "Michroma_400Regular", color: theme.text, letterSpacing: 0.5 },
-  addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.primary, justifyContent: "center", alignItems: "center" },
-  searchRow: { paddingHorizontal: 16, marginBottom: 10 },
+  searchRow: { paddingHorizontal: 16, marginBottom: 12 },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, height: 44 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },
-  filterSeparator: { height: 1, backgroundColor: theme.border, marginHorizontal: 16, marginBottom: 10, opacity: 0.5 },
-  filterRow: { paddingHorizontal: 16, gap: 6, paddingBottom: 10, flexDirection: "row" },
+  filterRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 12, flexDirection: "row" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  card: { backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, padding: 14, marginBottom: 10, gap: 10 },
+  card: { flexDirection: "row", backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, marginBottom: 10, overflow: "hidden" },
+  cardAccent: { width: 4 },
+  cardBody: { flex: 1, padding: 14, gap: 10 },
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   cardLeft: { flex: 1 },
   cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
   cardRef: { fontSize: 12, fontFamily: "Inter_500Medium", color: theme.primary, marginTop: 2 },
-  cardSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary, marginTop: 2 },
   contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   contactItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   contactText: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary },

@@ -12,26 +12,32 @@ interface FilterChipProps {
 
 export function FilterChip({ label, active, onPress, color, count }: FilterChipProps) {
   const theme = useTheme();
-  const activeColor = color || theme.primary;
+  const accentColor = color || theme.primary;
 
   return (
     <Pressable
       style={({ pressed }) => [
         styles.chip,
         active
-          ? { backgroundColor: activeColor, borderColor: activeColor }
+          ? { backgroundColor: accentColor + "18", borderColor: accentColor + "50" }
           : { backgroundColor: theme.surface, borderColor: theme.border },
-        pressed && { opacity: 0.85 },
+        pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
       ]}
       onPress={onPress}
     >
-      {active && <View style={styles.dot} />}
-      <Text style={[styles.label, { color: active ? "#fff" : theme.textSecondary }]}>
+      <View style={[styles.dot, { backgroundColor: active ? accentColor : theme.textTertiary + "60" }]} />
+      <Text
+        style={[
+          styles.label,
+          { color: active ? accentColor : theme.textSecondary },
+          active && { fontFamily: "Inter_700Bold" },
+        ]}
+      >
         {label}
       </Text>
       {count !== undefined && count > 0 && (
-        <View style={[styles.countBadge, { backgroundColor: active ? "rgba(255,255,255,0.25)" : activeColor + "20" }]}>
-          <Text style={[styles.countText, { color: active ? "#fff" : activeColor }]}>{count}</Text>
+        <View style={[styles.countBadge, { backgroundColor: active ? accentColor + "25" : theme.border }]}>
+          <Text style={[styles.countText, { color: active ? accentColor : theme.textSecondary }]}>{count}</Text>
         </View>
       )}
     </Pressable>
@@ -42,32 +48,26 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 1.5,
-    elevation: 0.5,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.7)",
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
   label: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: "Inter_600SemiBold",
   },
   countBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 5,
+    borderRadius: 10,
+    paddingHorizontal: 6,
     paddingVertical: 1,
-    minWidth: 18,
+    minWidth: 20,
     alignItems: "center",
   },
   countText: {
