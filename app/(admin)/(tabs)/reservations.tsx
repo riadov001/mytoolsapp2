@@ -183,12 +183,15 @@ export default function AdminReservationsScreen() {
   }, [arr, filter, search, loggedRole, loggedGarageId, clientMap]);
 
   const agendaItems = useMemo(() => {
-    const items = byDate[selectedDate] || [];
+    let items = byDate[selectedDate] || [];
     if (loggedRole === "admin" && loggedGarageId) {
-      return items.filter((r: any) => !r.garageId || r.garageId === loggedGarageId);
+      items = items.filter((r: any) => !r.garageId || r.garageId === loggedGarageId);
+    }
+    if (filter !== "all") {
+      items = items.filter((r: any) => r.status?.toLowerCase() === filter);
     }
     return items;
-  }, [byDate, selectedDate, loggedRole, loggedGarageId]);
+  }, [byDate, selectedDate, loggedRole, loggedGarageId, filter]);
 
   const calYear = currentMonth.getFullYear();
   const calMonth = currentMonth.getMonth();
@@ -321,52 +324,66 @@ export default function AdminReservationsScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.primary} />}
           ListHeaderComponent={
-            <View style={styles.calendarCard}>
-              <View style={styles.calendarHeader}>
-                <Pressable onPress={prevMonth} style={styles.calNavBtn} accessibilityLabel="Mois précédent">
-                  <Ionicons name="chevron-back" size={20} color={theme.text} />
-                </Pressable>
-                <Text style={styles.calMonthLabel}>{MONTHS_FR[calMonth]} {calYear}</Text>
-                <Pressable onPress={nextMonth} style={styles.calNavBtn} accessibilityLabel="Mois suivant">
-                  <Ionicons name="chevron-forward" size={20} color={theme.text} />
-                </Pressable>
+            <View>
+              <View style={styles.calendarCard}>
+                <View style={styles.calendarHeader}>
+                  <Pressable onPress={prevMonth} style={styles.calNavBtn} accessibilityLabel="Mois précédent">
+                    <Ionicons name="chevron-back" size={20} color={theme.text} />
+                  </Pressable>
+                  <Text style={styles.calMonthLabel}>{MONTHS_FR[calMonth]} {calYear}</Text>
+                  <Pressable onPress={nextMonth} style={styles.calNavBtn} accessibilityLabel="Mois suivant">
+                    <Ionicons name="chevron-forward" size={20} color={theme.text} />
+                  </Pressable>
+                </View>
+                <View style={styles.calDayNames}>
+                  {DAYS_FR.map((d, i) => (
+                    <Text key={i} style={styles.calDayName}>{d}</Text>
+                  ))}
+                </View>
+                <View style={styles.calGrid}>
+                  {calDays.map((cell, idx) => {
+                    if (!cell.dateKey) return <View key={idx} style={styles.calCell} />;
+                    const isSelected = cell.dateKey === selectedDate;
+                    const isToday = cell.dateKey === today;
+                    const dayReservations = byDate[cell.dateKey] || [];
+                    const dotColors = dayReservations
+                      .slice(0, 3)
+                      .map((r: any) => STATUS_COLORS[r.status?.toLowerCase()] || theme.primary);
+                    return (
+                      <Pressable
+                        key={idx}
+                        style={[styles.calCell, isSelected && { backgroundColor: theme.primary, borderRadius: 20 }]}
+                        onPress={() => setSelectedDate(cell.dateKey!)}
+                      >
+                        <Text style={[
+                          styles.calDayNum,
+                          isToday && !isSelected && { color: theme.primary, fontFamily: "Inter_700Bold" },
+                          isSelected && { color: "#fff" },
+                        ]}>
+                          {cell.day}
+                        </Text>
+                        <View style={styles.calDots}>
+                          {dotColors.map((c, di) => (
+                            <View key={di} style={[styles.calDot, { backgroundColor: isSelected ? "#fff" : c }]} />
+                          ))}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
-              <View style={styles.calDayNames}>
-                {DAYS_FR.map((d, i) => (
-                  <Text key={i} style={styles.calDayName}>{d}</Text>
+              <View style={[styles.filterSeparator, { marginTop: 12 }]} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+                {(["all", "pending", "confirmed", "completed", "cancelled"] as const).map(s => (
+                  <FilterChip
+                    key={s}
+                    label={STATUS_LABELS[s]}
+                    active={filter === s}
+                    onPress={() => setFilter(s)}
+                    color={s !== "all" ? STATUS_COLORS[s] : undefined}
+                  />
                 ))}
-              </View>
-              <View style={styles.calGrid}>
-                {calDays.map((cell, idx) => {
-                  if (!cell.dateKey) return <View key={idx} style={styles.calCell} />;
-                  const isSelected = cell.dateKey === selectedDate;
-                  const isToday = cell.dateKey === today;
-                  const dayReservations = byDate[cell.dateKey] || [];
-                  const dotColors = dayReservations
-                    .slice(0, 3)
-                    .map((r: any) => STATUS_COLORS[r.status?.toLowerCase()] || theme.primary);
-                  return (
-                    <Pressable
-                      key={idx}
-                      style={[styles.calCell, isSelected && { backgroundColor: theme.primary, borderRadius: 20 }]}
-                      onPress={() => setSelectedDate(cell.dateKey!)}
-                    >
-                      <Text style={[
-                        styles.calDayNum,
-                        isToday && !isSelected && { color: theme.primary, fontFamily: "Inter_700Bold" },
-                        isSelected && { color: "#fff" },
-                      ]}>
-                        {cell.day}
-                      </Text>
-                      <View style={styles.calDots}>
-                        {dotColors.map((c, di) => (
-                          <View key={di} style={[styles.calDot, { backgroundColor: isSelected ? "#fff" : c }]} />
-                        ))}
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              </ScrollView>
             </View>
           }
           ListHeaderComponentStyle={{ marginBottom: 12 }}
@@ -404,6 +421,7 @@ export default function AdminReservationsScreen() {
                 label={STATUS_LABELS[s]}
                 active={filter === s}
                 onPress={() => setFilter(s)}
+                color={s !== "all" ? STATUS_COLORS[s] : undefined}
               />
             ))}
           </ScrollView>

@@ -269,6 +269,7 @@ export default function AdminQuotesScreen() {
             label={STATUS_LABELS[s]}
             active={filter === s}
             onPress={() => setFilter(s)}
+            color={s !== "all" ? STATUS_COLORS[s] : undefined}
           />
         ))}
       </ScrollView>
