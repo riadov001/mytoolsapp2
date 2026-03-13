@@ -33,10 +33,9 @@ const GUIDE_SECTIONS: GuideSection[] = [
     iconColor: "#3B82F6",
     title: "Devis",
     items: [
-      "Créez un nouveau devis avec le bouton « + » en haut à droite.",
-      "Sélectionnez un client, un service, ajoutez des photos (1 à 3) et des prestations avec prix et TVA.",
+      "Consultez tous les devis avec leur statut, montant et client associé.",
       "Changez le statut d'un devis : en attente, approuvé, rejeté ou annulé.",
-      "Consultez le détail d'un devis en appuyant dessus : lignes, totaux HT/TTC et PDF.",
+      "Appuyez sur un devis pour voir le détail : lignes, totaux HT/TTC et PDF.",
       "Filtrez par statut ou recherchez par nom de client ou numéro.",
     ],
   },
@@ -78,13 +77,24 @@ const GUIDE_SECTIONS: GuideSection[] = [
     ],
   },
   {
+    id: "notifications",
+    icon: "notifications-outline",
+    iconColor: "#EF4444",
+    title: "Notifications",
+    items: [
+      "Recevez une alerte à chaque nouveau devis, facture ou rendez-vous.",
+      "Les notifications s'affichent en temps réel sur votre appareil.",
+      "Appuyez sur une notification pour accéder directement à l'élément concerné.",
+      "Gérez vos préférences dans Paramètres > Notifications.",
+    ],
+  },
+  {
     id: "support",
     icon: "chatbubbles-outline",
     iconColor: "#06B6D4",
     title: "Support",
     items: [
       "Contactez l'équipe MyTools depuis l'onglet Paramètres > Nous contacter.",
-      "Joignez jusqu'à 3 photos à votre demande de support.",
       "Consultez l'historique de vos demandes dans Paramètres > Historique des demandes.",
       "Vous pouvez également nous écrire à contact@mytoolsgroup.eu.",
     ],
