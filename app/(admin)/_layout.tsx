@@ -19,6 +19,7 @@ export default function AdminLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="quote-detail" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="quote-create" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="invoice-detail" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="reservation-detail" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="client-form" options={{ presentation: "modal", headerShown: false }} />

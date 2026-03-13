@@ -8,28 +8,22 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminInvoices } from "@/lib/admin-api";
+import { adminInvoices, adminClients } from "@/lib/admin-api";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 
-function resolveClientName(item: any): string {
-  const c = item.client;
-  if (c?.firstName || c?.lastName) return `${c.firstName || ""} ${c.lastName || ""}`.trim();
-  if (c?.name) return c.name;
-  if (c?.client_name) return c.client_name;
-  if (item.firstName || item.lastName) return `${item.firstName || ""} ${item.lastName || ""}`.trim();
-  if (item.clientFirstName || item.clientLastName) return `${item.clientFirstName || ""} ${item.clientLastName || ""}`.trim();
-  if (item.client_first_name || item.client_last_name) return `${item.client_first_name || ""} ${item.client_last_name || ""}`.trim();
-  if (item.clientName) {
-    const parts = String(item.clientName).trim().split(/\s+/);
-    if (parts.length >= 1) return item.clientName;
-  }
-  if (item.client_name) return item.client_name;
-  if (c?.email) return c.email;
-  if (item.clientEmail || item.client_email) return item.clientEmail || item.client_email;
-  return "Client inconnu";
+function resolveClient(item: any, clientMap: Record<string, any>): { name: string; email: string; phone: string } {
+  const c = item.client || (item.clientId && clientMap[String(item.clientId)]) || null;
+  let name = "";
+  if (c?.firstName || c?.lastName) name = `${c.firstName || ""} ${c.lastName || ""}`.trim();
+  else if (c?.name) name = c.name;
+  else if (item.clientFirstName || item.clientLastName) name = `${item.clientFirstName || ""} ${item.clientLastName || ""}`.trim();
+  else if (item.clientName) name = item.clientName;
+  const email = c?.email || item.clientEmail || "";
+  const phone = c?.phone || c?.phoneNumber || item.clientPhone || "";
+  return { name, email, phone };
 }
 
 const STATUSES = ["all", "pending", "paid", "cancelled"] as const;
@@ -52,6 +46,20 @@ export default function AdminInvoicesScreen() {
     queryKey: ["admin-invoices"],
     queryFn: adminInvoices.getAll,
   });
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ["admin-clients"],
+    queryFn: adminClients.getAll,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const clientMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    for (const c of (Array.isArray(clients) ? clients : [])) {
+      if (c?.id) map[String(c.id)] = c;
+    }
+    return map;
+  }, [clients]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminInvoices.delete(id),
@@ -80,8 +88,8 @@ export default function AdminInvoicesScreen() {
     if (filter !== "all" && inv.status?.toLowerCase() !== filter) return false;
     if (search) {
       const s = search.toLowerCase();
-      const name = resolveClientName(inv).toLowerCase();
-      return name.includes(s) || (inv.invoiceNumber || "").toLowerCase().includes(s);
+      const { name } = resolveClient(inv, clientMap);
+      return name.toLowerCase().includes(s) || (inv.invoiceNumber || "").toLowerCase().includes(s) || (inv.clientEmail || "").toLowerCase().includes(s);
     }
     return true;
   });
@@ -90,7 +98,8 @@ export default function AdminInvoicesScreen() {
 
   const renderItem = useCallback(({ item }: { item: any }) => {
     const color = STATUS_COLORS[item.status?.toLowerCase()] || theme.textTertiary;
-    const clientName = resolveClientName(item);
+    const { name, email, phone } = resolveClient(item, clientMap);
+    const totalTTC = item.amount ?? item.totalTTC ?? item.total ?? item.totalAmount ?? null;
     return (
       <Pressable
         style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
@@ -98,35 +107,53 @@ export default function AdminInvoicesScreen() {
       >
         <View style={styles.cardTop}>
           <View style={styles.cardLeft}>
-            <Text style={styles.cardTitle}>{clientName}</Text>
-            <Text style={styles.cardSub}>{item.invoiceNumber || "N° en attente"}</Text>
+            <Text style={styles.cardTitle} numberOfLines={1}>{name || "Client inconnu"}</Text>
+            {item.invoiceNumber ? <Text style={styles.cardRef}>{item.invoiceNumber}</Text> : null}
           </View>
           <View style={[styles.badge, { backgroundColor: color + "20" }]}>
             <Text style={[styles.badgeText, { color }]}>{STATUS_LABELS[item.status?.toLowerCase()] || item.status}</Text>
           </View>
         </View>
+        {(email || phone) ? (
+          <View style={styles.contactRow}>
+            {email ? (
+              <View style={styles.contactItem}>
+                <Ionicons name="mail-outline" size={12} color={theme.textTertiary} />
+                <Text style={styles.contactText} numberOfLines={1}>{email}</Text>
+              </View>
+            ) : null}
+            {phone ? (
+              <View style={styles.contactItem}>
+                <Ionicons name="call-outline" size={12} color={theme.textTertiary} />
+                <Text style={styles.contactText}>{phone}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         <View style={styles.cardBottom}>
           <Text style={styles.cardAmount}>
-            {(item.amount || 0).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+            {totalTTC != null ? parseFloat(String(totalTTC)).toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"}
           </Text>
           <Text style={styles.cardDate}>
-            {item.dueDate ? `Échéance: ${new Date(item.dueDate).toLocaleDateString("fr-FR")}` : ""}
+            {item.dueDate ? `Échéance: ${new Date(item.dueDate).toLocaleDateString("fr-FR")}` : item.createdAt ? new Date(item.createdAt).toLocaleDateString("fr-FR") : ""}
           </Text>
         </View>
-        {isAdmin && (
+        {isAdmin && item.status?.toLowerCase() !== "paid" && (
           <View style={styles.cardActions}>
-            <Pressable
-              style={[styles.actionBtn, { backgroundColor: "#EF444420" }]}
-              onPress={() => confirmDelete(item.id, item.invoiceNumber || clientName)}
-              accessibilityLabel="Supprimer"
-            >
-              <Ionicons name="trash-outline" size={16} color="#EF4444" />
-            </Pressable>
+            {item.status?.toLowerCase() === "pending" && (
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#22C55E20" }]}
+                onPress={() => {}}
+                accessibilityLabel="Marquer payée"
+              >
+                <Ionicons name="checkmark" size={16} color="#22C55E" />
+              </Pressable>
+            )}
           </View>
         )}
       </Pressable>
     );
-  }, [theme, isAdmin]);
+  }, [theme, isAdmin, clientMap]);
 
   return (
     <View style={styles.container}>
@@ -204,7 +231,11 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   cardLeft: { flex: 1 },
   cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
+  cardRef: { fontSize: 12, fontFamily: "Inter_500Medium", color: theme.primary, marginTop: 2 },
   cardSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary, marginTop: 2 },
+  contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  contactItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  contactText: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   cardBottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

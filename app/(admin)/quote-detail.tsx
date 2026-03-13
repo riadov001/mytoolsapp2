@@ -6,34 +6,32 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminQuotes } from "@/lib/admin-api";
+import { adminQuotes, adminClients } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
+import { useCustomAlert } from "@/components/CustomAlert";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "En attente", approved: "Approuvé", rejected: "Rejeté",
-  converted: "Converti", accepted: "Accepté", sent: "Envoyé",
+  converted: "Converti", accepted: "Accepté", sent: "Envoyé", cancelled: "Annulé",
 };
 const STATUS_COLORS: Record<string, string> = {
   pending: "#F59E0B", approved: "#22C55E", rejected: "#EF4444",
-  converted: "#3B82F6", accepted: "#22C55E", sent: "#8B5CF6",
+  converted: "#3B82F6", accepted: "#22C55E", sent: "#8B5CF6", cancelled: "#6B7280",
 };
 
-function clientName(q: any): string {
-  const c = q?.client;
-  if (c?.firstName || c?.lastName) return `${c.firstName || ""} ${c.lastName || ""}`.trim();
-  if (c?.name) return c.name;
-  if (q?.clientFirstName || q?.clientLastName) return `${q.clientFirstName || ""} ${q.clientLastName || ""}`.trim();
-  if (q?.clientName) return q.clientName;
-  return "";
-}
-function clientEmail(q: any): string {
-  return q?.client?.email || q?.clientEmail || "";
-}
-function clientPhone(q: any): string {
-  return q?.client?.phone || q?.clientPhone || q?.client?.phoneNumber || "";
+function resolveClientFromMap(q: any, clientMap: Record<string, any>) {
+  const c = q?.client || (q?.clientId && clientMap[String(q.clientId)]) || null;
+  let name = "";
+  if (c?.firstName || c?.lastName) name = `${c.firstName || ""} ${c.lastName || ""}`.trim();
+  else if (c?.name) name = c.name;
+  else if (q?.clientFirstName || q?.clientLastName) name = `${q.clientFirstName || ""} ${q.clientLastName || ""}`.trim();
+  else if (q?.clientName) name = q.clientName;
+  const email = c?.email || q?.clientEmail || "";
+  const phone = c?.phone || c?.phoneNumber || q?.clientPhone || "";
+  return { name, email, phone };
 }
 
 function fmtDate(val: string | null | undefined): string {
@@ -55,12 +53,40 @@ export default function QuoteDetailScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
+  const queryClient = useQueryClient();
+  const { showAlert, AlertComponent } = useCustomAlert();
 
   const { data: q, isLoading, error } = useQuery({
     queryKey: ["admin-quote", id],
     queryFn: () => adminQuotes.getById(id),
     enabled: !!id,
     retry: 1,
+  });
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ["admin-clients"],
+    queryFn: adminClients.getAll,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const clientMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    for (const c of (Array.isArray(clients) ? clients : [])) {
+      if (c?.id) map[String(c.id)] = c;
+    }
+    return map;
+  }, [clients]);
+
+  const statusMutation = useMutation({
+    mutationFn: ({ status }: { status: string }) => adminQuotes.updateStatus(id, status),
+    onSuccess: (_, vars) => {
+      queryClient.setQueryData(["admin-quote", id], (old: any) => old ? { ...old, status: vars.status } : old);
+      queryClient.setQueryData<any[]>(["admin-quotes"], (old = []) =>
+        old.map(item => item.id === id ? { ...item, status: vars.status } : item)
+      );
+      queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
   });
 
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
@@ -73,6 +99,18 @@ export default function QuoteDetailScreen() {
     try {
       await Linking.openURL(url);
     } catch {}
+  };
+
+  const handleCancel = () => {
+    showAlert({
+      type: "warning",
+      title: "Annuler ce devis ?",
+      message: "Le devis sera marqué comme annulé.",
+      buttons: [
+        { text: "Non" },
+        { text: "Annuler le devis", style: "primary", onPress: () => statusMutation.mutate({ status: "cancelled" }) },
+      ],
+    });
   };
 
   if (isLoading) {
@@ -101,16 +139,14 @@ export default function QuoteDetailScreen() {
   const statusColor = STATUS_COLORS[statusKey] || theme.textTertiary;
   const statusLabel = STATUS_LABELS[statusKey] || q.status;
 
+  const { name, email, phone } = resolveClientFromMap(q, clientMap);
+
   const items: any[] = q.items || q.lineItems || q.lines || q.quote_items || [];
   const totalHT = q.priceExcludingTax || q.totalHT || q.totalExcludingTax || q.subtotal || "";
   const totalTVA = q.taxAmount || q.tvaAmount || q.taxTotal || "";
-  const totalTTC = q.quoteAmount || q.totalTTC || q.total || q.totalIncludingTax || q.amount || "";
+  const totalTTC = q.quoteAmount || q.totalTTC || q.total || q.totalIncludingTax || q.amount || q.totalAmount || "";
   const photos: string[] = q.requestDetails?.mediaUrls || q.photos || q.mediaUrls || [];
   const pdfUrl = q.pdfUrl || q.pdf_url || q.documentUrl;
-
-  const name = clientName(q);
-  const email = clientEmail(q);
-  const phone = clientPhone(q);
 
   return (
     <View style={styles.container}>
@@ -135,7 +171,7 @@ export default function QuoteDetailScreen() {
         {/* Client */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Client</Text>
-          {name ? <Text style={styles.valueMain}>{name}</Text> : null}
+          {name ? <Text style={styles.valueMain}>{name}</Text> : <Text style={styles.valueSub}>—</Text>}
           {email ? (
             <View style={styles.infoRow}>
               <Ionicons name="mail-outline" size={15} color={theme.textTertiary} />
@@ -148,18 +184,15 @@ export default function QuoteDetailScreen() {
               <Text style={styles.valueSub}>{phone}</Text>
             </View>
           ) : null}
-          {!name && !email && !phone && (
-            <Text style={styles.valueSub}>—</Text>
-          )}
         </View>
 
-        {/* Dates & Reference */}
+        {/* Informations */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations</Text>
           {q.quoteNumber || q.reference ? (
             <View style={styles.infoRow}>
               <Text style={styles.label}>Référence</Text>
-              <Text style={styles.value}>{q.quoteNumber || q.reference}</Text>
+              <Text style={[styles.value, { color: theme.primary }]}>{q.quoteNumber || q.reference}</Text>
             </View>
           ) : null}
           <View style={styles.infoRow}>
@@ -182,7 +215,7 @@ export default function QuoteDetailScreen() {
           ) : null}
         </View>
 
-        {/* Description */}
+        {/* Description / Notes */}
         {q.description || q.notes ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Description / Notes</Text>
@@ -194,12 +227,12 @@ export default function QuoteDetailScreen() {
         {/* Line Items */}
         {items.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Prestations</Text>
+            <Text style={styles.sectionTitle}>Prestations ({items.length})</Text>
             {items.map((it: any, i: number) => {
               const qty = it.quantity ?? 1;
               const unitHT = it.unitPriceExcludingTax ?? it.unitPrice ?? it.price ?? 0;
               const tva = it.taxRate ?? it.tvaRate ?? 0;
-              const lineTotal = it.totalIncludingTax ?? it.totalPrice ?? (parseFloat(String(unitHT)) * parseFloat(String(qty)) * (1 + parseFloat(String(tva)) / 100));
+              const lineTotal = it.totalIncludingTax ?? it.totalPrice ?? (parseFloat(String(unitHT)) * parseFloat(String(qty)));
               return (
                 <View key={i} style={[styles.lineItem, i > 0 && { borderTopWidth: 1, borderTopColor: theme.border }]}>
                   <Text style={styles.lineDesc}>{it.description || it.name || `Ligne ${i + 1}`}</Text>
@@ -216,7 +249,7 @@ export default function QuoteDetailScreen() {
           </View>
         ) : null}
 
-        {/* Totals */}
+        {/* Totaux */}
         {(totalHT || totalTTC) ? (
           <View style={[styles.section, { gap: 6 }]}>
             <Text style={styles.sectionTitle}>Totaux</Text>
@@ -253,6 +286,37 @@ export default function QuoteDetailScreen() {
           </View>
         ) : null}
 
+        {/* Status Actions */}
+        {statusKey !== "cancelled" && statusKey !== "converted" ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Modifier le statut</Text>
+            <View style={styles.statusActions}>
+              {statusKey !== "pending" && (
+                <Pressable style={[styles.statusBtn, { borderColor: "#F59E0B" }]} onPress={() => statusMutation.mutate({ status: "pending" })}>
+                  <Ionicons name="time-outline" size={16} color="#F59E0B" />
+                  <Text style={[styles.statusBtnText, { color: "#F59E0B" }]}>En attente</Text>
+                </Pressable>
+              )}
+              {statusKey !== "approved" && statusKey !== "accepted" && (
+                <Pressable style={[styles.statusBtn, { borderColor: "#22C55E" }]} onPress={() => statusMutation.mutate({ status: "approved" })}>
+                  <Ionicons name="checkmark-circle-outline" size={16} color="#22C55E" />
+                  <Text style={[styles.statusBtnText, { color: "#22C55E" }]}>Approuver</Text>
+                </Pressable>
+              )}
+              {statusKey !== "rejected" && (
+                <Pressable style={[styles.statusBtn, { borderColor: "#EF4444" }]} onPress={() => statusMutation.mutate({ status: "rejected" })}>
+                  <Ionicons name="close-circle-outline" size={16} color="#EF4444" />
+                  <Text style={[styles.statusBtnText, { color: "#EF4444" }]}>Rejeter</Text>
+                </Pressable>
+              )}
+              <Pressable style={[styles.statusBtn, { borderColor: "#6B7280" }]} onPress={handleCancel}>
+                <Ionicons name="ban-outline" size={16} color="#6B7280" />
+                <Text style={[styles.statusBtnText, { color: "#6B7280" }]}>Annuler</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
         {/* PDF */}
         {pdfUrl ? (
           <Pressable style={styles.pdfBtn} onPress={handlePdf}>
@@ -261,6 +325,7 @@ export default function QuoteDetailScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+      {AlertComponent}
     </View>
   );
 }
@@ -299,6 +364,9 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   totalLabel: { fontSize: 14, fontFamily: "Inter_500Medium", color: theme.textSecondary },
   totalValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text },
   photo: { width: 120, height: 90, borderRadius: 10, marginRight: 8 },
+  statusActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  statusBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  statusBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   pdfBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 8, backgroundColor: theme.primary, borderRadius: 14,

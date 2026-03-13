@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminReservations } from "@/lib/admin-api";
+import { adminReservations, adminClients } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 
@@ -19,19 +19,16 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "#3B82F6", in_progress: "#8B5CF6",
 };
 
-function clientName(r: any): string {
-  const c = r?.client;
-  if (c?.firstName || c?.lastName) return `${c.firstName || ""} ${c.lastName || ""}`.trim();
-  if (c?.name) return c.name;
-  if (r?.clientFirstName || r?.clientLastName) return `${r.clientFirstName || ""} ${r.clientLastName || ""}`.trim();
-  if (r?.clientName) return r.clientName;
-  return "";
-}
-function clientEmail(r: any): string {
-  return r?.client?.email || r?.clientEmail || "";
-}
-function clientPhone(r: any): string {
-  return r?.client?.phone || r?.clientPhone || r?.client?.phoneNumber || "";
+function resolveClient(r: any, clientMap: Record<string, any>): { name: string; email: string; phone: string } {
+  const c = r?.client || (r?.clientId && clientMap[String(r.clientId)]) || null;
+  let name = "";
+  if (c?.firstName || c?.lastName) name = `${c.firstName || ""} ${c.lastName || ""}`.trim();
+  else if (c?.name) name = c.name;
+  else if (r?.clientFirstName || r?.clientLastName) name = `${r.clientFirstName || ""} ${r.clientLastName || ""}`.trim();
+  else if (r?.clientName) name = r.clientName;
+  const email = c?.email || r?.clientEmail || "";
+  const phone = c?.phone || c?.phoneNumber || r?.clientPhone || "";
+  return { name, email, phone };
 }
 
 function fmtDate(val: string | null | undefined): string {
@@ -75,6 +72,20 @@ export default function ReservationDetailScreen() {
     retry: 0,
   });
 
+  const { data: clients = [] } = useQuery({
+    queryKey: ["admin-clients"],
+    queryFn: adminClients.getAll,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const clientMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    for (const c of (Array.isArray(clients) ? clients : [])) {
+      if (c?.id) map[String(c.id)] = c;
+    }
+    return map;
+  }, [clients]);
+
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
 
@@ -104,9 +115,7 @@ export default function ReservationDetailScreen() {
   const statusColor = STATUS_COLORS[statusKey] || theme.textTertiary;
   const statusLabel = STATUS_LABELS[statusKey] || r.status;
 
-  const name = clientName(r);
-  const email = clientEmail(r);
-  const phone = clientPhone(r);
+  const { name, email, phone } = resolveClient(r, clientMap);
 
   const dateStr = r.scheduledDate || r.reservationDate || r.date;
   const timeStr = r.timeSlot || fmtTime(dateStr);

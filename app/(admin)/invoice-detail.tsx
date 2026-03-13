@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminInvoices } from "@/lib/admin-api";
+import { adminInvoices, adminClients } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 
@@ -20,19 +20,16 @@ const STATUS_COLORS: Record<string, string> = {
   overdue: "#EF4444", sent: "#8B5CF6", draft: "#6B7280",
 };
 
-function clientName(inv: any): string {
-  const c = inv?.client;
-  if (c?.firstName || c?.lastName) return `${c.firstName || ""} ${c.lastName || ""}`.trim();
-  if (c?.name) return c.name;
-  if (inv?.clientFirstName || inv?.clientLastName) return `${inv.clientFirstName || ""} ${inv.clientLastName || ""}`.trim();
-  if (inv?.clientName) return inv.clientName;
-  return "";
-}
-function clientEmail(inv: any): string {
-  return inv?.client?.email || inv?.clientEmail || "";
-}
-function clientPhone(inv: any): string {
-  return inv?.client?.phone || inv?.clientPhone || inv?.client?.phoneNumber || "";
+function resolveClient(inv: any, clientMap: Record<string, any>): { name: string; email: string; phone: string } {
+  const c = inv?.client || (inv?.clientId && clientMap[String(inv.clientId)]) || null;
+  let name = "";
+  if (c?.firstName || c?.lastName) name = `${c.firstName || ""} ${c.lastName || ""}`.trim();
+  else if (c?.name) name = c.name;
+  else if (inv?.clientFirstName || inv?.clientLastName) name = `${inv.clientFirstName || ""} ${inv.clientLastName || ""}`.trim();
+  else if (inv?.clientName) name = inv.clientName;
+  const email = c?.email || inv?.clientEmail || "";
+  const phone = c?.phone || c?.phoneNumber || inv?.clientPhone || "";
+  return { name, email, phone };
 }
 
 function fmtDate(val: string | null | undefined): string {
@@ -61,6 +58,20 @@ export default function InvoiceDetailScreen() {
     enabled: !!id,
     retry: 1,
   });
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ["admin-clients"],
+    queryFn: adminClients.getAll,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const clientMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    for (const c of (Array.isArray(clients) ? clients : [])) {
+      if (c?.id) map[String(c.id)] = c;
+    }
+    return map;
+  }, [clients]);
 
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
@@ -106,9 +117,7 @@ export default function InvoiceDetailScreen() {
   const totalTTC = inv.amount || inv.totalTTC || inv.total || inv.totalIncludingTax || "";
   const pdfUrl = inv.pdfUrl || inv.pdf_url || inv.documentUrl;
 
-  const name = clientName(inv);
-  const email = clientEmail(inv);
-  const phone = clientPhone(inv);
+  const { name, email, phone } = resolveClient(inv, clientMap);
 
   return (
     <View style={styles.container}>

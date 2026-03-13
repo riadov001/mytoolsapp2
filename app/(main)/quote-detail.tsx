@@ -199,8 +199,6 @@ export default function QuoteDetailScreen() {
   const tvaAmountNum = tvaAmount ? parseFloat(tvaAmount) : (totalHTNum * parseFloat(tvaRate) / 100);
   const totalTTCNum = parseFloat(totalAmount) || (totalHTNum + tvaAmountNum) || 0;
 
-  console.log("[QUOTE DEBUG] quote keys:", Object.keys(quote), "status:", quote.status, "data:", JSON.stringify(quote).substring(0, 1000));
-
   const statusLower = quote.status?.toLowerCase() || "";
   const isPending = statusLower === "pending" || statusLower === "en_attente";
   const isSent = statusLower === "sent" || statusLower === "envoyé" || statusLower === "envoyee";

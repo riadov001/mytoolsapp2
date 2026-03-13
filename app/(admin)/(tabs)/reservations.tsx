@@ -8,28 +8,22 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminReservations } from "@/lib/admin-api";
+import { adminReservations, adminClients } from "@/lib/admin-api";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
 
-function resolveClientName(item: any): string {
-  const c = item.client;
-  if (c?.firstName || c?.lastName) return `${c.firstName || ""} ${c.lastName || ""}`.trim();
-  if (c?.name) return c.name;
-  if (c?.client_name) return c.client_name;
-  if (item.firstName || item.lastName) return `${item.firstName || ""} ${item.lastName || ""}`.trim();
-  if (item.clientFirstName || item.clientLastName) return `${item.clientFirstName || ""} ${item.clientLastName || ""}`.trim();
-  if (item.client_first_name || item.client_last_name) return `${item.client_first_name || ""} ${item.client_last_name || ""}`.trim();
-  if (item.clientName) {
-    const parts = String(item.clientName).trim().split(/\s+/);
-    if (parts.length >= 1) return item.clientName;
-  }
-  if (item.client_name) return item.client_name;
-  if (c?.email) return c.email;
-  if (item.clientEmail || item.client_email) return item.clientEmail || item.client_email;
-  return "Client inconnu";
+function resolveClient(item: any, clientMap: Record<string, any>): { name: string; email: string; phone: string } {
+  const c = item.client || (item.clientId && clientMap[String(item.clientId)]) || null;
+  let name = "";
+  if (c?.firstName || c?.lastName) name = `${c.firstName || ""} ${c.lastName || ""}`.trim();
+  else if (c?.name) name = c.name;
+  else if (item.clientFirstName || item.clientLastName) name = `${item.clientFirstName || ""} ${item.clientLastName || ""}`.trim();
+  else if (item.clientName) name = item.clientName;
+  const email = c?.email || item.clientEmail || "";
+  const phone = c?.phone || c?.phoneNumber || item.clientPhone || "";
+  return { name, email, phone };
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -85,6 +79,20 @@ export default function AdminReservationsScreen() {
     queryFn: adminReservations.getAll,
   });
 
+  const { data: clients = [] } = useQuery({
+    queryKey: ["admin-clients"],
+    queryFn: adminClients.getAll,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const clientMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    for (const c of (Array.isArray(clients) ? clients : [])) {
+      if (c?.id) map[String(c.id)] = c;
+    }
+    return map;
+  }, [clients]);
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminReservations.delete(id),
     onSuccess: () => {
@@ -135,13 +143,13 @@ export default function AdminReservationsScreen() {
       if (filter !== "all" && r.status?.toLowerCase() !== filter) return false;
       if (search) {
         const s = search.toLowerCase();
-        const name = resolveClientName(r).toLowerCase();
+        const { name } = resolveClient(r, clientMap);
         const vehicleBrand = r.vehicleInfo?.brand || r.vehicleMake || "";
-        return name.includes(s) || vehicleBrand.toLowerCase().includes(s);
+        return name.toLowerCase().includes(s) || vehicleBrand.toLowerCase().includes(s) || (r.clientEmail || "").toLowerCase().includes(s);
       }
       return true;
     });
-  }, [arr, filter, search, loggedRole, loggedGarageId]);
+  }, [arr, filter, search, loggedRole, loggedGarageId, clientMap]);
 
   const agendaItems = useMemo(() => {
     const items = byDate[selectedDate] || [];
@@ -163,7 +171,8 @@ export default function AdminReservationsScreen() {
 
   const renderReservationCard = useCallback(({ item }: { item: any }) => {
     const color = STATUS_COLORS[item.status?.toLowerCase()] || theme.textTertiary;
-    const clientName = resolveClientName(item);
+    const { name, email, phone } = resolveClient(item, clientMap);
+    const clientName = name || "Client inconnu";
     const dateStr = item.scheduledDate
       ? new Date(item.scheduledDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
       : "";
@@ -177,6 +186,22 @@ export default function AdminReservationsScreen() {
           <View style={styles.cardTop}>
             <View style={styles.cardLeft}>
               <Text style={styles.cardTitle}>{clientName}</Text>
+              {(email || phone) ? (
+                <View style={styles.contactRow}>
+                  {email ? (
+                    <View style={styles.contactItem}>
+                      <Ionicons name="mail-outline" size={12} color={theme.textTertiary} />
+                      <Text style={styles.contactText} numberOfLines={1}>{email}</Text>
+                    </View>
+                  ) : null}
+                  {phone ? (
+                    <View style={styles.contactItem}>
+                      <Ionicons name="call-outline" size={12} color={theme.textTertiary} />
+                      <Text style={styles.contactText}>{phone}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
               <Text style={styles.cardSub}>{dateStr}</Text>
               {item.serviceType ? (
                 <Text style={styles.cardService}>{item.serviceType}</Text>
@@ -221,7 +246,7 @@ export default function AdminReservationsScreen() {
         </View>
       </Pressable>
     );
-  }, [theme, isAdmin]);
+  }, [theme, isAdmin, clientMap, statusMutation]);
 
   return (
     <View style={styles.container}>
@@ -395,6 +420,9 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   cardLeft: { flex: 1, gap: 2 },
   cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
+  contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 2 },
+  contactItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  contactText: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary },
   cardSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary },
   cardService: { fontSize: 12, fontFamily: "Inter_500Medium", color: theme.primary },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
