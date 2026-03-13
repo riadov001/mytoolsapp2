@@ -131,17 +131,14 @@ export default function QuoteCreateScreen() {
         const newItems = selectedServiceObjs.map((s: any) => ({
           description: s.name || s.label || "",
           quantity: "1",
-          unitPrice: String(s.price || s.unitPrice || 0),
+          unitPrice: String(s.price || s.unitPrice || s.basePrice || 0),
           tvaRate: String(s.taxRate || s.tvaRate || "20"),
         }));
-        // Replace first empty line item or append
-        setLineItems(prev => {
-          const hasEmptyDesc = prev.some(it => !it.description.trim());
-          if (hasEmptyDesc) {
-            return prev.map((it, idx) => (!it.description.trim() && idx === 0) ? newItems[0] : it);
-          }
-          return newItems.length > 0 ? newItems : prev;
-        });
+        // Replace all empty line items or rebuild from services
+        setLineItems(newItems.length > 0 ? newItems : [{ description: "", quantity: "1", unitPrice: "", tvaRate: "20" }]);
+      } else if (newSelection.length === 0) {
+        // Reset to empty line item when no services selected
+        setLineItems([{ description: "", quantity: "1", unitPrice: "", tvaRate: "20" }]);
       }
       return newSelection;
     });
@@ -341,10 +338,8 @@ export default function QuoteCreateScreen() {
         {/* Véhicule */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Véhicule (optionnel)</Text>
-          <View style={styles.vehicleRow}>
-            <TextInput style={[styles.input, { flex: 1 }]} placeholder="Marque" placeholderTextColor={theme.textTertiary} value={vehicleBrand} onChangeText={setVehicleBrand} />
-            <TextInput style={[styles.input, { flex: 1 }]} placeholder="Modèle" placeholderTextColor={theme.textTertiary} value={vehicleModel} onChangeText={setVehicleModel} />
-          </View>
+          <TextInput style={styles.input} placeholder="Marque" placeholderTextColor={theme.textTertiary} value={vehicleBrand} onChangeText={setVehicleBrand} />
+          <TextInput style={styles.input} placeholder="Modèle" placeholderTextColor={theme.textTertiary} value={vehicleModel} onChangeText={setVehicleModel} />
           <TextInput style={styles.input} placeholder="Immatriculation" placeholderTextColor={theme.textTertiary} value={vehiclePlate} onChangeText={setVehiclePlate} autoCapitalize="characters" />
         </View>
 
@@ -382,7 +377,7 @@ export default function QuoteCreateScreen() {
 
         {/* Photos */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photos (optionnel)</Text>
+          <Text style={styles.sectionTitle}>Photos * (minimum 1, maximum 3)</Text>
           {photos.length > 0 ? (
             <FlatList
               scrollEnabled={false}
@@ -394,17 +389,21 @@ export default function QuoteCreateScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.photoName} numberOfLines={1}>{item.name}</Text>
                   </View>
-                  <Pressable onPress={() => setPhotos(prev => prev.filter((_, i) => i !== index))}>
-                    <Ionicons name="close-circle" size={20} color="#EF4444" />
-                  </Pressable>
+                  {photos.length > 1 && (
+                    <Pressable onPress={() => setPhotos(prev => prev.filter((_, i) => i !== index))}>
+                      <Ionicons name="close-circle" size={20} color="#EF4444" />
+                    </Pressable>
+                  )}
                 </View>
               )}
             />
           ) : null}
-          <Pressable style={styles.addPhotoBtn} onPress={pickPhoto}>
-            <Ionicons name="image-outline" size={18} color={theme.primary} />
-            <Text style={styles.addPhotoBtnText}>Ajouter des photos</Text>
-          </Pressable>
+          {photos.length < 3 && (
+            <Pressable style={styles.addPhotoBtn} onPress={pickPhoto}>
+              <Ionicons name="image-outline" size={18} color={theme.primary} />
+              <Text style={styles.addPhotoBtnText}>Ajouter des photos ({photos.length}/3)</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Line Items */}

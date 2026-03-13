@@ -5,11 +5,12 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { adminInvoices, adminClients } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
+import { useCustomAlert } from "@/components/CustomAlert";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "En attente", paid: "Payée", cancelled: "Annulée",
@@ -51,6 +52,8 @@ export default function InvoiceDetailScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
+  const queryClient = useQueryClient();
+  const { showAlert, AlertComponent } = useCustomAlert();
 
   const { data: inv, isLoading, error } = useQuery({
     queryKey: ["admin-invoice", id],
@@ -72,6 +75,16 @@ export default function InvoiceDetailScreen() {
     }
     return map;
   }, [clients]);
+
+  const statusMutation = useMutation({
+    mutationFn: ({ status }: { status: string }) => adminInvoices.updateStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-invoice", id] });
+      queryClient.invalidateQueries({ queryKey: ["admin-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+  });
 
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
@@ -259,7 +272,45 @@ export default function InvoiceDetailScreen() {
             <Text style={styles.pdfBtnText}>Télécharger le PDF</Text>
           </Pressable>
         ) : null}
+
+        {/* Status Actions */}
+        {statusKey !== "paid" && (
+          <View style={[styles.section, { gap: 8 }]}>
+            <Text style={styles.sectionTitle}>Modifier le statut</Text>
+            <Pressable
+              style={[styles.actionBtn, statusKey === "pending" && { backgroundColor: theme.primary + "20" }]}
+              onPress={() => showAlert({
+                type: "warning",
+                title: "Marquer payée",
+                message: "Confirmer le paiement de cette facture ?",
+                buttons: [
+                  { text: "Annuler" },
+                  { text: "Marquer payée", style: "primary", onPress: () => statusMutation.mutate({ status: "paid" }) },
+                ],
+              })}
+            >
+              <Ionicons name="checkmark-circle-outline" size={18} color={theme.success} />
+              <Text style={[styles.actionBtnText, { color: theme.success }]}>Marquer comme payée</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionBtn, statusKey === "cancelled" && { backgroundColor: theme.error + "20" }]}
+              onPress={() => showAlert({
+                type: "warning",
+                title: "Annuler cette facture",
+                message: "Cette action est irréversible.",
+                buttons: [
+                  { text: "Annuler" },
+                  { text: "Annuler la facture", style: "primary", onPress: () => statusMutation.mutate({ status: "cancelled" }) },
+                ],
+              })}
+            >
+              <Ionicons name="close-circle-outline" size={18} color={theme.error} />
+              <Text style={[styles.actionBtnText, { color: theme.error }]}>Annuler la facture</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
+      {AlertComponent}
     </View>
   );
 }
@@ -303,4 +354,6 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
     paddingVertical: 14, paddingHorizontal: 20,
   },
   pdfBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: theme.border },
+  actionBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

@@ -108,7 +108,7 @@ export default function AdminInvoicesScreen() {
         <View style={styles.cardTop}>
           <View style={styles.cardLeft}>
             <Text style={styles.cardTitle} numberOfLines={1}>{name || "Client inconnu"}</Text>
-            {item.invoiceNumber ? <Text style={styles.cardRef}>{item.invoiceNumber}</Text> : null}
+            {item.invoiceNumber || item.reference ? <Text style={styles.cardRef}>{item.invoiceNumber || item.reference}</Text> : null}
           </View>
           <View style={[styles.badge, { backgroundColor: color + "20" }]}>
             <Text style={[styles.badgeText, { color }]}>{STATUS_LABELS[item.status?.toLowerCase()] || item.status}</Text>

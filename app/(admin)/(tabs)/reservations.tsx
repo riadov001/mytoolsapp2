@@ -186,6 +186,7 @@ export default function AdminReservationsScreen() {
           <View style={styles.cardTop}>
             <View style={styles.cardLeft}>
               <Text style={styles.cardTitle}>{clientName}</Text>
+              {item.reference ? <Text style={styles.cardRef}>{item.reference}</Text> : null}
               {(email || phone) ? (
                 <View style={styles.contactRow}>
                   {email ? (
@@ -203,6 +204,7 @@ export default function AdminReservationsScreen() {
                 </View>
               ) : null}
               <Text style={styles.cardSub}>{dateStr}</Text>
+              {item.quoteId || item.quoteReference ? <Text style={styles.cardService}>Devis: {item.quoteReference || item.quoteId}</Text> : null}
               {item.serviceType ? (
                 <Text style={styles.cardService}>{item.serviceType}</Text>
               ) : null}
@@ -420,11 +422,12 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   cardLeft: { flex: 1, gap: 2 },
   cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
+  cardRef: { fontSize: 12, fontFamily: "Inter_500Medium", color: theme.primary, marginTop: 2 },
   contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 2 },
   contactItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   contactText: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary },
   cardSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary },
-  cardService: { fontSize: 12, fontFamily: "Inter_500Medium", color: theme.primary },
+  cardService: { fontSize: 12, fontFamily: "Inter_500Medium", color: theme.accent },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   cardActions: { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
