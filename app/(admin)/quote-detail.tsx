@@ -384,27 +384,6 @@ export default function QuoteDetailScreen() {
           </View>
         ) : null}
 
-        {/* Conversion actions for approved/accepted quotes */}
-        {(statusKey === "approved" || statusKey === "accepted") && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Convertir ce devis</Text>
-            <Pressable
-              style={[styles.convertBtn, { backgroundColor: "#22C55E" }]}
-              onPress={handleCreateInvoice}
-              disabled={invoiceMutation.isPending}
-            >
-              <Ionicons name="receipt-outline" size={18} color="#fff" />
-              <Text style={styles.convertBtnText}>Créer une facture</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.convertBtn, { backgroundColor: "#3B82F6" }]}
-              onPress={handleCreateReservation}
-            >
-              <Ionicons name="calendar-outline" size={18} color="#fff" />
-              <Text style={styles.convertBtnText}>Créer un rendez-vous</Text>
-            </Pressable>
-          </View>
-        )}
 
         {/* PDF */}
         {pdfUrl ? (

@@ -289,11 +289,6 @@ export default function AdminReservationsScreen() {
       <View style={[styles.header, { paddingTop: topPad }]}>
         <Image source={require("@/assets/images/logo_new.png")} style={styles.headerLogo} contentFit="contain" />
         <Text style={styles.screenTitle}>Rendez-vous</Text>
-        {Platform.OS !== "web" && (
-          <Pressable style={styles.headerBtn} onPress={handleCalendarSync} accessibilityLabel="Synchroniser l'agenda">
-            <Ionicons name="calendar" size={22} color={theme.primary} />
-          </Pressable>
-        )}
       </View>
 
       <View style={styles.modeToggle}>
@@ -471,7 +466,7 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, height: 44 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },
   filterSeparator: { height: 1, backgroundColor: theme.border, marginHorizontal: 16, marginBottom: 10, opacity: 0.5 },
-  filterRow: { paddingHorizontal: 16, gap: 8, marginBottom: 12, flexDirection: "row" },
+  filterRow: { paddingHorizontal: 16, gap: 6, marginBottom: 10, flexDirection: "row" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   card: { flexDirection: "row", backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, marginBottom: 10, overflow: "hidden" },
   cardAccent: { width: 4 },

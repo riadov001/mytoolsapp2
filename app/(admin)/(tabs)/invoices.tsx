@@ -230,7 +230,7 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, height: 44 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },
   filterSeparator: { height: 1, backgroundColor: theme.border, marginHorizontal: 16, marginBottom: 10, opacity: 0.5 },
-  filterRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 12, flexDirection: "row" },
+  filterRow: { paddingHorizontal: 16, gap: 6, paddingBottom: 10, flexDirection: "row" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   card: { backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, padding: 14, marginBottom: 10, gap: 10 },
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
