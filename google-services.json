@@ -1,0 +1,30 @@
+{
+  "_comment": "PLACEHOLDER — Remplacer par le vrai fichier google-services.json téléchargé depuis la Firebase Console (Project Settings > General > Your apps > Android)",
+  "project_info": {
+    "project_number": "VOTRE_NUMERO_PROJET",
+    "firebase_url": "https://VOTRE-PROJET.firebaseio.com",
+    "project_id": "VOTRE-PROJET-ID",
+    "storage_bucket": "VOTRE-PROJET.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+        "android_client_info": {
+          "package_name": "com.mytools.app"
+        }
+      },
+      "api_key": [
+        {
+          "current_key": "VOTRE_CLE_API_FIREBASE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,32 @@
+name: Build & Submit (iOS + Android)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-ios:
+    name: Build iOS
+    type: build
+    platform: ios
+    profile: production
+
+  build-android:
+    name: Build Android
+    type: build
+    platform: android
+    profile: production
+
+  submit-ios:
+    name: Submit iOS to App Store
+    type: submit
+    platform: ios
+    profile: production
+    needs: [build-ios]
+
+  submit-android:
+    name: Submit Android to Google Play
+    type: submit
+    platform: android
+    profile: production
+    needs: [build-android]

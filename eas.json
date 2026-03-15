@@ -14,9 +14,13 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
       }
     },
     "production": {
+      "autoIncrement": true,
       "distribution": "store",
       "android": {
         "buildType": "app-bundle"
@@ -29,7 +33,9 @@
   "submit": {
     "production": {
       "android": {
-        "track": "internal"
+        "serviceAccountKeyPath": "./google-service-account-key.json",
+        "track": "internal",
+        "releaseStatus": "draft"
       },
       "ios": {
         "appleId": "your@apple.email",

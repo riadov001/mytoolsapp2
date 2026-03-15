@@ -188,6 +188,45 @@ server/
 - `lib/api.ts` and `lib/admin-api.ts` use 15s `AbortController` timeout + 1 retry on network errors
 - User-friendly French error messages on timeout/unavailability
 
+## Build & Distribution (EAS)
+
+### Configuration
+- **EAS Project ID**: `45e48f45-e421-4f67-9d02-d84a678fdfc5` (owner: `lastmytools`)
+- **Bundle ID**: `com.mytools.app` (iOS + Android)
+- **Profiles**: `development` (APK interne), `preview` (APK + simulateur iOS), `production` (AAB + App Store)
+
+### Commandes manuelles
+```bash
+# Build iOS uniquement
+eas build --platform ios --profile production
+
+# Build Android uniquement
+eas build --platform android --profile production
+
+# Build les deux plateformes
+eas build --platform all --profile production
+
+# Soumettre iOS à l'App Store
+eas submit --platform ios --profile production
+
+# Soumettre Android au Google Play Store
+eas submit --platform android --profile production
+```
+
+### Workflow CI automatisé
+Le fichier `.eas/workflows/build-and-submit.yml` déclenche automatiquement (push sur `main`) :
+1. Build iOS + Build Android en parallèle
+2. Submit iOS (App Store) + Submit Android (Google Play) après les builds
+
+### Prérequis avant le premier build Android
+1. **google-services.json** : Remplacer le fichier placeholder à la racine par le vrai fichier téléchargé depuis la Firebase Console (Project Settings > General > Your apps > Android app `com.mytools.app`)
+2. **google-service-account-key.json** : Créer un service account dans Google Cloud Console (rôle "Service Account User" + API Google Play Android Developer activée), télécharger la clé JSON et la placer à la racine du projet. Ce fichier est référencé par `eas.json` pour `eas submit`.
+3. **Keystore Android** : Géré automatiquement par EAS Build (première build génère et stocke la clé). Pour utiliser une clé existante, configurer via `eas credentials`.
+
+### Prérequis avant le premier build iOS
+1. Remplacer les placeholders dans `eas.json` > `submit.production.ios` : `appleId`, `ascAppId`, `appleTeamId`
+2. Certificats et provisioning profiles gérés automatiquement par EAS
+
 ## Recent Changes
 - Feb 2026: Initial build of MyJantes mobile app
 - Feb 2026: Thème sombre complet (noir/rouge/blanc)
