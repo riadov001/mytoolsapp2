@@ -34,9 +34,10 @@
   "submit": {
     "production": {
       "android": {
-        "serviceAccountKeyPath": "./google-service-account-key.json",
+        "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
         "track": "internal",
-        "releaseStatus": "draft"
+        "releaseStatus": "draft",
+        "applicationId": "eu.mytoolsgroup.admin"
       },
       "ios": {
         "appleId": "your@apple.email",

@@ -219,8 +219,16 @@ Le fichier `.eas/workflows/build-and-submit.yml` déclenche automatiquement (pus
 2. Submit iOS (App Store) + Submit Android (Google Play) après les builds
 
 ### Prérequis avant le premier build Android
-1. **google-services.json** : Remplacer le fichier placeholder à la racine par le vrai fichier téléchargé depuis la Firebase Console (Project Settings > General > Your apps > Android app `com.mytools.app`)
-2. **google-service-account-key.json** : Créer un service account dans Google Cloud Console (rôle "Service Account User" + API Google Play Android Developer activée), télécharger la clé JSON et la placer à la racine du projet. Ce fichier est référencé par `eas.json` pour `eas submit`.
+1. **google-services.json** : Remplacer le fichier placeholder à la racine par le vrai fichier téléchargé depuis la Firebase Console (Project Settings > General > Your apps > Android app `eu.mytoolsgroup.admin`).
+2. **EAS Secret GOOGLE_SERVICE_ACCOUNT_KEY** (obligatoire pour `eas submit` Android) :
+   - Créer un service account dans Google Cloud Console avec le rôle "Service Account User" et l'API Google Play Android Developer activée.
+   - Télécharger la clé JSON du service account.
+   - Enregistrer la clé comme secret EAS de type **file** :
+     ```
+     eas secret:create --scope project --name GOOGLE_SERVICE_ACCOUNT_KEY --type file --value ./chemin/vers/cle.json
+     ```
+   - `eas.json` référence automatiquement ce secret via `"serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY"`. Ne jamais committer la clé dans le dépôt.
+   - **Champ optionnel** `applicationId` dans `eas.json > submit.production.android` : déjà défini à `eu.mytoolsgroup.admin`. Modifier si le bundle ID change.
 3. **Keystore Android** : Géré automatiquement par EAS Build (première build génère et stocke la clé). Pour utiliser une clé existante, configurer via `eas credentials`.
 
 ### Prérequis avant le premier build iOS
