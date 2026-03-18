@@ -177,7 +177,17 @@ export default function AdminInvoicesScreen() {
           contentFit="contain"
         />
         <Text style={styles.screenTitle}>Factures</Text>
-        <View style={{ width: 44 }} />
+        {isAdmin ? (
+          <Pressable
+            style={styles.addBtn}
+            onPress={() => router.push("/(admin)/invoice-create" as any)}
+            accessibilityLabel="Nouvelle facture"
+          >
+            <Ionicons name="add" size={22} color={theme.primary} />
+          </Pressable>
+        ) : (
+          <View style={{ width: 44 }} />
+        )}
       </View>
 
       <View style={styles.searchRow}>
@@ -236,6 +246,7 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingBottom: 12 },
   headerLogo: { width: 34, height: 34, borderRadius: 8 },
   screenTitle: { flex: 1, fontSize: 22, fontFamily: "Michroma_400Regular", color: theme.text, letterSpacing: 0.5 },
+  addBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: theme.primary + "15" },
   searchRow: { paddingHorizontal: 16, marginBottom: 12 },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, height: 44 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },

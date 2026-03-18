@@ -176,16 +176,8 @@ export default function QuoteCreateScreen() {
       Alert.alert("Attention", "Veuillez sélectionner un client.");
       return;
     }
-    if (photos.length === 0) {
-      Alert.alert("Attention", "Ajoutez au moins une photo (minimum 1).");
-      return;
-    }
     if (photos.length > 3) {
       Alert.alert("Attention", "Maximum 3 photos autorisées.");
-      return;
-    }
-    if (selectedServices.length === 0) {
-      Alert.alert("Attention", "Sélectionnez au moins un service.");
       return;
     }
     const validItems = lineItems.filter(it => it.description.trim() && it.unitPrice);
@@ -391,7 +383,7 @@ export default function QuoteCreateScreen() {
 
         {/* Photos */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photos * (minimum 1, maximum 3)</Text>
+          <Text style={styles.sectionTitle}>Photos (optionnel, maximum 3)</Text>
           {photos.length > 0 ? (
             <FlatList
               scrollEnabled={false}

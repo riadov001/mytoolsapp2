@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform,
-  TextInput, ActivityIndicator,
+  TextInput, ActivityIndicator, Alert,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,7 +15,7 @@ import { useCustomAlert } from "@/components/CustomAlert";
 
 export default function ReservationCreateScreen() {
   const params = useLocalSearchParams();
-  const clientId = Array.isArray(params.clientId) ? params.clientId[0] : (params.clientId as string || "");
+  const paramClientId = Array.isArray(params.clientId) ? params.clientId[0] : (params.clientId as string || "");
   const quoteId = Array.isArray(params.quoteId) ? params.quoteId[0] : (params.quoteId as string || "");
   const quoteName = Array.isArray(params.quoteName) ? params.quoteName[0] : (params.quoteName as string || "");
 
@@ -31,31 +31,43 @@ export default function ReservationCreateScreen() {
   const defaultDate = tomorrow.toISOString().split("T")[0];
   const defaultTime = "09:00";
 
+  const [selectedClientId, setSelectedClientId] = useState<string>(paramClientId);
+  const [clientSearch, setClientSearch] = useState("");
+  const [showClientPicker, setShowClientPicker] = useState(false);
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState(defaultTime);
   const [notes, setNotes] = useState(quoteName ? `Devis: ${quoteName}` : "");
   const [serviceType, setServiceType] = useState("");
 
-  const { data: clients = [] } = useQuery({
+  const { data: clients = [], isLoading: clientsLoading } = useQuery({
     queryKey: ["admin-clients"],
     queryFn: adminClients.getAll,
     staleTime: 5 * 60 * 1000,
   });
 
-  const client = useMemo(() => {
-    const arr = Array.isArray(clients) ? clients : [];
-    return arr.find((c: any) => String(c.id) === String(clientId));
-  }, [clients, clientId]);
+  const clientsArr = Array.isArray(clients) ? clients : [];
 
-  const clientName = client
-    ? `${client.firstName || ""} ${client.lastName || ""}`.trim() || client.name || client.email || "Client"
-    : clientId ? `Client #${clientId}` : "Client inconnu";
+  const filteredClients = clientsArr.filter((c: any) => {
+    if (!clientSearch) return true;
+    const s = clientSearch.toLowerCase();
+    const name = `${c.firstName || ""} ${c.lastName || ""} ${c.email || ""}`.toLowerCase();
+    return name.includes(s);
+  });
+
+  const selectedClient = clientsArr.find((c: any) => String(c.id) === String(selectedClientId));
+
+  const clientLabel = selectedClient
+    ? `${selectedClient.firstName || ""} ${selectedClient.lastName || ""}`.trim() || selectedClient.name || selectedClient.email || "Client"
+    : selectedClientId ? `Client #${selectedClientId}` : "Sélectionner un client";
 
   const mutation = useMutation({
     mutationFn: () => {
+      if (!selectedClientId) {
+        throw new Error("Veuillez sélectionner un client.");
+      }
       const scheduledDate = new Date(`${date}T${time}:00`);
       return adminReservations.create({
-        clientId,
+        clientId: selectedClientId,
         quoteId: quoteId || undefined,
         scheduledDate: scheduledDate.toISOString(),
         serviceType: serviceType || undefined,
@@ -74,11 +86,11 @@ export default function ReservationCreateScreen() {
         buttons: [{ text: "OK", style: "primary", onPress: () => router.back() }],
       });
     },
-    onError: () => {
+    onError: (err: any) => {
       showAlert({
         type: "error",
         title: "Erreur",
-        message: "Impossible de créer le rendez-vous.",
+        message: err?.message || "Impossible de créer le rendez-vous.",
         buttons: [{ text: "OK", style: "primary" }],
       });
     },
@@ -86,7 +98,7 @@ export default function ReservationCreateScreen() {
 
   const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(date);
   const isValidTime = /^\d{2}:\d{2}$/.test(time);
-  const canSubmit = isValidDate && isValidTime && !mutation.isPending;
+  const canSubmit = !!selectedClientId && isValidDate && isValidTime && !mutation.isPending;
 
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
@@ -106,15 +118,65 @@ export default function ReservationCreateScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Client */}
+        {/* Client Picker */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Client</Text>
-          <View style={styles.clientRow}>
-            <View style={styles.clientAvatar}>
-              <Ionicons name="person" size={18} color={theme.primary} />
+          <Text style={styles.sectionTitle}>Client *</Text>
+          {paramClientId && selectedClient ? (
+            <View style={styles.clientRow}>
+              <View style={styles.clientAvatar}>
+                <Ionicons name="person" size={18} color={theme.primary} />
+              </View>
+              <Text style={styles.clientName}>{clientLabel}</Text>
             </View>
-            <Text style={styles.clientName}>{clientName}</Text>
-          </View>
+          ) : (
+            <>
+              <Pressable style={styles.pickerBtn} onPress={() => setShowClientPicker(!showClientPicker)}>
+                <Text style={[styles.pickerText, !selectedClient && { color: theme.textTertiary }]}>
+                  {clientLabel}
+                </Text>
+                <Ionicons name={showClientPicker ? "chevron-up" : "chevron-down"} size={18} color={theme.textTertiary} />
+              </Pressable>
+              {showClientPicker && (
+                <View style={styles.clientDropdown}>
+                  <View style={styles.clientSearch}>
+                    <Ionicons name="search" size={15} color={theme.textTertiary} />
+                    <TextInput
+                      style={styles.clientSearchInput}
+                      placeholder="Rechercher..."
+                      placeholderTextColor={theme.textTertiary}
+                      value={clientSearch}
+                      onChangeText={setClientSearch}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                    {clientsLoading ? (
+                      <ActivityIndicator size="small" color={theme.primary} style={{ padding: 12 }} />
+                    ) : filteredClients.length === 0 ? (
+                      <Text style={styles.noClient}>Aucun client trouvé</Text>
+                    ) : (
+                      filteredClients.map((c: any) => (
+                        <Pressable
+                          key={c.id}
+                          style={[styles.clientOption, String(selectedClientId) === String(c.id) && { backgroundColor: theme.primary + "20" }]}
+                          onPress={() => {
+                            setSelectedClientId(String(c.id));
+                            setShowClientPicker(false);
+                            setClientSearch("");
+                          }}
+                        >
+                          <Text style={[styles.clientOptionName, String(selectedClientId) === String(c.id) && { color: theme.primary }]}>
+                            {`${c.firstName || ""} ${c.lastName || ""}`.trim() || c.email}
+                          </Text>
+                          <Text style={styles.clientOptionEmail}>{c.email}</Text>
+                        </Pressable>
+                      ))
+                    )}
+                  </ScrollView>
+                </View>
+              )}
+            </>
+          )}
           {quoteId ? (
             <View style={styles.quoteRef}>
               <Ionicons name="document-text-outline" size={14} color={theme.primary} />
@@ -208,6 +270,19 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   headerTitle: { flex: 1, fontSize: 17, fontFamily: "Inter_600SemiBold", color: theme.text, textAlign: "center" },
   section: { backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, padding: 14, gap: 10 },
   sectionTitle: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: theme.textTertiary, textTransform: "uppercase", letterSpacing: 0.8 },
+  pickerBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: theme.inputBg || theme.background, borderRadius: 10, borderWidth: 1,
+    borderColor: theme.inputBorder || theme.border, paddingHorizontal: 12, paddingVertical: 11,
+  },
+  pickerText: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },
+  clientDropdown: { borderRadius: 10, borderWidth: 1, borderColor: theme.border, overflow: "hidden", marginTop: 4 },
+  clientSearch: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.background },
+  clientSearchInput: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: theme.text },
+  noClient: { padding: 12, fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textTertiary, textAlign: "center" },
+  clientOption: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.border, gap: 2 },
+  clientOptionName: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: theme.text },
+  clientOptionEmail: { fontSize: 11, fontFamily: "Inter_400Regular", color: theme.textTertiary },
   clientRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   clientAvatar: { width: 36, height: 36, borderRadius: 10, backgroundColor: theme.primary + "15", justifyContent: "center", alignItems: "center" },
   clientName: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text, flex: 1 },

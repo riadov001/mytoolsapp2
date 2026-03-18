@@ -324,6 +324,17 @@ export default function AdminReservationsScreen() {
       <View style={[styles.header, { paddingTop: topPad }]}>
         <Image source={require("@/assets/images/logo_new.png")} style={styles.headerLogo} contentFit="contain" />
         <Text style={styles.screenTitle}>Rendez-vous</Text>
+        {isAdmin ? (
+          <Pressable
+            style={styles.addBtn}
+            onPress={() => router.push("/(admin)/reservation-create" as any)}
+            accessibilityLabel="Nouveau rendez-vous"
+          >
+            <Ionicons name="add" size={22} color={theme.primary} />
+          </Pressable>
+        ) : (
+          <View style={{ width: 44 }} />
+        )}
       </View>
 
       <View style={styles.modeToggle}>
@@ -480,6 +491,7 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingBottom: 10 },
   headerLogo: { width: 34, height: 34, borderRadius: 8 },
   screenTitle: { flex: 1, fontSize: 22, fontFamily: "Michroma_400Regular", color: theme.text, letterSpacing: 0.5 },
+  addBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: theme.primary + "15" },
   modeToggle: { flexDirection: "row", marginHorizontal: 16, marginBottom: 10, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, padding: 3, gap: 3 },
   modeBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 10 },
   modeBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: theme.textSecondary },
