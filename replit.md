@@ -219,7 +219,7 @@ Le fichier `.eas/workflows/build-and-submit.yml` déclenche automatiquement (pus
 2. Submit iOS (App Store) + Submit Android (Google Play) après les builds
 
 ### Prérequis avant le premier build Android
-1. **google-services.json** : Remplacer le fichier placeholder à la racine par le vrai fichier téléchargé depuis la Firebase Console (Project Settings > General > Your apps > Android app `eu.mytoolsgroup.admin`).
+1. **google-services.json** : Remplacer le fichier placeholder à la racine par le vrai fichier téléchargé depuis la Firebase Console (Project Settings > General > Your apps > Android app `com.mytools.app`).
 2. **EAS Secret GOOGLE_SERVICE_ACCOUNT_KEY** (obligatoire pour `eas submit` Android) :
    - Créer un service account dans Google Cloud Console avec le rôle "Service Account User" et l'API Google Play Android Developer activée.
    - Télécharger la clé JSON du service account.
