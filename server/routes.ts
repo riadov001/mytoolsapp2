@@ -141,7 +141,7 @@ console.error = (...args: any[]) => {
 const APP_REVIEW_MODE = process.env.APP_REVIEW_MODE === "true";
 
 const REVIEWER_EMAIL = "review@testapp.com";
-const REVIEWER_PASSWORD = "Test123456";
+const REVIEWER_PASSWORD = "00000000";
 const REVIEWER_USER = {
   id: "reviewer-demo-001",
   email: REVIEWER_EMAIL,
@@ -1247,6 +1247,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("[MOBILE-ADMIN] error:", err.message);
       return res.status(502).json({ message: "Erreur de connexion au serveur API" });
     }
+  });
+
+  app.use("/api/mobile/invoices", (req: Request, res: Response, next: NextFunction) => {
+    const auth = req.headers["authorization"] || "";
+    if (!isReviewerToken(auth)) return next();
+    const method = req.method;
+    const id = req.params[0] || req.url.split("/").filter(Boolean)[0] || "";
+    if (method === "POST") return res.status(201).json({ ...req.body, id: "demo-i-new-" + Date.now(), invoiceNumber: "F-0036", status: req.body?.status || "pending", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    if (method === "PATCH") return res.json({ ...REVIEWER_DEMO_INVOICES[0], ...req.body, id, updatedAt: new Date().toISOString() });
+    if (method === "DELETE") return res.json({ success: true, message: "Facture supprimée" });
+    return next();
+  });
+
+  app.use("/api/mobile/reservations", (req: Request, res: Response, next: NextFunction) => {
+    const auth = req.headers["authorization"] || "";
+    if (!isReviewerToken(auth)) return next();
+    const method = req.method;
+    const id = req.params[0] || req.url.split("/").filter(Boolean)[0] || "";
+    if (method === "POST") return res.status(201).json({ ...req.body, id: "demo-r-new-" + Date.now(), reference: "RDV-2026-019", status: req.body?.status || "pending", scheduledDate: req.body?.scheduledDate || new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    if (method === "PATCH") return res.json({ ...REVIEWER_DEMO_RESERVATIONS[0], ...req.body, id, updatedAt: new Date().toISOString() });
+    if (method === "DELETE") return res.json({ success: true, message: "Réservation supprimée" });
+    return next();
+  });
+
+  app.use("/api/mobile/quotes", (req: Request, res: Response, next: NextFunction) => {
+    const auth = req.headers["authorization"] || "";
+    if (!isReviewerToken(auth)) return next();
+    const method = req.method;
+    const id = req.params[0] || req.url.split("/").filter(Boolean)[0] || "";
+    if (method === "PATCH") return res.json({ ...REVIEWER_DEMO_QUOTES[0], ...req.body, id, updatedAt: new Date().toISOString() });
+    if (method === "DELETE") return res.json({ success: true, message: "Devis supprimé" });
+    return next();
   });
 
   app.use("/api", async (req: Request, res: Response, next: NextFunction) => {

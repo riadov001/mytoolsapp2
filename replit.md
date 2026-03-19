@@ -179,7 +179,7 @@ server/
 
 ## App Review Mode
 - **Environment variable**: `APP_REVIEW_MODE=true` enables the reviewer demo account bypass
-- **Demo credentials**: `review@testapp.com` / `Test123456` (admin role)
+- **Demo credentials**: `review@testapp.com` / `00000000` (admin role, 8 zéros)
 - All admin CRUD endpoints return synthetic data when using the reviewer token
 - Disable by removing or setting `APP_REVIEW_MODE=false` in production after review
 - See `APP_REVIEW_NOTES.md` for full reviewer instructions
