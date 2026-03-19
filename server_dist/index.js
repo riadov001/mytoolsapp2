@@ -1276,7 +1276,11 @@ async function registerRoutes(app2) {
         const id = path2.split("/")[2];
         return res.json(REVIEWER_DEMO_QUOTES.find((q) => q.id === id) || REVIEWER_DEMO_QUOTES[0]);
       }
-      if (path2 === "/quotes" && method === "POST") return res.status(201).json({ ...req.body, id: "demo-q-new-" + Date.now(), quoteNumber: "D-0043", createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
+      if (path2 === "/quotes" && method === "POST") {
+        const newQuote = { ...req.body, id: "demo-q-new-" + Date.now(), quoteNumber: "D-0043", createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+        REVIEWER_DEMO_QUOTES = [newQuote, ...REVIEWER_DEMO_QUOTES];
+        return res.status(201).json(newQuote);
+      }
       if (path2.match(/^\/quotes\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Devis mis \xE0 jour" });
       if (path2.match(/^\/quotes\/[^/]+\/status$/) && method === "PATCH") return res.json({ success: true, message: "Statut mis \xE0 jour" });
       if (path2.match(/^\/quotes\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Devis supprim\xE9" });
@@ -1285,7 +1289,11 @@ async function registerRoutes(app2) {
         const id = path2.split("/")[2];
         return res.json(REVIEWER_DEMO_INVOICES.find((i) => i.id === id) || REVIEWER_DEMO_INVOICES[0]);
       }
-      if (path2 === "/invoices" && method === "POST") return res.status(201).json({ ...req.body, id: "demo-i-new-" + Date.now(), invoiceNumber: "F-0036", createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
+      if (path2 === "/invoices" && method === "POST") {
+        const newInvoice = { ...req.body, id: "demo-i-new-" + Date.now(), invoiceNumber: "F-0036", createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+        REVIEWER_DEMO_INVOICES = [newInvoice, ...REVIEWER_DEMO_INVOICES];
+        return res.status(201).json(newInvoice);
+      }
       if (path2.match(/^\/invoices\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Facture mise \xE0 jour" });
       if (path2.match(/^\/invoices\/[^/]+\/status$/) && method === "PATCH") return res.json({ success: true, message: "Statut mis \xE0 jour" });
       if (path2.match(/^\/invoices\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Facture supprim\xE9e" });
@@ -1338,7 +1346,7 @@ async function registerRoutes(app2) {
         for (const f of DATE_FIELDS) {
           if (req.body[f] && typeof req.body[f] === "string") {
             try {
-              req.body[f] = new Date(req.body[f]).toISOString();
+              req.body[f] = new Date(req.body[f]).toISOString().split("T")[0];
             } catch {
             }
           }

@@ -173,11 +173,11 @@ function isReviewerToken(authHeader: string): boolean {
   return APP_REVIEW_MODE && authHeader.includes("reviewer-demo-token-");
 }
 
-const REVIEWER_DEMO_QUOTES = [
+let REVIEWER_DEMO_QUOTES = [
   { id: "demo-q1", quoteNumber: "D-0042", clientId: "demo-c1", status: "pending", totalAmount: "1250.00", notes: "Remplacement pneus avant", items: [{ description: "Pneu Michelin 205/55R16", quantity: 2, unitPrice: "89.00", totalPrice: "178.00" }], photos: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), vehicleInfo: { brand: "Peugeot", model: "308", year: 2021, plate: "AB-123-CD" } },
   { id: "demo-q2", quoteNumber: "D-0041", clientId: "demo-c2", status: "accepted", totalAmount: "890.00", notes: "Équilibrage + géométrie", items: [{ description: "Équilibrage 4 roues", quantity: 1, unitPrice: "60.00", totalPrice: "60.00" }], photos: [], createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString(), vehicleInfo: { brand: "Renault", model: "Clio", year: 2020, plate: "EF-456-GH" } },
 ];
-const REVIEWER_DEMO_INVOICES = [
+let REVIEWER_DEMO_INVOICES = [
   { id: "demo-i1", quoteId: "demo-q2", clientId: "demo-c2", invoiceNumber: "F-0035", status: "paid", totalHT: "741.67", totalTTC: "890.00", tvaAmount: "148.33", tvaRate: "20", paidAt: new Date().toISOString(), items: [{ description: "Équilibrage 4 roues", quantity: 1, unitPrice: "60.00", totalPrice: "60.00" }], notes: null, createdAt: new Date(Date.now() - 172800000).toISOString(), updatedAt: new Date().toISOString() },
   { id: "demo-i2", quoteId: null, clientId: "demo-c1", invoiceNumber: "F-0034", status: "pending", totalHT: "500.00", totalTTC: "600.00", tvaAmount: "100.00", tvaRate: "20", paidAt: null, items: [{ description: "Changement freins", quantity: 1, unitPrice: "500.00", totalPrice: "500.00" }], notes: "À régler sous 30 jours", createdAt: new Date(Date.now() - 259200000).toISOString(), updatedAt: new Date(Date.now() - 259200000).toISOString() },
 ];
@@ -1225,7 +1225,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const id = path.split("/")[2];
         return res.json(REVIEWER_DEMO_QUOTES.find(q => q.id === id) || REVIEWER_DEMO_QUOTES[0]);
       }
-      if (path === "/quotes" && method === "POST") return res.status(201).json({ ...req.body, id: "demo-q-new-" + Date.now(), quoteNumber: "D-0043", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      if (path === "/quotes" && method === "POST") {
+        const newQuote = { ...req.body, id: "demo-q-new-" + Date.now(), quoteNumber: "D-0043", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        REVIEWER_DEMO_QUOTES = [newQuote, ...REVIEWER_DEMO_QUOTES];
+        return res.status(201).json(newQuote);
+      }
       if (path.match(/^\/quotes\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Devis mis à jour" });
       if (path.match(/^\/quotes\/[^/]+\/status$/) && method === "PATCH") return res.json({ success: true, message: "Statut mis à jour" });
       if (path.match(/^\/quotes\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Devis supprimé" });
@@ -1235,7 +1239,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const id = path.split("/")[2];
         return res.json(REVIEWER_DEMO_INVOICES.find(i => i.id === id) || REVIEWER_DEMO_INVOICES[0]);
       }
-      if (path === "/invoices" && method === "POST") return res.status(201).json({ ...req.body, id: "demo-i-new-" + Date.now(), invoiceNumber: "F-0036", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      if (path === "/invoices" && method === "POST") {
+        const newInvoice = { ...req.body, id: "demo-i-new-" + Date.now(), invoiceNumber: "F-0036", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        REVIEWER_DEMO_INVOICES = [newInvoice, ...REVIEWER_DEMO_INVOICES];
+        return res.status(201).json(newInvoice);
+      }
       if (path.match(/^\/invoices\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Facture mise à jour" });
       if (path.match(/^\/invoices\/[^/]+\/status$/) && method === "PATCH") return res.json({ success: true, message: "Statut mis à jour" });
       if (path.match(/^\/invoices\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Facture supprimée" });
@@ -1293,7 +1301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const DATE_FIELDS = ["dueDate", "issueDate", "validUntil", "createdAt", "updatedAt", "paidAt", "date"];
         for (const f of DATE_FIELDS) {
           if (req.body[f] && typeof req.body[f] === "string") {
-            try { req.body[f] = new Date(req.body[f]).toISOString(); } catch {}
+            try { req.body[f] = new Date(req.body[f]).toISOString().split("T")[0]; } catch {}
           }
         }
         const ALLOWED = ["clientId", "quoteId", "status", "totalHT", "totalTTC", "tvaRate", "issueDate", "dueDate", "paymentMethod", "notes", "items", "lineItems"];
