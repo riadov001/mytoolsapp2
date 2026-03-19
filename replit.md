@@ -263,3 +263,9 @@ Le fichier `.eas/workflows/build-and-submit.yml` déclenche automatiquement (pus
   - Hero: Reduced font size (text-3xl/sm:text-4xl/md:text-5xl), centered, removed store badges
   - Screenshots: JSX mockups of 5 screens (Login, Dashboard, Reservations, Services, Devis) with MyTools logo visible in each
   - Footer: Ultra-compact single line with official MyTools logo, copyright, and essential links (Privacy, Support, PWA Live)
+- Mar 19 2026: **Version 2.0.0 Released**
+  - Removed manual invoice creation screen — invoices only created from quotes
+  - Fixed quote amount calculation with robustness for multiple field name variants
+  - Improved admin CRUD forms (quote/invoice creation via JSON payloads)
+  - **Published to Apple App Store**
+  - Android APK build v2.0.0 initiated on EAS
