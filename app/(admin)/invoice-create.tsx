@@ -254,37 +254,34 @@ export default function InvoiceCreateScreen() {
       };
     });
 
-    const formData = new FormData();
-    formData.append("clientId", selectedClientId);
-    formData.append("status", "pending");
-    if (selectedQuoteId) formData.append("quoteId", selectedQuoteId);
+    const payload: any = {
+      clientId: selectedClientId,
+      status: "pending",
+      items: mappedItems,
+      lineItems: mappedItems,
+      totalHT: totalHT.toFixed(2),
+      totalTTC: totalTTC.toFixed(2),
+      totalAmount: totalTTC.toFixed(2),
+      amount: totalTTC.toFixed(2),
+      total: totalTTC.toFixed(2),
+      priceExcludingTax: totalHT.toFixed(2),
+      totalExcludingTax: totalHT.toFixed(2),
+      taxAmount: totalTVA.toFixed(2),
+      photos: photos.map(p => p.uri),
+      mediaFiles: photos.map(p => p.uri),
+      attachments: photos.map(p => p.uri),
+    };
+
+    if (selectedQuoteId) payload.quoteId = selectedQuoteId;
     if (notes.trim()) {
-      formData.append("notes", notes.trim());
-      formData.append("description", notes.trim());
+      payload.notes = notes.trim();
+      payload.description = notes.trim();
     }
-    formData.append("dueDate", dueDate || undefined);
-    if (paymentMethod) formData.append("paymentMethod", paymentMethod);
-    formData.append("items", JSON.stringify(mappedItems));
-    formData.append("lineItems", JSON.stringify(mappedItems));
-    formData.append("totalHT", totalHT.toFixed(2));
-    formData.append("totalTTC", totalTTC.toFixed(2));
-    formData.append("totalAmount", totalTTC.toFixed(2));
-    formData.append("amount", totalTTC.toFixed(2));
-    formData.append("total", totalTTC.toFixed(2));
-    formData.append("priceExcludingTax", totalHT.toFixed(2));
-    formData.append("totalExcludingTax", totalHT.toFixed(2));
-    formData.append("taxAmount", totalTVA.toFixed(2));
+    if (dueDate) payload.dueDate = dueDate;
+    if (paymentMethod) payload.paymentMethod = paymentMethod;
 
-    photos.forEach((photo, idx) => {
-      const ext = photo.name?.split(".").pop()?.toLowerCase() || "jpg";
-      const mimeType = ext === "png" ? "image/png" : ext === "heic" ? "image/heic" : "image/jpeg";
-      formData.append("photos", { uri: photo.uri, name: photo.name || `photo_${idx}.jpg`, type: mimeType } as any);
-      formData.append("mediaFiles", { uri: photo.uri, name: photo.name || `photo_${idx}.jpg`, type: mimeType } as any);
-      formData.append("attachments", { uri: photo.uri, name: photo.name || `photo_${idx}.jpg`, type: mimeType } as any);
-    });
-
-    console.log("[INVOICE-CREATE] FormData items:", mappedItems.length, "photos:", photos.length, "totalTTC:", totalTTC);
-    createMutation.mutate(formData);
+    console.log("[INVOICE-CREATE] Payload items:", mappedItems.length, "photos:", photos.length, "totalTTC:", totalTTC);
+    createMutation.mutate(payload);
   };
 
   return (
