@@ -1,14 +1,16 @@
 import React, { useState, useMemo } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Platform,
-  TextInput, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert,
+  TextInput, ActivityIndicator, FlatList,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminInvoices, adminClients, adminQuotes } from "@/lib/admin-api";
+import { adminInvoices, adminClients, adminQuotes, adminServices } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -65,6 +67,7 @@ function getDefaultDueDate(): string {
 export default function InvoiceCreateScreen() {
   const params = useLocalSearchParams();
   const paramClientId = Array.isArray(params.clientId) ? params.clientId[0] : (params.clientId as string || "");
+  const paramQuoteId = Array.isArray(params.quoteId) ? params.quoteId[0] : (params.quoteId as string || "");
 
   const insets = useSafeAreaInsets();
   const theme = useTheme();
@@ -72,7 +75,7 @@ export default function InvoiceCreateScreen() {
   const queryClient = useQueryClient();
   const { showAlert, AlertComponent } = useCustomAlert();
 
-  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(paramQuoteId || null);
   const [showQuotePicker, setShowQuotePicker] = useState(false);
   const [quoteSearch, setQuoteSearch] = useState("");
 
@@ -84,11 +87,18 @@ export default function InvoiceCreateScreen() {
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [showPaymentPicker, setShowPaymentPicker] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [photos, setPhotos] = useState<{ uri: string; name: string }[]>([]);
 
   const { data: quotes = [], isLoading: quotesLoading } = useQuery({
     queryKey: ["admin-quotes"],
     queryFn: adminQuotes.getAll,
     staleTime: 2 * 60 * 1000,
+  });
+
+  const { data: services = [] } = useQuery({
+    queryKey: ["admin-services"],
+    queryFn: adminServices.getAll,
+    staleTime: 10 * 60 * 1000,
   });
 
   const quotesArr = Array.isArray(quotes) ? quotes : [];
@@ -99,6 +109,7 @@ export default function InvoiceCreateScreen() {
     const cn = `${q.clientFirstName || ""} ${q.clientLastName || ""} ${q.clientName || ""}`.toLowerCase();
     return ref.includes(s) || cn.includes(s);
   });
+
   const selectedQuote = quotesArr.find((q: any) => String(q.id) === String(selectedQuoteId));
   const selectedQuoteLabel = selectedQuote
     ? (selectedQuote.quoteNumber || selectedQuote.reference || `Devis #${selectedQuote.id}`)
@@ -144,6 +155,8 @@ export default function InvoiceCreateScreen() {
     ? PAYMENT_METHODS.find(p => p.key === paymentMethod)?.label || paymentMethod
     : "Sélectionner un mode de paiement";
 
+  const servicesArr = Array.isArray(services) ? services : [];
+
   const createMutation = useMutation({
     mutationFn: (payload: any) => adminInvoices.create(payload),
     onSuccess: () => {
@@ -185,79 +198,98 @@ export default function InvoiceCreateScreen() {
 
   const { totalHT, totalTVA, totalTTC } = calcTotals(lineItems);
 
-  const handleSubmit = () => {
-    if (!selectedQuoteId) {
-      showAlert({ type: "warning", title: "Attention", message: "Veuillez sélectionner un devis source.", buttons: [{ text: "OK", style: "primary" }] });
+  const pickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission requise", "Acceptez l'accès à votre galerie.");
       return;
     }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultiple: true,
+      quality: 0.7,
+    });
+    if (!result.canceled) {
+      const newPhotos = result.assets.map((a: any) => ({
+        uri: a.uri,
+        name: a.fileName || `photo_${Date.now()}`,
+      }));
+      setPhotos(prev => [...prev, ...newPhotos]);
+    }
+  };
+
+  const handleSubmit = () => {
     if (!selectedClientId) {
       showAlert({ type: "warning", title: "Attention", message: "Veuillez sélectionner un client.", buttons: [{ text: "OK", style: "primary" }] });
       return;
     }
+
+    if (!selectedQuoteId && photos.length === 0) {
+      showAlert({ type: "warning", title: "Attention", message: "Sans devis source, au moins une photo est obligatoire.", buttons: [{ text: "OK", style: "primary" }] });
+      return;
+    }
+
     const validItems = lineItems.filter(it => it.description.trim() && it.unitPrice?.trim() && parseFloat(it.unitPrice) > 0);
     if (validItems.length === 0) {
       showAlert({ type: "warning", title: "Attention", message: "Veuillez remplir toutes les prestations avec une description et un prix.", buttons: [{ text: "OK", style: "primary" }] });
       return;
     }
 
-    const payload: any = {
-      clientId: selectedClientId,
-      status: "pending",
-      notes: notes.trim() || undefined,
-      description: notes.trim() || undefined,
-      dueDate: dueDate || undefined,
-      paymentMethod: paymentMethod || undefined,
-      items: validItems.map(it => {
-        const qty = parseFloat(it.quantity) || 1;
-        const price = parseFloat(it.unitPrice) || 0;
-        const tax = parseFloat(it.tvaRate) || 0;
-        const totalHT = qty * price;
-        const totalTTCItem = totalHT * (1 + tax / 100);
-        return {
-          description: it.description.trim(),
-          quantity: qty,
-          unitPrice: price,
-          unitPriceExcludingTax: price,
-          taxRate: tax,
-          tvaRate: tax,
-          totalPrice: totalTTCItem,
-          totalIncludingTax: totalTTCItem,
-          totalExcludingTax: totalHT,
-        };
-      }),
-      lineItems: validItems.map(it => {
-        const qty = parseFloat(it.quantity) || 1;
-        const price = parseFloat(it.unitPrice) || 0;
-        const tax = parseFloat(it.tvaRate) || 0;
-        const totalHT = qty * price;
-        const totalTTCItem = totalHT * (1 + tax / 100);
-        return {
-          description: it.description.trim(),
-          quantity: qty,
-          unitPrice: price,
-          unitPriceExcludingTax: price,
-          taxRate: tax,
-          tvaRate: tax,
-          totalPrice: totalTTCItem,
-          totalIncludingTax: totalTTCItem,
-          totalExcludingTax: totalHT,
-        };
-      }),
-      totalHT: totalHT.toFixed(2),
-      totalTTC: totalTTC.toFixed(2),
-      totalAmount: totalTTC.toFixed(2),
-      amount: totalTTC.toFixed(2),
-      total: totalTTC.toFixed(2),
-      priceExcludingTax: totalHT.toFixed(2),
-      totalExcludingTax: totalHT.toFixed(2),
-      taxAmount: totalTVA.toFixed(2),
-    };
+    const mappedItems = validItems.map(it => {
+      const qty = parseFloat(it.quantity) || 1;
+      const price = parseFloat(it.unitPrice) || 0;
+      const tax = parseFloat(it.tvaRate) || 0;
+      const ht = qty * price;
+      const ttc = ht * (1 + tax / 100);
+      return {
+        description: it.description.trim(),
+        quantity: qty,
+        unitPrice: price,
+        unitPriceExcludingTax: price,
+        taxRate: tax,
+        tvaRate: tax,
+        totalPrice: ttc,
+        totalIncludingTax: ttc,
+        totalExcludingTax: ht,
+      };
+    });
 
-    createMutation.mutate(payload);
+    const formData = new FormData();
+    formData.append("clientId", selectedClientId);
+    formData.append("status", "pending");
+    if (selectedQuoteId) formData.append("quoteId", selectedQuoteId);
+    if (notes.trim()) {
+      formData.append("notes", notes.trim());
+      formData.append("description", notes.trim());
+    }
+    formData.append("dueDate", dueDate || undefined);
+    if (paymentMethod) formData.append("paymentMethod", paymentMethod);
+    formData.append("items", JSON.stringify(mappedItems));
+    formData.append("lineItems", JSON.stringify(mappedItems));
+    formData.append("totalHT", totalHT.toFixed(2));
+    formData.append("totalTTC", totalTTC.toFixed(2));
+    formData.append("totalAmount", totalTTC.toFixed(2));
+    formData.append("amount", totalTTC.toFixed(2));
+    formData.append("total", totalTTC.toFixed(2));
+    formData.append("priceExcludingTax", totalHT.toFixed(2));
+    formData.append("totalExcludingTax", totalHT.toFixed(2));
+    formData.append("taxAmount", totalTVA.toFixed(2));
+
+    photos.forEach((photo, idx) => {
+      const ext = photo.name?.split(".").pop()?.toLowerCase() || "jpg";
+      const mimeType = ext === "png" ? "image/png" : ext === "heic" ? "image/heic" : "image/jpeg";
+      formData.append("photos", { uri: photo.uri, name: photo.name || `photo_${idx}.jpg`, type: mimeType } as any);
+      formData.append("mediaFiles", { uri: photo.uri, name: photo.name || `photo_${idx}.jpg`, type: mimeType } as any);
+      formData.append("attachments", { uri: photo.uri, name: photo.name || `photo_${idx}.jpg`, type: mimeType } as any);
+    });
+
+    console.log("[INVOICE-CREATE] FormData items:", mappedItems.length, "photos:", photos.length, "totalTTC:", totalTTC);
+    createMutation.mutate(formData);
   };
 
   return (
     <View style={styles.container}>
+      {AlertComponent}
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
@@ -283,9 +315,9 @@ export default function InvoiceCreateScreen() {
         {/* Quote Picker */}
         <View style={styles.section}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Text style={styles.sectionTitle}>Devis source *</Text>
+            <Text style={styles.sectionTitle}>Devis source (optionnel)</Text>
             {selectedQuote && (
-              <Pressable onPress={() => { setSelectedQuoteId(null); setLineItems([{ description: "", quantity: "1", unitPrice: "", tvaRate: "20" }]); setSelectedClientId(null); setNotes(""); }}>
+              <Pressable onPress={() => { setSelectedQuoteId(null); setLineItems([{ description: "", quantity: "1", unitPrice: "", tvaRate: "20" }]); setNotes(""); }}>
                 <Text style={{ fontSize: 11, color: theme.textTertiary, fontFamily: "Inter_400Regular" }}>Effacer</Text>
               </Pressable>
             )}
@@ -353,7 +385,7 @@ export default function InvoiceCreateScreen() {
           )}
           {!selectedQuote && (
             <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: theme.textTertiary, marginTop: 2 }}>
-              Sélectionnez un devis pour pré-remplir le client et les prestations automatiquement.
+              Sélectionnez un devis pour pré-remplir le client et les prestations automatiquement. Sans devis, une photo est obligatoire.
             </Text>
           )}
         </View>
@@ -474,6 +506,72 @@ export default function InvoiceCreateScreen() {
           />
         </View>
 
+        {/* Services présélectionnés (si pas de devis) */}
+        {!selectedQuoteId && servicesArr.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Services disponibles</Text>
+            <FlatList
+              scrollEnabled={false}
+              data={servicesArr}
+              keyExtractor={(s: any) => s.id}
+              renderItem={({ item: service }: { item: any }) => {
+                const servicePrice = service.price || service.unitPrice || service.basePrice || service.priceHT || service.priceExcludingTax || service.hourlyRate || service.rate || 0;
+                return (
+                  <Pressable
+                    style={styles.serviceOption}
+                    onPress={() => {
+                      setLineItems(prev => [...prev, {
+                        description: service.name || service.label || "",
+                        quantity: "1",
+                        unitPrice: String(servicePrice),
+                        tvaRate: "20",
+                      }]);
+                    }}
+                  >
+                    <Ionicons name="add-circle-outline" size={18} color={theme.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.serviceName}>{service.name || service.label}</Text>
+                      {service.description ? <Text style={styles.serviceDesc}>{service.description}</Text> : null}
+                    </View>
+                    <Text style={styles.servicePrice}>{fmtEur(parseFloat(String(servicePrice)))} HT</Text>
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        )}
+
+        {/* Photos (obligatoire si pas devis) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Photos {!selectedQuoteId ? "* (1 minimum)" : "(optionnel)"}</Text>
+          {photos.length > 0 ? (
+            <FlatList
+              scrollEnabled={false}
+              data={photos}
+              keyExtractor={(_, i) => i.toString()}
+              renderItem={({ item, index }) => (
+                <View style={styles.photoItem}>
+                  <ExpoImage source={{ uri: item.uri }} style={styles.photoThumb} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.photoName} numberOfLines={1}>{item.name}</Text>
+                  </View>
+                  {photos.length > 1 && (
+                    <Pressable onPress={() => setPhotos(prev => prev.filter((_, i) => i !== index))}>
+                      <Ionicons name="close-circle" size={20} color="#EF4444" />
+                    </Pressable>
+                  )}
+                </View>
+              )}
+            />
+          ) : null}
+          {photos.length < 3 && (
+            <Pressable style={styles.addPhotoBtn} onPress={pickPhoto}>
+              <Ionicons name="image-outline" size={18} color={theme.primary} />
+              <Text style={styles.addPhotoBtnText}>Ajouter des photos ({photos.length}/3)</Text>
+            </Pressable>
+          )}
+        </View>
+
         {/* Prestations */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Prestations *</Text>
@@ -481,7 +579,7 @@ export default function InvoiceCreateScreen() {
             <View key={idx} style={[styles.lineItemCard, idx > 0 && { marginTop: 10 }]}>
               <View style={styles.lineItemHeader}>
                 <Text style={styles.lineItemLabel}>Prestation {idx + 1}</Text>
-                {!selectedQuoteId && lineItems.length > 1 && (
+                {lineItems.length > 1 && (
                   <Pressable onPress={() => removeLineItem(idx)}>
                     <Ionicons name="trash-outline" size={16} color="#EF4444" />
                   </Pressable>
@@ -545,109 +643,232 @@ export default function InvoiceCreateScreen() {
           </Pressable>
         </View>
 
-        {/* Récapitulatif */}
-        {totalTTC > 0 ? (
-          <View style={[styles.section, { gap: 6 }]}>
-            <Text style={styles.sectionTitle}>Récapitulatif</Text>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total HT</Text>
-              <Text style={styles.totalValue}>{fmtEur(totalHT)}</Text>
-            </View>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>TVA</Text>
-              <Text style={styles.totalValue}>{fmtEur(totalTVA)}</Text>
-            </View>
-            <View style={[styles.totalRow, { paddingTop: 8, borderTopWidth: 1, borderTopColor: theme.border, marginTop: 4 }]}>
-              <Text style={[styles.totalLabel, { fontFamily: "Inter_700Bold", color: theme.text }]}>Total TTC</Text>
-              <Text style={{ fontFamily: "Inter_700Bold", fontSize: 18, color: theme.primary }}>{fmtEur(totalTTC)}</Text>
-            </View>
+        {/* Totaux */}
+        <View style={[styles.section, { gap: 6 }]}>
+          <Text style={styles.sectionTitle}>Récapitulatif</Text>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total HT</Text>
+            <Text style={styles.totalValue}>{fmtEur(totalHT)}</Text>
           </View>
-        ) : null}
-
-        {/* Submit */}
-        <Pressable
-          style={[styles.createBtn, createMutation.isPending && { opacity: 0.6 }]}
-          onPress={handleSubmit}
-          disabled={createMutation.isPending}
-        >
-          {createMutation.isPending
-            ? <ActivityIndicator size="small" color="#fff" />
-            : <>
-                <Ionicons name="receipt-outline" size={18} color="#fff" />
-                <Text style={styles.createBtnText}>Créer la facture</Text>
-              </>
-          }
-        </Pressable>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>TVA</Text>
+            <Text style={styles.totalValue}>{fmtEur(totalTVA)}</Text>
+          </View>
+          <View style={[styles.totalRow, { paddingTop: 8, borderTopWidth: 1, borderTopColor: theme.border, marginTop: 4 }]}>
+            <Text style={[styles.totalLabel, { fontFamily: "Inter_700Bold", color: theme.text }]}>Total TTC</Text>
+            <Text style={{ fontFamily: "Inter_700Bold", fontSize: 18, color: theme.primary }}>{fmtEur(totalTTC)}</Text>
+          </View>
+        </View>
       </ScrollView>
-      {AlertComponent}
     </View>
   );
 }
 
-const getStyles = (theme: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.background },
-  header: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 16, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: theme.border,
-  },
-  backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
-  headerTitle: { flex: 1, fontSize: 17, fontFamily: "Inter_600SemiBold", color: theme.text, textAlign: "center" },
-  submitHeaderBtn: {
-    backgroundColor: theme.primary, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 8, minWidth: 60, alignItems: "center",
-  },
-  submitHeaderText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  section: { backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.border, padding: 14, gap: 10 },
-  sectionTitle: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: theme.textTertiary, textTransform: "uppercase", letterSpacing: 0.8 },
-  pickerBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    backgroundColor: theme.inputBg || theme.background, borderRadius: 10, borderWidth: 1,
-    borderColor: theme.inputBorder || theme.border, paddingHorizontal: 12, paddingVertical: 11,
-  },
-  pickerText: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },
-  clientDropdown: { borderRadius: 10, borderWidth: 1, borderColor: theme.border, overflow: "hidden" },
-  clientSearch: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.background },
-  clientSearchInput: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: theme.text },
-  noClient: { padding: 12, fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textTertiary, textAlign: "center" },
-  clientOption: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.border, gap: 2 },
-  clientOptionName: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: theme.text },
-  clientOptionEmail: { fontSize: 11, fontFamily: "Inter_400Regular", color: theme.textTertiary },
-  quoteSelected: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: theme.primary + "10", borderRadius: 10, borderWidth: 1,
-    borderColor: theme.primary + "40", paddingHorizontal: 12, paddingVertical: 10,
-  },
-  quoteSelectedIcon: { width: 34, height: 34, borderRadius: 8, backgroundColor: theme.primary + "15", justifyContent: "center", alignItems: "center" },
-  quoteSelectedRef: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.primary },
-  quoteSelectedSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary },
-  input: {
-    backgroundColor: theme.inputBg || theme.background, borderRadius: 10, borderWidth: 1,
-    borderColor: theme.inputBorder || theme.border, paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text,
-  },
-  textarea: {
-    backgroundColor: theme.inputBg || theme.background, borderRadius: 10, borderWidth: 1,
-    borderColor: theme.inputBorder || theme.border, paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text, minHeight: 80,
-  },
-  lineItemCard: { backgroundColor: theme.background, borderRadius: 10, borderWidth: 1, borderColor: theme.border, padding: 10, gap: 8 },
-  lineItemHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  lineItemLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: theme.textSecondary },
-  lineItemRow: { flexDirection: "row", gap: 8 },
-  fieldLabel: { fontSize: 11, fontFamily: "Inter_500Medium", color: theme.textTertiary, marginBottom: 4 },
-  tvaSelector: { flexDirection: "row", gap: 4, marginTop: 2 },
-  tvaBtn: { flex: 1, borderRadius: 6, borderWidth: 1, borderColor: theme.border, paddingVertical: 8, alignItems: "center" },
-  tvaBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: theme.textSecondary },
-  lineTotalCalc: { fontSize: 12, fontFamily: "Inter_500Medium", color: theme.textSecondary, textAlign: "right", marginTop: 2 },
-  addLineBtn: { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center", paddingVertical: 10 },
-  addLineBtnText: { fontSize: 13, fontFamily: "Inter_500Medium", color: theme.primary },
-  totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  totalLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary },
-  totalValue: { fontSize: 14, fontFamily: "Inter_500Medium", color: theme.text },
-  createBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: theme.primary, borderRadius: 14, height: 54,
-  },
-  createBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
-});
+function getStyles(theme: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+      backgroundColor: theme.background,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
+    headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: theme.text, flex: 1, textAlign: "center" },
+    submitHeaderBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: theme.primary,
+      borderRadius: 8,
+    },
+    submitHeaderText: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    section: { gap: 8 },
+    sectionTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text },
+    pickerBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      backgroundColor: theme.cardBackground,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    pickerText: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },
+    clientDropdown: {
+      marginTop: 6,
+      backgroundColor: theme.cardBackground,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      overflow: "hidden",
+    },
+    clientSearch: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      gap: 8,
+    },
+    clientSearchInput: {
+      flex: 1,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      color: theme.text,
+    },
+    clientOption: {
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      gap: 2,
+    },
+    clientOptionName: { fontSize: 14, fontFamily: "Inter_500Medium", color: theme.text },
+    clientOptionEmail: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textTertiary },
+    noClient: { paddingHorizontal: 12, paddingVertical: 12, color: theme.textTertiary },
+    quoteSelected: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      backgroundColor: theme.primary + "10",
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.primary,
+    },
+    quoteSelectedIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 8,
+      backgroundColor: theme.primary + "20",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    quoteSelectedRef: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.primary },
+    quoteSelectedSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textTertiary, marginTop: 2 },
+    input: {
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      backgroundColor: theme.cardBackground,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: theme.border,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      color: theme.text,
+    },
+    textarea: {
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      backgroundColor: theme.cardBackground,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: theme.border,
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      color: theme.text,
+      minHeight: 80,
+    },
+    serviceOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      backgroundColor: theme.cardBackground,
+      borderRadius: 6,
+      marginVertical: 4,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    serviceName: { fontSize: 14, fontFamily: "Inter_500Medium", color: theme.text, flex: 1 },
+    serviceDesc: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textTertiary, marginTop: 2 },
+    servicePrice: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: theme.primary },
+    photoItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      backgroundColor: theme.cardBackground,
+      borderRadius: 6,
+      marginVertical: 4,
+    },
+    photoThumb: { width: 50, height: 50, borderRadius: 6 },
+    photoName: { fontSize: 13, fontFamily: "Inter_400Regular", color: theme.text, flex: 1 },
+    addPhotoBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 12,
+      backgroundColor: theme.primary + "10",
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      marginVertical: 8,
+    },
+    addPhotoBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.primary },
+    lineItemCard: {
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      backgroundColor: theme.cardBackground,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      gap: 10,
+    },
+    lineItemHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    lineItemLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text },
+    lineItemRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    fieldLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: theme.textTertiary, marginBottom: 4 },
+    tvaSelector: {
+      flexDirection: "row",
+      gap: 4,
+    },
+    tvaBtn: {
+      flex: 1,
+      paddingVertical: 8,
+      backgroundColor: theme.border,
+      borderRadius: 4,
+      alignItems: "center",
+    },
+    tvaBtnText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: theme.text },
+    lineTotalCalc: { fontSize: 12, fontFamily: "Inter_500Medium", color: theme.primary, marginTop: 4 },
+    addLineBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 12,
+      backgroundColor: theme.primary + "10",
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      marginVertical: 8,
+    },
+    addLineBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.primary },
+    totalRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    totalLabel: { fontSize: 14, fontFamily: "Inter_500Medium", color: theme.textTertiary },
+    totalValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text },
+  });
+}
