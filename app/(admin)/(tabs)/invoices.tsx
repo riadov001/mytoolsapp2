@@ -177,17 +177,7 @@ export default function AdminInvoicesScreen() {
           contentFit="contain"
         />
         <Text style={styles.screenTitle}>Factures</Text>
-        {isAdmin ? (
-          <Pressable
-            style={styles.addBtn}
-            onPress={() => router.push("/(admin)/invoice-create" as any)}
-            accessibilityLabel="Nouvelle facture"
-          >
-            <Ionicons name="add" size={22} color={theme.primary} />
-          </Pressable>
-        ) : (
-          <View style={{ width: 44 }} />
-        )}
+        <View style={{ width: 44 }} />
       </View>
 
       <View style={styles.searchRow}>
@@ -236,6 +226,21 @@ export default function AdminInvoicesScreen() {
         />
       )}
       {AlertComponent}
+      {isAdmin && (
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+          <Pressable
+            style={({ pressed }) => [
+              styles.fab,
+              { bottom: Platform.OS === "web" ? 34 + 130 : insets.bottom + 130 },
+              pressed && styles.fabPressed,
+            ]}
+            onPress={() => router.push("/(admin)/invoice-create" as any)}
+            accessibilityLabel="Nouvelle facture"
+          >
+            <Ionicons name="add" size={26} color="#fff" />
+          </Pressable>
+        </View>
+      )}
       <FloatingSupport />
     </View>
   );
@@ -246,7 +251,16 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingBottom: 12 },
   headerLogo: { width: 34, height: 34, borderRadius: 8 },
   screenTitle: { flex: 1, fontSize: 22, fontFamily: "Michroma_400Regular", color: theme.text, letterSpacing: 0.5 },
-  addBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center", borderRadius: 12, backgroundColor: theme.primary + "15" },
+  fab: {
+    position: "absolute", right: 20, width: 56, height: 56, borderRadius: 28,
+    backgroundColor: theme.primary, justifyContent: "center", alignItems: "center",
+    ...Platform.select({
+      web: { boxShadow: "0px 6px 16px rgba(0,0,0,0.22)" } as any,
+      default: { shadowColor: "#000", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.22, shadowRadius: 10, elevation: 8 },
+    }),
+    zIndex: 100,
+  },
+  fabPressed: { backgroundColor: theme.primaryDark, transform: [{ scale: 0.93 }] },
   searchRow: { paddingHorizontal: 16, marginBottom: 12 },
   searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, height: 44 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },

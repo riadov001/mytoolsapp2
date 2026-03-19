@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminInvoices, adminClients } from "@/lib/admin-api";
+import { adminInvoices, adminClients, adminQuotes } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -68,6 +68,10 @@ export default function InvoiceCreateScreen() {
   const queryClient = useQueryClient();
   const { showAlert, AlertComponent } = useCustomAlert();
 
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [showQuotePicker, setShowQuotePicker] = useState(false);
+  const [quoteSearch, setQuoteSearch] = useState("");
+
   const [selectedClientId, setSelectedClientId] = useState<string | null>(paramClientId || null);
   const [clientSearch, setClientSearch] = useState("");
   const [showClientPicker, setShowClientPicker] = useState(false);
@@ -78,6 +82,42 @@ export default function InvoiceCreateScreen() {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { description: "", quantity: "1", unitPrice: "", tvaRate: "20" },
   ]);
+
+  const { data: quotes = [], isLoading: quotesLoading } = useQuery({
+    queryKey: ["admin-quotes"],
+    queryFn: adminQuotes.getAll,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const quotesArr = Array.isArray(quotes) ? quotes : [];
+  const filteredQuotes = quotesArr.filter((q: any) => {
+    if (!quoteSearch) return true;
+    const s = quoteSearch.toLowerCase();
+    const ref = (q.quoteNumber || q.reference || "").toLowerCase();
+    const cn = `${q.clientFirstName || ""} ${q.clientLastName || ""} ${q.clientName || ""}`.toLowerCase();
+    return ref.includes(s) || cn.includes(s);
+  });
+  const selectedQuote = quotesArr.find((q: any) => String(q.id) === String(selectedQuoteId));
+  const selectedQuoteLabel = selectedQuote
+    ? (selectedQuote.quoteNumber || selectedQuote.reference || `Devis #${selectedQuote.id}`)
+    : "Sélectionner un devis (optionnel)";
+
+  const applyQuote = (q: any) => {
+    setSelectedQuoteId(String(q.id));
+    setShowQuotePicker(false);
+    setQuoteSearch("");
+    if (q.clientId) setSelectedClientId(String(q.clientId));
+    if (q.notes || q.description) setNotes(q.notes || q.description || "");
+    const items: any[] = q.items || q.lineItems || [];
+    if (items.length > 0) {
+      setLineItems(items.map((it: any) => ({
+        description: it.description || it.name || "",
+        quantity: String(it.quantity || 1),
+        unitPrice: String(it.unitPrice || it.unitPriceExcludingTax || it.price || 0),
+        tvaRate: String(it.tvaRate || it.taxRate || it.vatRate || 20),
+      })));
+    }
+  };
 
   const { data: clients = [], isLoading: clientsLoading } = useQuery({
     queryKey: ["admin-clients"],
