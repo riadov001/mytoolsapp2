@@ -453,45 +453,48 @@ export default function InvoiceCreateScreen() {
 
         {/* Prestations */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Prestations *</Text>
+          <Text style={styles.sectionTitle}>Prestations {selectedQuoteId ? "(depuis le devis)" : "*"}</Text>
           {lineItems.map((item, idx) => (
             <View key={idx} style={[styles.lineItemCard, idx > 0 && { marginTop: 10 }]}>
               <View style={styles.lineItemHeader}>
                 <Text style={styles.lineItemLabel}>Prestation {idx + 1}</Text>
-                {lineItems.length > 1 && (
+                {!selectedQuoteId && lineItems.length > 1 && (
                   <Pressable onPress={() => removeLineItem(idx)}>
                     <Ionicons name="trash-outline" size={16} color="#EF4444" />
                   </Pressable>
                 )}
               </View>
               <TextInput
-                style={styles.input}
+                style={[styles.input, selectedQuoteId && { color: theme.textSecondary }]}
                 placeholder="Description de la prestation"
                 placeholderTextColor={theme.textTertiary}
                 value={item.description}
-                onChangeText={v => updateLineItem(idx, "description", v)}
+                onChangeText={v => !selectedQuoteId && updateLineItem(idx, "description", v)}
+                editable={!selectedQuoteId}
               />
               <View style={styles.lineItemRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fieldLabel}>Qté</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, selectedQuoteId && { color: theme.textSecondary }]}
                     placeholder="1"
                     placeholderTextColor={theme.textTertiary}
                     value={item.quantity}
-                    onChangeText={v => updateLineItem(idx, "quantity", v)}
+                    onChangeText={v => !selectedQuoteId && updateLineItem(idx, "quantity", v)}
                     keyboardType="decimal-pad"
+                    editable={!selectedQuoteId}
                   />
                 </View>
                 <View style={{ flex: 2 }}>
                   <Text style={styles.fieldLabel}>Prix HT (€)</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, selectedQuoteId && { color: theme.textSecondary }]}
                     placeholder="0.00"
                     placeholderTextColor={theme.textTertiary}
                     value={item.unitPrice}
-                    onChangeText={v => updateLineItem(idx, "unitPrice", v)}
+                    onChangeText={v => !selectedQuoteId && updateLineItem(idx, "unitPrice", v)}
                     keyboardType="decimal-pad"
+                    editable={!selectedQuoteId}
                   />
                 </View>
                 <View style={{ flex: 1.5 }}>
@@ -501,7 +504,8 @@ export default function InvoiceCreateScreen() {
                       <Pressable
                         key={t}
                         style={[styles.tvaBtn, item.tvaRate === t && { backgroundColor: theme.primary }]}
-                        onPress={() => updateLineItem(idx, "tvaRate", t)}
+                        onPress={() => !selectedQuoteId && updateLineItem(idx, "tvaRate", t)}
+                        disabled={!!selectedQuoteId}
                       >
                         <Text style={[styles.tvaBtnText, item.tvaRate === t && { color: "#fff" }]}>{t}%</Text>
                       </Pressable>
@@ -512,10 +516,12 @@ export default function InvoiceCreateScreen() {
               <Text style={styles.lineTotalCalc}>Total TTC : {fmtEur(calcTTC(item))}</Text>
             </View>
           ))}
-          <Pressable style={styles.addLineBtn} onPress={addLineItem}>
-            <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
-            <Text style={styles.addLineBtnText}>Ajouter une prestation</Text>
-          </Pressable>
+          {!selectedQuoteId && (
+            <Pressable style={styles.addLineBtn} onPress={addLineItem}>
+              <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
+              <Text style={styles.addLineBtnText}>Ajouter une prestation</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Récapitulatif */}

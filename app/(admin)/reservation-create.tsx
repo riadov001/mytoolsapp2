@@ -83,6 +83,7 @@ export default function ReservationCreateScreen() {
     setQuoteSearch("");
     if (q.clientId) setSelectedClientId(String(q.clientId));
     if (!notes) setNotes(`Devis: ${ref}`);
+    // Auto-select service from quote
     const qServiceId = q.serviceId || (Array.isArray(q.services) && q.services[0]?.id) || "";
     if (qServiceId) setSelectedServiceId(String(qServiceId));
   };
