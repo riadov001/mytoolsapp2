@@ -194,7 +194,7 @@ export default function InvoiceCreateScreen() {
       showAlert({ type: "warning", title: "Attention", message: "Veuillez sélectionner un client.", buttons: [{ text: "OK", style: "primary" }] });
       return;
     }
-    const validItems = lineItems.filter(it => it.description.trim() && it.unitPrice);
+    const validItems = lineItems.filter(it => it.description.trim() && it.unitPrice?.trim() && parseFloat(it.unitPrice) > 0);
     if (validItems.length === 0) {
       showAlert({ type: "warning", title: "Attention", message: "Veuillez remplir toutes les prestations avec une description et un prix.", buttons: [{ text: "OK", style: "primary" }] });
       return;

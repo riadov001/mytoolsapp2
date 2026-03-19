@@ -180,7 +180,7 @@ export default function QuoteCreateScreen() {
       Alert.alert("Attention", "Maximum 3 photos autorisées.");
       return;
     }
-    const validItems = lineItems.filter(it => it.description.trim() && it.unitPrice);
+    const validItems = lineItems.filter(it => it.description.trim() && it.unitPrice?.trim() && parseFloat(it.unitPrice) > 0);
     if (validItems.length === 0) {
       Alert.alert("Attention", "Ajoutez au moins une prestation avec une description et un prix.");
       return;
