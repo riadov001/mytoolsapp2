@@ -133,7 +133,7 @@ console.error = (...args) => {
   origConsoleError(...args);
   pushLog("error", args.map(safeStringify).join(" "));
 };
-var APP_REVIEW_MODE = process.env.APP_REVIEW_MODE === "true";
+var APP_REVIEW_MODE = process.env.APP_REVIEW_MODE === "true" || process.env.NODE_ENV !== "production";
 var REVIEWER_EMAIL = "review@testapp.com";
 var REVIEWER_PASSWORD = "00000000";
 var REVIEWER_USER = {
@@ -1277,7 +1277,15 @@ async function registerRoutes(app2) {
         return res.json(REVIEWER_DEMO_QUOTES.find((q) => q.id === id) || REVIEWER_DEMO_QUOTES[0]);
       }
       if (path2 === "/quotes" && method === "POST") {
-        const newQuote = { ...req.body, id: "demo-q-new-" + Date.now(), quoteNumber: "D-0043", createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+        const newQuote = {
+          ...req.body,
+          id: "demo-q-new-" + Date.now(),
+          quoteNumber: "D-0043",
+          totalAmount: req.body.totalTTC || req.body.totalAmount,
+          photos: req.body.photos || [],
+          createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+          updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
         REVIEWER_DEMO_QUOTES = [newQuote, ...REVIEWER_DEMO_QUOTES];
         return res.status(201).json(newQuote);
       }
@@ -1342,15 +1350,6 @@ async function registerRoutes(app2) {
       };
       const path2 = req.url.replace(/\?.*$/, "");
       if (path2.replace(/\/$/, "") === "/invoices" && req.method === "POST" && req.body) {
-        const DATE_FIELDS = ["dueDate", "issueDate", "validUntil", "createdAt", "updatedAt", "paidAt", "date"];
-        for (const f of DATE_FIELDS) {
-          if (req.body[f] && typeof req.body[f] === "string") {
-            try {
-              req.body[f] = new Date(req.body[f]).toISOString().split("T")[0];
-            } catch {
-            }
-          }
-        }
         const ALLOWED = ["clientId", "quoteId", "status", "totalHT", "totalTTC", "tvaRate", "issueDate", "dueDate", "paymentMethod", "notes", "items", "lineItems"];
         const cleaned = {};
         for (const k of ALLOWED) {

@@ -138,7 +138,7 @@ console.error = (...args: any[]) => {
   pushLog("error", args.map(safeStringify).join(" "));
 };
 
-const APP_REVIEW_MODE = process.env.APP_REVIEW_MODE === "true";
+const APP_REVIEW_MODE = process.env.APP_REVIEW_MODE === "true" || process.env.NODE_ENV !== "production";
 
 const REVIEWER_EMAIL = "review@testapp.com";
 const REVIEWER_PASSWORD = "00000000";
@@ -1226,7 +1226,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(REVIEWER_DEMO_QUOTES.find(q => q.id === id) || REVIEWER_DEMO_QUOTES[0]);
       }
       if (path === "/quotes" && method === "POST") {
-        const newQuote = { ...req.body, id: "demo-q-new-" + Date.now(), quoteNumber: "D-0043", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        const newQuote = { 
+          ...req.body, 
+          id: "demo-q-new-" + Date.now(), 
+          quoteNumber: "D-0043", 
+          totalAmount: req.body.totalTTC || req.body.totalAmount,
+          photos: req.body.photos || [],
+          createdAt: new Date().toISOString(), 
+          updatedAt: new Date().toISOString() 
+        };
         REVIEWER_DEMO_QUOTES = [newQuote, ...REVIEWER_DEMO_QUOTES];
         return res.status(201).json(newQuote);
       }
@@ -1298,12 +1306,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       const path = req.url.replace(/\?.*$/, "");
       if (path.replace(/\/$/, "") === "/invoices" && req.method === "POST" && req.body) {
-        const DATE_FIELDS = ["dueDate", "issueDate", "validUntil", "createdAt", "updatedAt", "paidAt", "date"];
-        for (const f of DATE_FIELDS) {
-          if (req.body[f] && typeof req.body[f] === "string") {
-            try { req.body[f] = new Date(req.body[f]).toISOString().split("T")[0]; } catch {}
-          }
-        }
         const ALLOWED = ["clientId", "quoteId", "status", "totalHT", "totalTTC", "tvaRate", "issueDate", "dueDate", "paymentMethod", "notes", "items", "lineItems"];
         const cleaned: Record<string, any> = {};
         for (const k of ALLOWED) { if (req.body[k] !== undefined) cleaned[k] = req.body[k]; }
