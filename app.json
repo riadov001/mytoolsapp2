@@ -80,10 +80,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "eas": {
-        "projectId": "45e48f45-e421-4f67-9d02-d84a678fdfc5"
-      }
+      "eas": {}
     },
-    "owner": "lastmytools"
+    "owner": "Mytoolslast"
   }
 }
