@@ -284,7 +284,8 @@ export const adminQuotes = {
   update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/quotes/${id}`, { method: "PATCH", body: data }),
   updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/mobile/admin/quotes/${id}/status`, { method: "PATCH", body: { status } }),
   delete: (id: string) => adminApiCall<any>(`/api/mobile/quotes/${id}`, { method: "DELETE" }),
-  convertToInvoice: (id: string) => adminApiCall<any>(`/api/mobile/admin/quotes/${id}/convert-to-invoice`, { method: "POST" }),
+  convertToInvoice: (id: string) => adminApiCall<any>(`/api/mobile/quotes/${id}/convert-to-invoice`, { method: "POST" }),
+  createReservationFromQuote: (id: string, data: any) => adminApiCall<any>(`/api/mobile/quotes/${id}/create-reservation`, { method: "POST", body: data }),
 };
 
 export const adminInvoices = {

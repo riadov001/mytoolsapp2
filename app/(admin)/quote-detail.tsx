@@ -8,7 +8,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminQuotes, adminClients, adminInvoices, adminReservations } from "@/lib/admin-api";
+import { adminQuotes, adminClients } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -90,36 +90,25 @@ export default function QuoteDetailScreen() {
   });
 
   const invoiceMutation = useMutation({
-    mutationFn: () => {
-      const payload = {
-        clientId: q?.clientId,
-        quoteId: id,
-        items: q?.items || q?.lineItems || q?.lines || [],
-        totalHT: q?.priceExcludingTax || q?.totalHT || q?.subtotal || 0,
-        taxAmount: q?.taxAmount || q?.tvaAmount || 0,
-        totalTTC: q?.quoteAmount || q?.totalTTC || q?.total || q?.amount || 0,
-        reference: q?.quoteNumber || q?.reference,
-        status: "pending",
-      };
-      return adminInvoices.create(payload);
-    },
+    mutationFn: () => adminQuotes.convertToInvoice(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
-      statusMutation.mutate({ status: "converted" });
+      queryClient.invalidateQueries({ queryKey: ["admin-quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-quote", id] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert({
         type: "success",
-        title: "Facture créée",
-        message: "La facture a été générée depuis ce devis.",
+        title: "Facture générée",
+        message: "La facture a été créée depuis ce devis avec succès.",
         buttons: [{ text: "OK", style: "primary" }],
       });
     },
-    onError: () => {
+    onError: (err: any) => {
       showAlert({
         type: "error",
         title: "Erreur",
-        message: "Impossible de créer la facture.",
+        message: err?.message || "Impossible de générer la facture.",
         buttons: [{ text: "OK", style: "primary" }],
       });
     },
@@ -385,6 +374,42 @@ export default function QuoteDetailScreen() {
         ) : null}
 
 
+        {/* Actions: Facture & RDV */}
+        {statusKey !== "cancelled" ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Actions</Text>
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#3B82F6", opacity: invoiceMutation.isPending ? 0.6 : 1 }]}
+                onPress={handleCreateInvoice}
+                disabled={invoiceMutation.isPending}
+              >
+                {invoiceMutation.isPending
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Ionicons name="receipt-outline" size={18} color="#fff" />}
+                <Text style={styles.actionBtnText}>Générer facture</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#8B5CF6" }]}
+                onPress={handleCreateReservation}
+              >
+                <Ionicons name="calendar-outline" size={18} color="#fff" />
+                <Text style={styles.actionBtnText}>Créer RDV</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              style={styles.actionBtnSecondary}
+              onPress={() => router.push({
+                pathname: "/(admin)/invoice-create",
+                params: { clientId: q?.clientId, quoteId: id },
+              } as any)}
+            >
+              <Ionicons name="add-circle-outline" size={16} color={theme.primary} />
+              <Text style={styles.actionBtnSecondaryText}>Nouvelle facture manuelle</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* PDF */}
         {pdfUrl ? (
           <Pressable style={styles.pdfBtn} onPress={handlePdf}>
@@ -443,4 +468,9 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   pdfBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
   convertBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 16 },
   convertBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  actionRow: { flexDirection: "row", gap: 10 },
+  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, paddingVertical: 13 },
+  actionBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  actionBtnSecondary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: theme.primary + "50" },
+  actionBtnSecondaryText: { fontSize: 13, fontFamily: "Inter_500Medium", color: theme.primary },
 });

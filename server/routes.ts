@@ -1333,9 +1333,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const auth = req.headers["authorization"] || "";
     if (isReviewerToken(auth)) {
       const method = req.method;
-      const id = req.url.split("/").filter(Boolean)[0] || "";
+      const parts = req.url.split("/").filter(Boolean);
+      const id = parts[0] || "";
+      const action = parts[1] || "";
       if (method === "PATCH") return res.json({ ...REVIEWER_DEMO_QUOTES[0], ...req.body, id, updatedAt: new Date().toISOString() });
       if (method === "DELETE") return res.json({ success: true, message: "Devis supprimé" });
+      if (method === "POST" && action === "convert-to-invoice") {
+        const q = REVIEWER_DEMO_QUOTES.find(q => q.id === id) || REVIEWER_DEMO_QUOTES[0];
+        const newInvoice = {
+          id: "demo-i-new-" + Date.now(),
+          invoiceNumber: "F-0036",
+          clientId: q.clientId,
+          quoteId: q.id,
+          status: "pending",
+          items: q.items,
+          totalHT: "1041.67",
+          totalTTC: q.totalAmount,
+          tvaAmount: "208.33",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        return res.status(201).json(newInvoice);
+      }
+      if (method === "POST" && action === "create-reservation") {
+        const q = REVIEWER_DEMO_QUOTES.find(q => q.id === id) || REVIEWER_DEMO_QUOTES[0];
+        const newReserv = {
+          id: "demo-r-new-" + Date.now(),
+          reference: "RDV-2026-019",
+          clientId: q.clientId,
+          quoteId: q.id,
+          status: "pending",
+          scheduledDate: req.body?.scheduledDate || new Date(Date.now() + 86400000).toISOString(),
+          notes: req.body?.notes || "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        return res.status(201).json(newReserv);
+      }
       return next();
     }
     return mobileCrudProxy(req, res, "mobile/quotes", ["mobile/admin/quotes", "admin/quotes"]);

@@ -66,14 +66,16 @@ export default function ReservationCreateScreen() {
         throw new Error("Veuillez sélectionner un client.");
       }
       const scheduledDate = new Date(`${date}T${time}:00`);
-      return adminReservations.create({
+      const payload: any = {
         clientId: selectedClientId,
-        quoteId: quoteId || undefined,
         scheduledDate: scheduledDate.toISOString(),
-        serviceType: serviceType || undefined,
-        notes,
+        date: scheduledDate.toISOString(),
         status: "pending",
-      });
+      };
+      if (quoteId) payload.quoteId = quoteId;
+      if (serviceType) payload.serviceType = serviceType;
+      if (notes) payload.notes = notes;
+      return adminReservations.create(payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-reservations"] });

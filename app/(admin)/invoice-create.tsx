@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform,
-  TextInput, ActivityIndicator, Alert, FlatList,
+  TextInput, ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import * as Haptics from "expo-haptics";
 import { adminInvoices, adminClients } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
+import { useCustomAlert } from "@/components/CustomAlert";
 
 interface LineItem {
   description: string;
@@ -58,12 +59,16 @@ function getDefaultDueDate(): string {
 }
 
 export default function InvoiceCreateScreen() {
+  const params = useLocalSearchParams();
+  const paramClientId = Array.isArray(params.clientId) ? params.clientId[0] : (params.clientId as string || "");
+
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
   const queryClient = useQueryClient();
+  const { showAlert, AlertComponent } = useCustomAlert();
 
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(paramClientId || null);
   const [clientSearch, setClientSearch] = useState("");
   const [showClientPicker, setShowClientPicker] = useState(false);
   const [notes, setNotes] = useState("");
@@ -104,10 +109,20 @@ export default function InvoiceCreateScreen() {
       queryClient.invalidateQueries({ queryKey: ["admin-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      showAlert({
+        type: "success",
+        title: "Facture créée",
+        message: "La facture a été créée avec succès.",
+        buttons: [{ text: "OK", style: "primary", onPress: () => router.back() }],
+      });
     },
     onError: (err: any) => {
-      Alert.alert("Erreur", err?.message || "Impossible de créer la facture.");
+      showAlert({
+        type: "error",
+        title: "Erreur",
+        message: err?.message || "Impossible de créer la facture.",
+        buttons: [{ text: "OK", style: "primary" }],
+      });
     },
   });
 
@@ -131,12 +146,12 @@ export default function InvoiceCreateScreen() {
 
   const handleSubmit = () => {
     if (!selectedClientId) {
-      Alert.alert("Attention", "Veuillez sélectionner un client.");
+      showAlert({ type: "warning", title: "Attention", message: "Veuillez sélectionner un client.", buttons: [{ text: "OK", style: "primary" }] });
       return;
     }
     const validItems = lineItems.filter(it => it.description.trim() && it.unitPrice);
     if (validItems.length === 0) {
-      Alert.alert("Attention", "Ajoutez au moins une prestation avec une description et un prix.");
+      showAlert({ type: "warning", title: "Attention", message: "Ajoutez au moins une prestation avec une description et un prix.", buttons: [{ text: "OK", style: "primary" }] });
       return;
     }
 
@@ -419,6 +434,7 @@ export default function InvoiceCreateScreen() {
           }
         </Pressable>
       </ScrollView>
+      {AlertComponent}
     </View>
   );
 }
