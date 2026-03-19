@@ -24,7 +24,6 @@ export default function AdminLayout() {
       <Stack.Screen name="reservation-detail" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="client-form" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="reservation-create" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="invoice-create" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="guide" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="support-history" options={{ presentation: "modal", headerShown: false }} />
     </Stack>

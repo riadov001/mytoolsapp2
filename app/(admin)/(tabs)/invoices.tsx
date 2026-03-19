@@ -226,21 +226,6 @@ export default function AdminInvoicesScreen() {
         />
       )}
       {AlertComponent}
-      {isAdmin && (
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
-          <Pressable
-            style={({ pressed }) => [
-              styles.fab,
-              { bottom: Platform.OS === "web" ? 34 + 130 : insets.bottom + 130 },
-              pressed && styles.fabPressed,
-            ]}
-            onPress={() => router.push("/(admin)/invoice-create" as any)}
-            accessibilityLabel="Nouvelle facture"
-          >
-            <Ionicons name="add" size={26} color="#fff" />
-          </Pressable>
-        </View>
-      )}
       <FloatingSupport />
     </View>
   );
