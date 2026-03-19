@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminReservations, adminClients, adminQuotes } from "@/lib/admin-api";
+import { adminReservations, adminClients, adminQuotes, adminServices } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 
@@ -84,6 +84,20 @@ export default function ReservationDetailScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: allServices = [] } = useQuery({
+    queryKey: ["admin-services"],
+    queryFn: adminServices.getAll,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: reservationServices = [] } = useQuery({
+    queryKey: ["admin-reservation-services", id],
+    queryFn: () => adminReservations.getServices(id),
+    enabled: !!id,
+    retry: 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const clientMap = useMemo(() => {
     const map: Record<string, any> = {};
     for (const c of (Array.isArray(clients) ? clients : [])) {
@@ -97,6 +111,18 @@ export default function ReservationDetailScreen() {
     const quotesArr = Array.isArray(allQuotes) ? allQuotes : [];
     return quotesArr.find((q: any) => String(q.id) === String(r.quoteId)) || null;
   }, [r?.quoteId, allQuotes]);
+
+  const linkedService = useMemo(() => {
+    const serviceId = r?.serviceId || r?.service_id;
+    if (!serviceId) return null;
+    const arr = Array.isArray(allServices) ? allServices : [];
+    return arr.find((s: any) => String(s.id) === String(serviceId)) || null;
+  }, [r?.serviceId, r?.service_id, allServices]);
+
+  const reservationServicesArr = useMemo(() => {
+    const arr = Array.isArray(reservationServices) ? reservationServices : [];
+    return arr;
+  }, [reservationServices]);
 
   const quoteDisplayRef = useMemo(() => {
     if (linkedQuote) return linkedQuote.quoteNumber || linkedQuote.reference || null;
@@ -212,6 +238,55 @@ export default function ReservationDetailScreen() {
           </Pressable>
         ) : null}
 
+        {/* Service lié */}
+        {(linkedService || reservationServicesArr.length > 0 || r.serviceType || r.serviceName) ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Service</Text>
+            {linkedService ? (
+              <>
+                <Text style={styles.valueMain}>{linkedService.name || linkedService.title}</Text>
+                {linkedService.description ? <Text style={styles.valueSub}>{linkedService.description}</Text> : null}
+                <View style={styles.serviceChips}>
+                  {linkedService.basePrice ? (
+                    <View style={styles.serviceChip}>
+                      <Ionicons name="pricetag-outline" size={13} color={theme.textTertiary} />
+                      <Text style={styles.serviceChipText}>
+                        {parseFloat(String(linkedService.basePrice)).toFixed(2)} € HT
+                      </Text>
+                    </View>
+                  ) : null}
+                  {linkedService.duration ? (
+                    <View style={styles.serviceChip}>
+                      <Ionicons name="time-outline" size={13} color={theme.textTertiary} />
+                      <Text style={styles.serviceChipText}>
+                        {linkedService.duration >= 60
+                          ? `${Math.floor(linkedService.duration / 60)}h${linkedService.duration % 60 > 0 ? linkedService.duration % 60 + "min" : ""}`
+                          : `${linkedService.duration} min`}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {linkedService.category ? (
+                    <View style={styles.serviceChip}>
+                      <Ionicons name="folder-outline" size={13} color={theme.textTertiary} />
+                      <Text style={styles.serviceChipText}>{linkedService.category}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </>
+            ) : r.serviceName ? (
+              <Text style={styles.valueMain}>{r.serviceName}</Text>
+            ) : r.serviceType ? (
+              <Text style={styles.valueMain}>{r.serviceType}</Text>
+            ) : null}
+            {reservationServicesArr.length > 0 && reservationServicesArr.map((s: any, i: number) => (
+              <View key={i} style={[styles.serviceRow, i > 0 && { borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 8 }]}>
+                <Text style={styles.value}>{s.name || s.title || `Service #${s.id}`}</Text>
+                {s.basePrice ? <Text style={styles.valueSub}>{parseFloat(String(s.basePrice)).toFixed(2)} € HT</Text> : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         {/* Informations */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations</Text>
@@ -221,7 +296,7 @@ export default function ReservationDetailScreen() {
               <Text style={styles.value}>{r.reference}</Text>
             </View>
           ) : null}
-          {r.serviceType ? (
+          {r.serviceType && !linkedService ? (
             <View style={styles.infoRow}>
               <Text style={styles.label}>Type de service</Text>
               <Text style={styles.value}>{r.serviceType}</Text>
@@ -302,4 +377,8 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   label: { fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textTertiary, width: 110 },
   value: { fontSize: 13, fontFamily: "Inter_500Medium", color: theme.text, flex: 1 },
   prose: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text, lineHeight: 20 },
+  serviceChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  serviceChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  serviceChipText: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary },
+  serviceRow: { paddingTop: 4 },
 });

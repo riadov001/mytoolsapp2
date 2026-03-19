@@ -713,6 +713,94 @@ async function registerRoutes(app2) {
       res.status(502).json({ message: "Erreur lors du t\xE9l\xE9chargement du PDF." });
     }
   });
+  app2.get("/api/mobile/quotes/:id/pdf", async (req, res) => {
+    const { id } = req.params;
+    const authHeaders = getAuthHeaders(req);
+    const attempts = [
+      `${EXTERNAL_API}/quotes/${id}/pdf`,
+      `${EXTERNAL_API}/admin/quotes/${id}/pdf`,
+      `${EXTERNAL_API}/mobile/admin/quotes/${id}/pdf`,
+      `${EXTERNAL_API}/public/quotes/${id}/pdf`
+    ];
+    for (const url of attempts) {
+      try {
+        const r = await fetch(url, { headers: { ...authHeaders, "accept": "application/pdf,application/json,*/*" }, redirect: "follow" });
+        if (!r.ok) continue;
+        const ct = r.headers.get("content-type") || "";
+        if (ct.includes("pdf")) {
+          res.setHeader("content-type", "application/pdf");
+          res.setHeader("content-disposition", `inline; filename="devis-${id}.pdf"`);
+          const buf = await r.arrayBuffer();
+          return res.send(Buffer.from(buf));
+        }
+        const txt = await r.text();
+        if (!txt.includes("<!DOCTYPE") && !txt.includes("<html")) {
+          try {
+            const parsed = JSON.parse(txt);
+            const pdfUrl = parsed?.url || parsed?.pdfUrl || parsed?.pdf_url || parsed?.documentUrl || parsed?.link;
+            if (pdfUrl) return res.json({ url: pdfUrl });
+          } catch {
+          }
+        }
+      } catch {
+      }
+    }
+    return res.status(404).json({ message: "PDF non disponible pour ce devis." });
+  });
+  app2.get("/api/mobile/invoices/:id/pdf", async (req, res) => {
+    const { id } = req.params;
+    const authHeaders = getAuthHeaders(req);
+    const attempts = [
+      `${EXTERNAL_API}/invoices/${id}/pdf`,
+      `${EXTERNAL_API}/admin/invoices/${id}/pdf`,
+      `${EXTERNAL_API}/mobile/admin/invoices/${id}/pdf`,
+      `${EXTERNAL_API}/public/invoices/${id}/pdf`
+    ];
+    for (const url of attempts) {
+      try {
+        const r = await fetch(url, { headers: { ...authHeaders, "accept": "application/pdf,application/json,*/*" }, redirect: "follow" });
+        if (!r.ok) continue;
+        const ct = r.headers.get("content-type") || "";
+        if (ct.includes("pdf")) {
+          res.setHeader("content-type", "application/pdf");
+          res.setHeader("content-disposition", `inline; filename="facture-${id}.pdf"`);
+          const buf = await r.arrayBuffer();
+          return res.send(Buffer.from(buf));
+        }
+        const txt = await r.text();
+        if (!txt.includes("<!DOCTYPE") && !txt.includes("<html")) {
+          try {
+            const parsed = JSON.parse(txt);
+            const pdfUrl = parsed?.url || parsed?.pdfUrl || parsed?.pdf_url || parsed?.documentUrl || parsed?.link;
+            if (pdfUrl) return res.json({ url: pdfUrl });
+          } catch {
+          }
+        }
+      } catch {
+      }
+    }
+    return res.status(404).json({ message: "PDF non disponible pour cette facture." });
+  });
+  app2.get("/api/mobile/admin/reservations/:id/services", async (req, res) => {
+    const { id } = req.params;
+    const authHeaders = getAuthHeaders(req);
+    const attempts = [
+      `${EXTERNAL_API}/admin/reservations/${id}/services`,
+      `${EXTERNAL_API}/mobile/admin/reservations/${id}/services`
+    ];
+    for (const url of attempts) {
+      try {
+        const r = await fetch(url, { headers: authHeaders, redirect: "manual" });
+        const txt = await r.text();
+        if (!txt.includes("<!DOCTYPE") && !txt.includes("<html")) {
+          const parsed = JSON.parse(txt);
+          if (r.ok) return res.json(parsed);
+        }
+      } catch {
+      }
+    }
+    return res.json([]);
+  });
   app2.get("/api/invoices", async (req, res) => {
     const headers = getAuthHeaders(req);
     try {

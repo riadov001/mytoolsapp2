@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator, Linking,
 } from "react-native";
@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminInvoices, adminClients } from "@/lib/admin-api";
+import { adminInvoices, adminClients, adminApiBase } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -98,13 +98,28 @@ export default function InvoiceDetailScreen() {
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
 
+  const [pdfLoading, setPdfLoading] = useState(false);
   const handlePdf = async () => {
-    const url = inv?.pdfUrl || inv?.pdf_url || inv?.documentUrl;
-    if (!url) return;
     Haptics.selectionAsync();
+    const directUrl = inv?.pdfUrl || inv?.pdf_url || inv?.documentUrl;
+    if (directUrl) {
+      try { await Linking.openURL(directUrl); } catch {}
+      return;
+    }
+    setPdfLoading(true);
     try {
-      await Linking.openURL(url);
-    } catch {}
+      const result = await adminInvoices.getPdf(id);
+      const pdfUrl = result?.url || result?.pdfUrl || result?.pdf_url || result?.documentUrl;
+      if (pdfUrl) {
+        await Linking.openURL(pdfUrl);
+      } else {
+        await Linking.openURL(`${adminApiBase}/api/mobile/invoices/${id}/pdf`);
+      }
+    } catch {
+      showAlert({ type: "error", title: "PDF indisponible", message: "Le PDF n'est pas encore disponible pour cette facture.", buttons: [{ text: "OK" }] });
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   if (isLoading) {
@@ -275,12 +290,16 @@ export default function InvoiceDetailScreen() {
         ) : null}
 
         {/* PDF */}
-        {pdfUrl ? (
-          <Pressable style={styles.pdfBtn} onPress={handlePdf}>
-            <Ionicons name="document-text-outline" size={20} color="#fff" />
-            <Text style={styles.pdfBtnText}>Télécharger le PDF</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          style={[styles.pdfBtn, pdfLoading && { opacity: 0.7 }]}
+          onPress={handlePdf}
+          disabled={pdfLoading}
+        >
+          {pdfLoading
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Ionicons name="document-text-outline" size={20} color="#fff" />}
+          <Text style={styles.pdfBtnText}>{pdfLoading ? "Chargement…" : "Télécharger le PDF"}</Text>
+        </Pressable>
 
         {/* Status Actions */}
         {statusKey !== "paid" && (

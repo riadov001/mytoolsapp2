@@ -24,6 +24,7 @@ const getApiBase = () => {
 };
 
 const API_BASE = getApiBase();
+export { API_BASE as adminApiBase };
 
 let accessToken: string | null = null;
 let refreshTokenValue: string | null = null;
@@ -288,24 +289,27 @@ export const adminQuotes = {
   delete: (id: string) => adminApiCall<any>(`/api/mobile/quotes/${id}`, { method: "DELETE" }),
   convertToInvoice: (id: string, data?: any) => adminApiCall<any>(`/api/mobile/quotes/${id}/convert-to-invoice`, { method: "POST", body: data }),
   createReservationFromQuote: (id: string, data: any) => adminApiCall<any>(`/api/mobile/quotes/${id}/create-reservation`, { method: "POST", body: data }),
+  getPdf: (id: string) => adminApiCall<any>(`/api/mobile/quotes/${id}/pdf`),
 };
 
 export const adminInvoices = {
   getAll: () => adminApiCall<any[]>("/api/mobile/admin/invoices"),
   getById: (id: string) => adminApiCall<any>(`/api/mobile/admin/invoices/${id}`),
-  create: (data: any) => adminApiCall<any>("/api/mobile/invoices", { method: "POST", body: data }),
+  create: (data: any) => adminApiCall<any>("/api/mobile/admin/invoices", { method: "POST", body: data }),
   update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/invoices/${id}`, { method: "PATCH", body: data }),
   updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/mobile/admin/invoices/${id}/status`, { method: "PATCH", body: { status } }),
   delete: (id: string) => adminApiCall<any>(`/api/mobile/invoices/${id}`, { method: "DELETE" }),
+  getPdf: (id: string) => adminApiCall<any>(`/api/mobile/invoices/${id}/pdf`),
 };
 
 export const adminReservations = {
   getAll: () => adminApiCall<any[]>("/api/mobile/admin/reservations"),
   getById: (id: string) => adminApiCall<any>(`/api/mobile/admin/reservations/${id}`),
-  create: (data: any) => adminApiCall<any>("/api/mobile/reservations", { method: "POST", body: data }),
-  update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/reservations/${id}`, { method: "PATCH", body: data }),
+  create: (data: any) => adminApiCall<any>("/api/mobile/admin/reservations", { method: "POST", body: data }),
+  update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/admin/reservations/${id}`, { method: "PATCH", body: data }),
   updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/mobile/admin/reservations/${id}/status`, { method: "PATCH", body: { status } }),
-  delete: (id: string) => adminApiCall<any>(`/api/mobile/reservations/${id}`, { method: "DELETE" }),
+  delete: (id: string) => adminApiCall<any>(`/api/mobile/admin/reservations/${id}`, { method: "DELETE" }),
+  getServices: (id: string) => adminApiCall<any[]>(`/api/mobile/admin/reservations/${id}/services`),
 };
 
 export const adminClients = {
