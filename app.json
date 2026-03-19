@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MyTools",
-    "slug": "myjantesmobile",
+    "slug": "mytoolsapp",
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo_new.png",
