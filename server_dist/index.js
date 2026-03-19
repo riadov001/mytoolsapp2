@@ -134,8 +134,8 @@ console.error = (...args) => {
   pushLog("error", args.map(safeStringify).join(" "));
 };
 var APP_REVIEW_MODE = process.env.APP_REVIEW_MODE === "true" || process.env.NODE_ENV !== "production";
-var REVIEWER_EMAIL = "review@testapp.com";
-var REVIEWER_PASSWORD = "00000000";
+var REVIEWER_EMAIL = "review@mytools.eu";
+var REVIEWER_PASSWORD = "000000";
 var REVIEWER_USER = {
   id: "reviewer-demo-001",
   email: REVIEWER_EMAIL,
@@ -1349,14 +1349,42 @@ async function registerRoutes(app2) {
         return { body: JSON.stringify(req.body), contentType: "application/json" };
       };
       const path2 = req.url.replace(/\?.*$/, "");
-      if (path2.replace(/\/$/, "") === "/invoices" && req.method === "POST" && req.body) {
-        const ALLOWED = ["clientId", "quoteId", "status", "totalHT", "totalTTC", "tvaRate", "issueDate", "dueDate", "paymentMethod", "notes", "items", "lineItems"];
-        const cleaned = {};
-        for (const k of ALLOWED) {
-          if (req.body[k] !== void 0) cleaned[k] = req.body[k];
+      if ((path2.replace(/\/$/, "") === "/invoices" || path2.replace(/\/$/, "") === "/quotes") && req.method === "POST" && req.body) {
+        const ALLOWED_ITEM_FIELDS = ["description", "quantity", "unitPrice", "tvaRate"];
+        if (Array.isArray(req.body.items)) {
+          req.body.items = req.body.items.map((it) => {
+            const clean = {};
+            for (const f of ALLOWED_ITEM_FIELDS) {
+              if (it[f] !== void 0) {
+                if (f === "quantity" || f === "unitPrice" || f === "tvaRate") {
+                  clean[f] = typeof it[f] === "string" ? parseFloat(it[f]) : it[f];
+                } else {
+                  clean[f] = it[f];
+                }
+              }
+            }
+            return clean;
+          });
         }
-        req.body = cleaned;
-        console.log(`[INVOICE-SANITIZE] Cleaned body:`, JSON.stringify(req.body).substring(0, 500));
+        if (Array.isArray(req.body.lineItems)) {
+          req.body.lineItems = req.body.lineItems.map((it) => {
+            const clean = {};
+            for (const f of ALLOWED_ITEM_FIELDS) {
+              if (it[f] !== void 0) {
+                if (f === "quantity" || f === "unitPrice" || f === "tvaRate") {
+                  clean[f] = typeof it[f] === "string" ? parseFloat(it[f]) : it[f];
+                } else {
+                  clean[f] = it[f];
+                }
+              }
+            }
+            return clean;
+          });
+        }
+        if (typeof req.body.totalHT === "string") req.body.totalHT = parseFloat(req.body.totalHT);
+        if (typeof req.body.totalTTC === "string") req.body.totalTTC = parseFloat(req.body.totalTTC);
+        if (typeof req.body.tvaRate === "string") req.body.tvaRate = parseFloat(req.body.tvaRate);
+        console.log(`[SANITIZE] ${path2} Cleaned body:`, JSON.stringify(req.body).substring(0, 500));
       }
       const { body, contentType } = buildBody();
       if (contentType) authHeaders["content-type"] = contentType;

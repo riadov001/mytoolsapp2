@@ -85,12 +85,12 @@ outputType = "console"
 [userenv.development]
 PORT = "8081"
 EXTERNAL_API_URL = "https://saas.mytoolsgroup.eu/api"
-APP_REVIEW_MODE = "false"
+APP_REVIEW_MODE = "true"
 
 [userenv.production]
 PORT = "8081"
 EXTERNAL_API_URL = "https://saas.mytoolsgroup.eu/api"
-APP_REVIEW_MODE = "false"
+APP_REVIEW_MODE = "true"
 
 [userenv.shared]
 

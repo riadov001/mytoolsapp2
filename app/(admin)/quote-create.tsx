@@ -190,24 +190,12 @@ export default function QuoteCreateScreen() {
       return;
     }
 
-    const mappedItems = validItems.map(it => {
-      const qty = parseFloat(it.quantity) || 1;
-      const price = parseFloat(it.unitPrice) || 0;
-      const tax = parseFloat(it.tvaRate) || 0;
-      const ht = qty * price;
-      const ttc = ht * (1 + tax / 100);
-      return {
-        description: it.description.trim(),
-        quantity: qty,
-        unitPrice: price,
-        unitPriceExcludingTax: price,
-        taxRate: tax,
-        tvaRate: tax,
-        totalPrice: ttc,
-        totalIncludingTax: ttc,
-        totalExcludingTax: ht,
-      };
-    });
+    const mappedItems = validItems.map(it => ({
+      description: it.description.trim(),
+      quantity: parseFloat(it.quantity) || 1,
+      unitPrice: parseFloat(it.unitPrice) || 0,
+      tvaRate: parseFloat(it.tvaRate) || 0,
+    }));
 
     const vehicleInfo = (vehicleBrand || vehicleModel || vehiclePlate) ? {
       brand: vehicleBrand.trim() || undefined,
