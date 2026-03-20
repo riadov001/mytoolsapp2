@@ -1327,6 +1327,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
             }
+            if (clean.unit_price && !clean.unit_price_excluding_tax) {
+              clean.unit_price_excluding_tax = clean.unit_price;
+            }
             return clean;
           });
         }
@@ -1342,6 +1345,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   clean[apiKey] = String(it[originalKey]);
                 }
               }
+            }
+            if (clean.unit_price && !clean.unit_price_excluding_tax) {
+              clean.unit_price_excluding_tax = clean.unit_price;
             }
             return clean;
           });
