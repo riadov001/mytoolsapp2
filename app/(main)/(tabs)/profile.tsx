@@ -218,6 +218,14 @@ export default function ProfileScreen() {
           <Text style={styles.portalBtnText}>Modifier mes informations sur l'espace client</Text>
         </Pressable>
 
+        <Pressable
+          style={({ pressed }) => [styles.applyBtn, pressed && { opacity: 0.85 }]}
+          onPress={() => router.push("/apply-consent" as any)}
+        >
+          <Ionicons name="checkmark-done-outline" size={16} color="#fff" />
+          <Text style={styles.applyBtnText}>Envoyer ma candidature</Text>
+        </Pressable>
+
         <Text style={styles.groupLabel}>Sécurité</Text>
         <View style={styles.group}>
           {Platform.OS !== "web" && biometricAvailable && (
@@ -374,6 +382,13 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
     marginBottom: 24,
   },
   portalBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+
+  applyBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#22C55E", borderRadius: 14, height: 48,
+    marginBottom: 24,
+  },
+  applyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
   logoutBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
