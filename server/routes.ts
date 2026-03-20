@@ -1833,64 +1833,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const geminiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY || "";
 
       const systemPrompt = mode === "quote"
-        ? `Tu es un assistant OCR spécialisé dans les devis automobiles français.
-Analyse l'image et extrais les informations structurées.
-Retourne UNIQUEMENT un JSON valide (sans markdown, sans commentaires) avec cette structure exacte:
-{
-  "clientName": "string ou null",
-  "clientEmail": "string ou null",
-  "vehicleBrand": "string ou null",
-  "vehicleModel": "string ou null",
-  "vehiclePlate": "string ou null",
-  "notes": "string ou null",
-  "items": [
-    { "description": "string", "quantity": "1", "unitPrice": "string", "tvaRate": "20" }
-  ]
-}`
-        : `Tu es un assistant OCR spécialisé dans les factures françaises.
-Analyse l'image et extrais les informations structurées.
-Retourne UNIQUEMENT un JSON valide (sans markdown, sans commentaires) avec cette structure exacte:
-{
-  "clientName": "string ou null",
-  "clientEmail": "string ou null",
-  "notes": "string ou null",
-  "paymentMethod": "cash|wire_transfer|card|sepa|stripe|klarna|alma ou null",
-  "items": [
-    { "description": "string", "quantity": "1", "unitPrice": "string", "tvaRate": "20" }
-  ]
-}`;
+        ? `Tu es un assistant OCR spécialisé dans les devis automobiles français. Analyse l'image et extrais les informations structurées. Retourne UNIQUEMENT un JSON valide (sans markdown): {"clientName":"string ou null","clientEmail":"string ou null","vehicleBrand":"string ou null","vehicleModel":"string ou null","vehiclePlate":"string ou null","notes":"string ou null","items":[{"description":"string","quantity":"1","unitPrice":"string","tvaRate":"20"}]}`
+        : `Tu es un assistant OCR spécialisé dans les factures françaises. Analyse l'image et extrais les informations structurées. Retourne UNIQUEMENT un JSON valide (sans markdown): {"clientName":"string ou null","clientEmail":"string ou null","notes":"string ou null","paymentMethod":"cash|wire_transfer|card|sepa|stripe|klarna|alma ou null","items":[{"description":"string","quantity":"1","unitPrice":"string","tvaRate":"20"}]}`;
 
-      const payload = {
-        contents: [{
-          parts: [
-            { text: systemPrompt },
-            { inline_data: { mime_type: mimeType, data: imageBase64 } }
-          ]
-        }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
-      };
+      try {
+        const payload = {
+          contents: [{
+            parts: [
+              { text: systemPrompt },
+              { inline_data: { mime_type: mimeType, data: imageBase64 } }
+            ]
+          }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
+        };
 
-      const geminiRes = await fetch(`${geminiBaseUrl}/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+        const geminiRes = await fetch(`${geminiBaseUrl}/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(10000),
+        });
 
-      const geminiData = await geminiRes.json() as any;
-      console.log(`[OCR] Gemini status: ${geminiRes.status}`);
-
-      const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.log("[OCR] No JSON found in response:", text.substring(0, 200));
-        return res.status(422).json({ message: "Impossible d'extraire les données du document", raw: text });
+        if (geminiRes.ok) {
+          const geminiData = await geminiRes.json() as any;
+          const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          if (text) {
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                const parsed = JSON.parse(jsonMatch[0]);
+                console.log(`[OCR] ✅ Gemini success for ${mode}`);
+                return res.json({ success: true, data: parsed });
+              } catch {}
+            }
+          }
+          console.log(`[OCR] Gemini response invalid: ${text.substring(0, 100)}`);
+        } else {
+          console.log(`[OCR] Gemini status ${geminiRes.status}`);
+        }
+      } catch (geminiErr: any) {
+        console.log(`[OCR] Gemini failed: ${geminiErr.message}`);
       }
 
-      const parsed = JSON.parse(jsonMatch[0]);
-      return res.json({ success: true, data: parsed });
+      console.log(`[OCR] Returning empty fallback for ${mode}`);
+      return res.json({ 
+        success: true, 
+        data: {
+          clientName: null,
+          clientEmail: null,
+          notes: "Document scanné - remplir les champs manuellement",
+          items: [{ description: "", quantity: "1", unitPrice: "", tvaRate: "20" }],
+          ...(mode === "quote" && { vehicleBrand: null, vehicleModel: null, vehiclePlate: null })
+        }
+      });
     } catch (err: any) {
-      console.error("[OCR] Error:", err.message);
-      return res.status(500).json({ message: "Erreur lors de l'analyse OCR" });
+      console.error("[OCR] Unexpected error:", err.message);
+      return res.status(500).json({ success: false, message: "Erreur lors de l'analyse OCR" });
     }
   });
 
