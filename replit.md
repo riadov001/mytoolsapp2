@@ -139,9 +139,18 @@ server/
 - Biometric auth auto-clears expired session credentials
 - All domain references point to `saas2.mytoolsgroup.eu`
 - Data auto-refreshes: quotes every 30s, invoices/reservations every 60s, notifications every 30s
+- **Production mode enabled**: APP_REVIEW_MODE now requires explicit `APP_REVIEW_MODE=true` env var (no auto-activation in dev)
+
+## OCR Scanner (Admin Only)
+- Admin forms (invoice-create, quote-create) include an OCR banner "Scanner un document"
+- OCR uses Gemini Vision via `/api/ocr/analyze` endpoint (POST)
+- Accepts: `imageBase64`, `mimeType`, `mode` (invoice | quote)
+- Extracts: client name/email, items (description, quantity, unitPrice, tvaRate), vehicle info (quotes), paymentMethod (invoices), notes
+- Pre-fills form fields automatically; attempts client matching by name/email
+- Component: `components/OCRScannerModal.tsx` (camera + gallery picker)
 
 ## Apple App Store Compliance (5.1.1(v))
-- All AI screens, services, and imports removed (chatbot, OCR scanner)
+- OCR scanner is admin-only (role-gated, not visible to end users)
 - Admin interface is role-gated (only visible to admin/employe users)
 - Account deletion implemented: DELETE /api/users/me
 - No third-party AI data sharing from mobile app

@@ -14,6 +14,7 @@ import { adminInvoices, adminClients, adminServices } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
+import OCRScannerModal, { OCRResult } from "@/components/OCRScannerModal";
 
 interface LineItem {
   description: string;
@@ -77,6 +78,7 @@ export default function InvoiceCreateScreen() {
   const [showPaymentPicker, setShowPaymentPicker] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [photos, setPhotos] = useState<{ uri: string; name: string }[]>([]);
+  const [showOCRModal, setShowOCRModal] = useState(false);
 
   const { data: services = [] } = useQuery({
     queryKey: ["admin-services"],
@@ -136,6 +138,28 @@ export default function InvoiceCreateScreen() {
 
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
+
+  const handleOCRResult = (result: OCRResult) => {
+    if (result.notes) setNotes(result.notes);
+    if (result.paymentMethod) setPaymentMethod(result.paymentMethod);
+    if (result.items && result.items.length > 0) {
+      setLineItems(result.items.map(it => ({
+        description: it.description || "",
+        quantity: it.quantity || "1",
+        unitPrice: it.unitPrice || "",
+        tvaRate: it.tvaRate || "20",
+      })));
+    }
+    if ((result.clientName || result.clientEmail) && clientsArr.length > 0) {
+      const name = (result.clientName || "").toLowerCase();
+      const email = (result.clientEmail || "").toLowerCase();
+      const matched = clientsArr.find((c: any) => {
+        const fullName = `${c.firstName || ""} ${c.lastName || ""}`.toLowerCase().trim();
+        return (email && c.email?.toLowerCase() === email) || (name && fullName.includes(name));
+      });
+      if (matched) setSelectedClientId((matched as any).id);
+    }
+  };
 
   const addLineItem = () => {
     setLineItems(prev => [...prev, { description: "", quantity: "1", unitPrice: "", tvaRate: "20" }]);
@@ -251,6 +275,21 @@ export default function InvoiceCreateScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* OCR Scanner Banner */}
+        <Pressable
+          style={[styles.ocrBanner, { backgroundColor: theme.primary + "15", borderColor: theme.primary + "40" }]}
+          onPress={() => setShowOCRModal(true)}
+        >
+          <View style={[styles.ocrIconBg, { backgroundColor: theme.primary + "20" }]}>
+            <Ionicons name="scan-outline" size={20} color={theme.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.ocrBannerTitle, { color: theme.primary }]}>Scanner un document</Text>
+            <Text style={[styles.ocrBannerSub, { color: theme.textSecondary }]}>Pré-remplir le formulaire par OCR</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.primary} />
+        </Pressable>
+
         {/* Client Picker */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Client *</Text>
@@ -507,6 +546,13 @@ export default function InvoiceCreateScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <OCRScannerModal
+        visible={showOCRModal}
+        mode="invoice"
+        onResult={handleOCRResult}
+        onClose={() => setShowOCRModal(false)}
+      />
     </View>
   );
 }
@@ -696,5 +742,23 @@ function getStyles(theme: ThemeColors) {
     },
     totalLabel: { fontSize: 14, fontFamily: "Inter_500Medium", color: theme.textTertiary },
     totalValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text },
+    ocrBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    ocrIconBg: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    ocrBannerTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    ocrBannerSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
   });
 }
