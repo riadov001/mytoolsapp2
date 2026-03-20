@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminInvoices, adminClients, downloadPdf } from "@/lib/admin-api";
+import { adminInvoices, adminClients, sharePdfLink } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -283,13 +283,22 @@ export default function InvoiceDetailScreen() {
               setPdfLoading(true);
               try {
                 const ref = inv?.invoiceNumber || inv?.reference || id;
-                await downloadPdf("invoices", id, ref);
+                const result = await sharePdfLink("invoices", inv?.viewToken, id, ref);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                if (result === "copied") {
+                  showAlert({
+                    type: "success",
+                    title: "Lien copié",
+                    message: "Le lien de la facture a été copié dans le presse-papier.",
+                    buttons: [{ text: "OK", style: "primary" }],
+                  });
+                }
               } catch (err: any) {
+                if (err?.message?.includes("cancelled") || err?.message?.includes("dismiss")) return;
                 showAlert({
                   type: "error",
                   title: "Erreur",
-                  message: err?.message || "Impossible de télécharger le PDF.",
+                  message: err?.message || "Impossible de partager le lien.",
                   buttons: [{ text: "OK", style: "primary" }],
                 });
               } finally {
@@ -299,9 +308,9 @@ export default function InvoiceDetailScreen() {
           >
             {pdfLoading
               ? <ActivityIndicator size="small" color={theme.primary} />
-              : <Ionicons name="download-outline" size={18} color={theme.primary} />
+              : <Ionicons name="share-outline" size={18} color={theme.primary} />
             }
-            <Text style={[styles.actionBtnText, { color: theme.primary }]}>Télécharger le PDF</Text>
+            <Text style={[styles.actionBtnText, { color: theme.primary }]}>Partager le PDF</Text>
           </Pressable>
         </View>
 

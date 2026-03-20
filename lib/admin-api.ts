@@ -1,9 +1,8 @@
 import { fetch as expoFetch } from "expo/fetch";
-import { Platform } from "react-native";
+import { Platform, Share } from "react-native";
 import { router } from "expo-router";
 import { getSessionCookie, setSessionCookie } from "./api";
-import * as FileSystem from "expo-file-system";
-import * as Sharing from "expo-sharing";
+import * as Clipboard from "expo-clipboard";
 
 const REQUEST_TIMEOUT_MS = 15000;
 const RETRY_DELAY_MS = 1000;
@@ -368,57 +367,49 @@ export const adminNotifications = {
   markAllRead: () => adminApiCall<any>("/api/notifications/read-all", { method: "POST" }),
 };
 
-export async function downloadPdf(
+const PWA_BASE = "https://saas3.mytoolsgroup.eu";
+
+export function buildPdfShareUrl(
   type: "quotes" | "invoices",
+  viewToken: string | null | undefined,
+  id: string
+): string {
+  if (viewToken) {
+    return type === "quotes"
+      ? `${PWA_BASE}/quotes/view/${viewToken}`
+      : `${PWA_BASE}/invoices/view/${viewToken}`;
+  }
+  return type === "quotes"
+    ? `${PWA_BASE}/quotes/view/${id}`
+    : `${PWA_BASE}/invoices/view/${id}`;
+}
+
+export async function sharePdfLink(
+  type: "quotes" | "invoices",
+  viewToken: string | null | undefined,
   id: string,
   reference?: string
-): Promise<void> {
-  const url = `${API_BASE}/api/admin/${type}/${id}/pdf`;
-  const fileName = type === "quotes"
-    ? `devis-${reference || id}.pdf`
-    : `facture-${reference || id}.pdf`;
+): Promise<"shared" | "copied"> {
+  const url = buildPdfShareUrl(type, viewToken, id);
+  const title = type === "quotes"
+    ? `Devis ${reference || ""}`
+    : `Facture ${reference || ""}`;
 
-  const headers: Record<string, string> = {
-    "Accept": "application/pdf,application/octet-stream,*/*",
-    "X-Requested-With": "XMLHttpRequest",
-  };
-  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-  const cookie = getSessionCookie();
-  if (cookie) headers["Cookie"] = cookie;
-
-  if (Platform.OS === "web") {
-    const response = await globalThis.fetch(url, { headers });
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.message || "PDF non disponible");
-    }
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = blobUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(blobUrl);
-    return;
-  }
-
-  const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
-  const downloadResult = await FileSystem.downloadAsync(url, fileUri, { headers });
-
-  if (downloadResult.status !== 200) {
-    throw new Error("PDF non disponible");
-  }
-
-  const canShare = await Sharing.isAvailableAsync();
-  if (canShare) {
-    await Sharing.shareAsync(fileUri, {
-      mimeType: "application/pdf",
-      dialogTitle: fileName,
-      UTI: "com.adobe.pdf",
+  if (Platform.OS !== "web") {
+    await Share.share({
+      message: url,
+      title: title.trim(),
     });
-  } else {
-    throw new Error("Le partage n'est pas disponible sur cet appareil");
+    return "shared";
   }
+
+  if (typeof navigator !== "undefined" && navigator.share) {
+    try {
+      await navigator.share({ title: title.trim(), url });
+      return "shared";
+    } catch (_) {}
+  }
+
+  await Clipboard.setStringAsync(url);
+  return "copied";
 }
