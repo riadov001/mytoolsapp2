@@ -104,6 +104,8 @@ export default function InvoiceCreateScreen() {
         unitPrice: String(it.unit_price_excluding_tax ?? it.unitPriceExcludingTax ?? it.unitPrice ?? it.unit_price ?? it.price ?? 0),
         tvaRate: String(it.tax_rate ?? it.taxRate ?? it.tvaRate ?? 20),
       })));
+    } else {
+      setLineItems([{ description: "", quantity: "1", unitPrice: "", tvaRate: "20" }]);
     }
     setEditLoaded(true);
   }, [editInvoice, isEditMode, editLoaded]);
