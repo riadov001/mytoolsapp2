@@ -95,8 +95,66 @@ export default function QuoteCreateScreen() {
     : "Sélectionner un client";
 
   const createMutation = useMutation({
-    mutationFn: (payload: any) => adminQuotes.create(payload),
-    onSuccess: (data) => {
+    mutationFn: async (payload: {
+      clientId: string;
+      serviceId: string;
+      status: string;
+      notes?: string;
+      vehicleInfo?: any;
+      validItems: Array<{ description: string; quantity: string; unitPrice: string; tvaRate: string }>;
+      photos: Array<{ uri: string; name: string }>;
+    }) => {
+      // Étape 1 : Créer le devis (sans items)
+      const quoteBody: any = {
+        clientId: payload.clientId,
+        serviceId: payload.serviceId,
+        status: payload.status,
+      };
+      if (payload.notes?.trim()) quoteBody.notes = payload.notes.trim();
+      if (payload.vehicleInfo) quoteBody.vehicleInfo = payload.vehicleInfo;
+
+      const quote = await adminQuotes.create(quoteBody);
+      if (!quote?.id) throw new Error("Échec de la création du devis.");
+
+      // Étape 2 : Ajouter les articles un par un
+      for (const it of payload.validItems) {
+        const qty = parseFloat(it.quantity) || 1;
+        const price = parseFloat(it.unitPrice) || 0;
+        const tva = parseFloat(it.tvaRate) || 0;
+        const totalHT = qty * price;
+        const taxAmount = totalHT * (tva / 100);
+        const totalTTC = totalHT + taxAmount;
+        await adminQuotes.addItem(quote.id, {
+          description: it.description.trim(),
+          quantity: String(qty),
+          unitPriceExcludingTax: price.toFixed(2),
+          totalExcludingTax: totalHT.toFixed(2),
+          taxRate: String(tva),
+          taxAmount: taxAmount.toFixed(2),
+          totalIncludingTax: totalTTC.toFixed(2),
+        });
+      }
+
+      // Étape 3 : Uploader les photos si présentes
+      if (payload.photos.length > 0) {
+        const mediaForm = new FormData();
+        payload.photos.forEach((photo, idx) => {
+          mediaForm.append("media", {
+            uri: photo.uri,
+            name: photo.name || `quote_photo_${idx}.jpg`,
+            type: "image/jpeg",
+          } as any);
+        });
+        try {
+          await adminQuotes.addMedia(quote.id, mediaForm);
+        } catch {
+          // Erreur photo non bloquante
+        }
+      }
+
+      return quote;
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-quotes"] });
       queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -202,8 +260,8 @@ export default function QuoteCreateScreen() {
       Alert.alert("Attention", "Veuillez sélectionner un client.");
       return;
     }
-    if (photos.length === 0) {
-      Alert.alert("Attention", "Au moins une photo est obligatoire pour créer un devis.");
+    if (selectedServices.length === 0) {
+      Alert.alert("Attention", "Veuillez sélectionner au moins un service.");
       return;
     }
     if (photos.length > 3) {
@@ -216,62 +274,21 @@ export default function QuoteCreateScreen() {
       return;
     }
 
-    const mappedItems = validItems.map(it => {
-      const qty = parseFloat(it.quantity) || 1;
-      const price = parseFloat(it.unitPrice) || 0;
-      const tax = parseFloat(it.tvaRate) || 0;
-      return {
-        description: it.description.trim(),
-        quantity: qty,
-        unit_price: price.toString(),
-        unit_price_excluding_tax: price.toString(),
-        tax_rate: tax.toString(),
-      };
-    });
-
-    const dominantTva = validItems.length > 0 ? String(parseFloat(validItems[0].tvaRate) || 20) : "20";
-
     const vehicleInfo = (vehicleBrand || vehicleModel || vehiclePlate) ? {
       brand: vehicleBrand.trim() || undefined,
       model: vehicleModel.trim() || undefined,
       plate: vehiclePlate.trim() || undefined,
     } : undefined;
 
-    const issueDate = new Date().toISOString().split("T")[0];
-    const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + 30);
-    const validUntilStr = validUntil.toISOString().split("T")[0];
-
-    const formData = new FormData();
-    formData.append("clientId", selectedClientId);
-    formData.append("status", "pending");
-    formData.append("items", JSON.stringify(mappedItems));
-    formData.append("lineItems", JSON.stringify(mappedItems));
-    formData.append("total_excluding_tax", totalHT.toFixed(2));
-    formData.append("priceExcludingTax", totalHT.toFixed(2));
-    formData.append("total", totalTTC.toFixed(2));
-    formData.append("quoteAmount", totalTTC.toFixed(2));
-    formData.append("total_including_tax", totalTTC.toFixed(2));
-    formData.append("amount", totalTTC.toFixed(2));
-    formData.append("tax_rate", dominantTva);
-    formData.append("taxRate", dominantTva);
-    formData.append("issueDate", issueDate);
-    formData.append("validUntil", validUntilStr);
-    if (notes.trim()) formData.append("notes", notes.trim());
-    if (selectedServices[0]) formData.append("serviceId", selectedServices[0]);
-    if (vehicleInfo) formData.append("vehicleInfo", JSON.stringify(vehicleInfo));
-    if (selectedServices.length > 0) formData.append("selectedServices", JSON.stringify(selectedServices));
-
-    photos.forEach((photo, idx) => {
-      formData.append("files", {
-        uri: photo.uri,
-        name: photo.name || `quote_photo_${idx}.jpg`,
-        type: "image/jpeg",
-      } as any);
+    createMutation.mutate({
+      clientId: selectedClientId,
+      serviceId: selectedServices[0],
+      status: "pending",
+      notes: notes.trim() || undefined,
+      vehicleInfo,
+      validItems,
+      photos,
     });
-
-    console.log("[QUOTE-CREATE] photos:", photos.length, "items:", mappedItems.length, "totalTTC:", totalTTC);
-    createMutation.mutate(formData as any);
   };
 
   return (
@@ -430,7 +447,7 @@ export default function QuoteCreateScreen() {
 
         {/* Photos */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photos * (1 minimum, maximum 3)</Text>
+          <Text style={styles.sectionTitle}>Photos (optionnel, maximum 3)</Text>
           {photos.length > 0 ? (
             <FlatList
               scrollEnabled={false}

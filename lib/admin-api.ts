@@ -285,6 +285,16 @@ export const adminQuotes = {
   getAll: () => adminApiCall<any[]>("/api/admin/quotes"),
   getById: (id: string) => adminApiCall<any>(`/api/admin/quotes/${id}`),
   create: (data: any) => adminApiCall<any>("/api/admin/quotes", { method: "POST", body: data }),
+  addItem: (quoteId: string, item: {
+    description: string;
+    quantity: string;
+    unitPriceExcludingTax: string;
+    totalExcludingTax: string;
+    taxRate: string;
+    taxAmount: string;
+    totalIncludingTax: string;
+  }) => adminApiCall<any>(`/api/admin/quotes/${quoteId}/items`, { method: "POST", body: item }),
+  addMedia: (quoteId: string, formData: FormData) => adminApiCall<any>(`/api/admin/quotes/${quoteId}/media`, { method: "POST", body: formData }),
   update: (id: string, data: any) => adminApiCall<any>(`/api/quotes/${id}`, { method: "PATCH", body: data }),
   updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/quotes/${id}/status`, { method: "PATCH", body: { status } }),
   delete: (id: string) => adminApiCall<any>(`/api/quotes/${id}`, { method: "DELETE" }),
