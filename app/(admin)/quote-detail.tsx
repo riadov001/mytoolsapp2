@@ -89,6 +89,54 @@ export default function QuoteDetailScreen() {
     },
   });
 
+  const convertMutation = useMutation({
+    mutationFn: () => adminQuotes.convertToInvoice(id),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["admin-quote", id], (old: any) => old ? { ...old, status: "converted" } : old);
+      queryClient.invalidateQueries({ queryKey: ["admin-quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const invoiceId = data?.invoice?.id || data?.id || null;
+      showAlert({
+        type: "success",
+        title: "Facture créée",
+        message: "Le devis a été converti en facture avec succès.",
+        buttons: [
+          invoiceId ? {
+            text: "Voir la facture",
+            style: "primary",
+            onPress: () => router.push({ pathname: "/(admin)/invoice-detail", params: { id: String(invoiceId) } } as any),
+          } : { text: "OK" },
+        ],
+      });
+    },
+    onError: (err: any) => {
+      showAlert({
+        type: "error",
+        title: "Erreur",
+        message: err?.message || "Impossible de convertir le devis en facture.",
+        buttons: [{ text: "OK" }],
+      });
+    },
+  });
+
+  const handleConvertToInvoice = () => {
+    showAlert({
+      type: "warning",
+      title: "Convertir en facture",
+      message: "Créer une facture à partir de ce devis ?",
+      buttons: [
+        { text: "Annuler" },
+        {
+          text: "Convertir",
+          style: "primary",
+          onPress: () => convertMutation.mutate(),
+        },
+      ],
+    });
+  };
+
   const handleCreateReservation = () => {
     showAlert({
       type: "warning",
@@ -348,10 +396,23 @@ export default function QuoteDetailScreen() {
         ) : null}
 
 
-        {/* Actions: RDV */}
+        {/* Actions */}
         {statusKey !== "cancelled" ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Actions</Text>
+            {statusKey !== "converted" ? (
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: "#2563EB", marginBottom: 8, opacity: convertMutation.isPending ? 0.6 : 1 }]}
+                onPress={handleConvertToInvoice}
+                disabled={convertMutation.isPending}
+              >
+                {convertMutation.isPending
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Ionicons name="document-text-outline" size={18} color="#fff" />
+                }
+                <Text style={styles.actionBtnText}>Générer une facture</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               style={[styles.actionBtn, { backgroundColor: "#8B5CF6" }]}
               onPress={handleCreateReservation}
