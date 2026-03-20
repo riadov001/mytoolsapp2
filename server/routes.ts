@@ -1666,8 +1666,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
 
     for (const url of [
-      `${EXTERNAL_API}/mobile/admin/quotes/${id}/convert-to-invoice`,
       `${EXTERNAL_API}/admin/quotes/${id}/convert-to-invoice`,
+      `${EXTERNAL_API}/mobile/admin/quotes/${id}/convert-to-invoice`,
     ]) {
       const result = await tryUrl(url);
       if (result) return res.status(201).json(result);
