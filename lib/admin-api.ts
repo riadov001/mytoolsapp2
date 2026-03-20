@@ -58,11 +58,12 @@ function isNetworkError(err: any): boolean {
   return false;
 }
 
-async function fetchWithTimeout(url: string, options: any, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+async function fetchWithTimeout(url: string, options: any, useGlobal = false, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await expoFetch(url, { ...options, signal: controller.signal });
+    const fetchFn = useGlobal ? globalThis.fetch : expoFetch;
+    const res = await fetchFn(url, { ...options, signal: controller.signal });
     return res;
   } catch (err: any) {
     if (err?.name === "AbortError") {
@@ -74,13 +75,13 @@ async function fetchWithTimeout(url: string, options: any, timeoutMs = REQUEST_T
   }
 }
 
-async function fetchWithRetry(url: string, options: any, retries = 1): Promise<Response> {
+async function fetchWithRetry(url: string, options: any, useGlobal = false, retries = 1): Promise<Response> {
   try {
-    return await fetchWithTimeout(url, options);
+    return await fetchWithTimeout(url, options, useGlobal);
   } catch (err: any) {
     if (retries > 0 && isNetworkError(err)) {
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-      return fetchWithRetry(url, options, retries - 1);
+      return fetchWithRetry(url, options, useGlobal, retries - 1);
     }
     if (isNetworkError(err) && !(err instanceof TimeoutError)) {
       throw new Error("Erreur réseau. Vérifiez votre connexion et réessayez.");
@@ -130,7 +131,7 @@ export async function adminApiCall<T = any>(
     fetchOptions.body = isFormData ? body : JSON.stringify(body);
   }
 
-  const res = await fetchWithRetry(url, fetchOptions);
+  const res = await fetchWithRetry(url, fetchOptions, isFormData);
 
   const xSessionCookie = res.headers.get("x-session-cookie");
   if (xSessionCookie) {
@@ -142,7 +143,7 @@ export async function adminApiCall<T = any>(
       const refreshed = await tryRefreshToken();
       if (refreshed) {
         fetchHeaders["Authorization"] = `Bearer ${accessToken}`;
-        const retryRes = await fetchWithRetry(url, { ...fetchOptions, headers: fetchHeaders });
+        const retryRes = await fetchWithRetry(url, { ...fetchOptions, headers: fetchHeaders }, isFormData);
         if (retryRes.ok) return parseResponse<T>(retryRes);
       }
     }
