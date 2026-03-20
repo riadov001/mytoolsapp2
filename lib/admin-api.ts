@@ -2,6 +2,8 @@ import { fetch as expoFetch } from "expo/fetch";
 import { Platform } from "react-native";
 import { router } from "expo-router";
 import { getSessionCookie, setSessionCookie } from "./api";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 
 const REQUEST_TIMEOUT_MS = 15000;
 const RETRY_DELAY_MS = 1000;
@@ -365,3 +367,58 @@ export const adminNotifications = {
   markRead: (id: string) => adminApiCall<any>(`/api/notifications/${id}/read`, { method: "POST" }),
   markAllRead: () => adminApiCall<any>("/api/notifications/read-all", { method: "POST" }),
 };
+
+export async function downloadPdf(
+  type: "quotes" | "invoices",
+  id: string,
+  reference?: string
+): Promise<void> {
+  const url = `${API_BASE}/api/admin/${type}/${id}/pdf`;
+  const fileName = type === "quotes"
+    ? `devis-${reference || id}.pdf`
+    : `facture-${reference || id}.pdf`;
+
+  const headers: Record<string, string> = {
+    "Accept": "application/pdf,application/octet-stream,*/*",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+  const cookie = getSessionCookie();
+  if (cookie) headers["Cookie"] = cookie;
+
+  if (Platform.OS === "web") {
+    const response = await globalThis.fetch(url, { headers });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || "PDF non disponible");
+    }
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+    return;
+  }
+
+  const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+  const downloadResult = await FileSystem.downloadAsync(url, fileUri, { headers });
+
+  if (downloadResult.status !== 200) {
+    throw new Error("PDF non disponible");
+  }
+
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) {
+    await Sharing.shareAsync(fileUri, {
+      mimeType: "application/pdf",
+      dialogTitle: fileName,
+      UTI: "com.adobe.pdf",
+    });
+  } else {
+    throw new Error("Le partage n'est pas disponible sur cet appareil");
+  }
+}

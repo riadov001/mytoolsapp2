@@ -1015,6 +1015,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/admin/quotes/:id/pdf", async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const authHeaders: Record<string, string> = {
+      "host": new URL(EXTERNAL_API).host,
+      "accept": "application/pdf,application/octet-stream,*/*",
+      "x-requested-with": "XMLHttpRequest",
+    };
+    if (req.headers["authorization"]) authHeaders["authorization"] = req.headers["authorization"] as string;
+    if (req.headers["cookie"]) authHeaders["cookie"] = req.headers["cookie"] as string;
+
+    const endpoints = [
+      `${EXTERNAL_API}/admin/quotes/${id}/pdf`,
+      `${EXTERNAL_API}/mobile/admin/quotes/${id}/pdf`,
+      `${EXTERNAL_API}/quotes/${id}/pdf`,
+      `${EXTERNAL_API}/admin/quotes/${id}/download`,
+      `${EXTERNAL_API}/quotes/${id}/download`,
+      `${EXTERNAL_API}/admin/quotes/${id}/export`,
+    ];
+
+    for (const url of endpoints) {
+      try {
+        const r = await fetch(url, { headers: authHeaders, redirect: "manual" });
+        const ct = r.headers.get("content-type") || "";
+        if (r.ok && (ct.includes("pdf") || ct.includes("octet-stream"))) {
+          console.log(`[PDF] GET quote ${id} => ${r.status} via ${url}`);
+          const buffer = Buffer.from(await r.arrayBuffer());
+          res.setHeader("content-type", "application/pdf");
+          res.setHeader("content-disposition", `attachment; filename="devis-${id}.pdf"`);
+          return res.send(buffer);
+        }
+      } catch {}
+    }
+    console.log(`[PDF] No PDF endpoint found for quote ${id}`);
+    return res.status(404).json({ message: "PDF non disponible pour ce devis" });
+  });
+
+  app.get("/api/admin/invoices/:id/pdf", async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const authHeaders: Record<string, string> = {
+      "host": new URL(EXTERNAL_API).host,
+      "accept": "application/pdf,application/octet-stream,*/*",
+      "x-requested-with": "XMLHttpRequest",
+    };
+    if (req.headers["authorization"]) authHeaders["authorization"] = req.headers["authorization"] as string;
+    if (req.headers["cookie"]) authHeaders["cookie"] = req.headers["cookie"] as string;
+
+    const endpoints = [
+      `${EXTERNAL_API}/admin/invoices/${id}/pdf`,
+      `${EXTERNAL_API}/mobile/admin/invoices/${id}/pdf`,
+      `${EXTERNAL_API}/invoices/${id}/pdf`,
+      `${EXTERNAL_API}/admin/invoices/${id}/download`,
+      `${EXTERNAL_API}/invoices/${id}/download`,
+      `${EXTERNAL_API}/admin/invoices/${id}/export`,
+    ];
+
+    for (const url of endpoints) {
+      try {
+        const r = await fetch(url, { headers: authHeaders, redirect: "manual" });
+        const ct = r.headers.get("content-type") || "";
+        if (r.ok && (ct.includes("pdf") || ct.includes("octet-stream"))) {
+          console.log(`[PDF] GET invoice ${id} => ${r.status} via ${url}`);
+          const buffer = Buffer.from(await r.arrayBuffer());
+          res.setHeader("content-type", "application/pdf");
+          res.setHeader("content-disposition", `attachment; filename="facture-${id}.pdf"`);
+          return res.send(buffer);
+        }
+      } catch {}
+    }
+    console.log(`[PDF] No PDF endpoint found for invoice ${id}`);
+    return res.status(404).json({ message: "PDF non disponible pour cette facture" });
+  });
+
   app.use("/api/admin", async (req: Request, res: Response, next: NextFunction) => {
     try {
       const authHeaders: Record<string, string> = {

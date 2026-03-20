@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator,
 } from "react-native";
@@ -8,7 +8,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminQuotes, adminClients } from "@/lib/admin-api";
+import { adminQuotes, adminClients, downloadPdf } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -55,6 +55,7 @@ export default function QuoteDetailScreen() {
   const styles = useMemo(() => getStyles(theme), [theme]);
   const queryClient = useQueryClient();
   const { showAlert, AlertComponent } = useCustomAlert();
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const { data: q, isLoading, error } = useQuery({
     queryKey: ["admin-quote", id],
@@ -428,6 +429,33 @@ export default function QuoteDetailScreen() {
             >
               <Ionicons name="calendar-outline" size={18} color="#fff" />
               <Text style={styles.actionBtnText}>Créer un rendez-vous</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionBtnSecondary, { marginTop: 4, opacity: pdfLoading ? 0.6 : 1 }]}
+              disabled={pdfLoading}
+              onPress={async () => {
+                setPdfLoading(true);
+                try {
+                  const ref = q?.quoteNumber || q?.reference || id;
+                  await downloadPdf("quotes", id, ref);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                } catch (err: any) {
+                  showAlert({
+                    type: "error",
+                    title: "Erreur",
+                    message: err?.message || "Impossible de télécharger le PDF.",
+                    buttons: [{ text: "OK", style: "primary" }],
+                  });
+                } finally {
+                  setPdfLoading(false);
+                }
+              }}
+            >
+              {pdfLoading
+                ? <ActivityIndicator size="small" color={theme.primary} />
+                : <Ionicons name="download-outline" size={18} color={theme.primary} />
+              }
+              <Text style={styles.actionBtnSecondaryText}>Télécharger le PDF</Text>
             </Pressable>
           </View>
         ) : null}

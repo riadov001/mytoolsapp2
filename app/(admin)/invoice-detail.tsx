@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator,
 } from "react-native";
@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminInvoices, adminClients } from "@/lib/admin-api";
+import { adminInvoices, adminClients, downloadPdf } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -63,6 +63,7 @@ export default function InvoiceDetailScreen() {
   const styles = useMemo(() => getStyles(theme), [theme]);
   const queryClient = useQueryClient();
   const { showAlert, AlertComponent } = useCustomAlert();
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const { data: inv, isLoading, error } = useQuery({
     queryKey: ["admin-invoice", id],
@@ -263,19 +264,46 @@ export default function InvoiceDetailScreen() {
           </View>
         ) : null}
 
-        {/* Edit Action */}
-        {statusKey !== "paid" && statusKey !== "cancelled" ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Actions</Text>
+        {/* Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Actions</Text>
+          {statusKey !== "paid" && statusKey !== "cancelled" ? (
             <Pressable
-              style={[styles.actionBtn, { backgroundColor: theme.primary }]}
+              style={[styles.actionBtn, { backgroundColor: theme.primary, marginBottom: 8 }]}
               onPress={() => router.push({ pathname: "/(admin)/invoice-create", params: { editId: id } } as any)}
             >
               <Ionicons name="create-outline" size={18} color="#fff" />
               <Text style={[styles.actionBtnText, { color: "#fff" }]}>Modifier la facture</Text>
             </Pressable>
-          </View>
-        ) : null}
+          ) : null}
+          <Pressable
+            style={[styles.actionBtn, { borderColor: theme.primary + "50", opacity: pdfLoading ? 0.6 : 1 }]}
+            disabled={pdfLoading}
+            onPress={async () => {
+              setPdfLoading(true);
+              try {
+                const ref = inv?.invoiceNumber || inv?.reference || id;
+                await downloadPdf("invoices", id, ref);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              } catch (err: any) {
+                showAlert({
+                  type: "error",
+                  title: "Erreur",
+                  message: err?.message || "Impossible de télécharger le PDF.",
+                  buttons: [{ text: "OK", style: "primary" }],
+                });
+              } finally {
+                setPdfLoading(false);
+              }
+            }}
+          >
+            {pdfLoading
+              ? <ActivityIndicator size="small" color={theme.primary} />
+              : <Ionicons name="download-outline" size={18} color={theme.primary} />
+            }
+            <Text style={[styles.actionBtnText, { color: theme.primary }]}>Télécharger le PDF</Text>
+          </Pressable>
+        </View>
 
         {/* Status Actions */}
         {statusKey !== "paid" && (
