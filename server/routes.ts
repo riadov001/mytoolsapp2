@@ -1155,6 +1155,167 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin quote convert-to-invoice route
+  app.post("/api/admin/quotes/:id/convert-to-invoice", async (req: Request, res: Response) => {
+    const { id } = req.params;
+    console.log(`[ADMIN-CONVERT] Converting quote ${id} to invoice`);
+    
+    const authHeaders: Record<string, string> = {
+      "host": new URL(EXTERNAL_API).host,
+      "accept": "application/json",
+      "content-type": "application/json",
+      "x-requested-with": "XMLHttpRequest",
+    };
+    if (req.headers["authorization"]) authHeaders["authorization"] = req.headers["authorization"] as string;
+    if (req.headers["cookie"]) authHeaders["cookie"] = req.headers["cookie"] as string;
+
+    const tryUrl = async (url: string) => {
+      try {
+        const r = await fetch(url, { method: "POST", headers: authHeaders, redirect: "manual", body: JSON.stringify(req.body || {}) });
+        const txt = await r.text();
+        if (txt.includes("<!DOCTYPE") || txt.includes("<html")) {
+          console.log(`[ADMIN-CONVERT] ${url} => HTML (auth failed)`);
+          return null;
+        }
+        const parsed = JSON.parse(txt);
+        if (r.ok && parsed?.id) {
+          console.log(`[ADMIN-CONVERT] ✅ ${url} => Success`);
+          return parsed;
+        }
+        console.log(`[ADMIN-CONVERT] ${url} => ${r.status}`, parsed?.message || parsed?.error || "");
+      } catch (e) {
+        console.log(`[ADMIN-CONVERT] ${url} => ${(e as any).message}`);
+      }
+      return null;
+    };
+
+    for (const url of [
+      `${EXTERNAL_API}/admin/quotes/${id}/convert-to-invoice`,
+      `${EXTERNAL_API}/mobile/admin/quotes/${id}/convert-to-invoice`,
+    ]) {
+      const result = await tryUrl(url);
+      if (result) return res.status(201).json(result);
+    }
+
+    // Fallback: fetch quote and create invoice locally
+    console.log(`[ADMIN-CONVERT] API failed, fetching quote ${id} for local conversion`);
+    
+    try {
+      const quoteSegments = ["admin/quotes", "mobile/admin/quotes", "mobile/quotes"];
+      let quoteData: any = null;
+      
+      for (const seg of quoteSegments) {
+        try {
+          const r = await fetch(`${EXTERNAL_API}/${seg}/${id}`, { headers: authHeaders, redirect: "manual" });
+          const txt = await r.text();
+          if (!txt.includes("<!DOCTYPE") && !txt.includes("<html")) {
+            const parsed = JSON.parse(txt);
+            const unwrapped = parsed?.data ?? parsed;
+            if (r.ok && unwrapped && (unwrapped.id || unwrapped.clientId)) {
+              quoteData = unwrapped;
+              console.log(`[ADMIN-CONVERT] Fetched quote from ${seg}/${id}`);
+              break;
+            }
+          }
+        } catch {}
+      }
+
+      if (!quoteData) {
+        return res.status(400).json({ message: "Impossible de récupérer les données du devis." });
+      }
+
+      const items: any[] = quoteData?.items || quoteData?.lineItems || quoteData?.lines || [];
+      const clientId = quoteData?.clientId || quoteData?.client_id || req.body?.clientId || "";
+
+      let totalHT = 0;
+      let totalTTC = 0;
+      if (quoteData) {
+        totalHT = parseFloat(String(quoteData.priceExcludingTax || quoteData.totalHT || quoteData.totalExcludingTax || 0)) || 0;
+        totalTTC = parseFloat(String(quoteData.quoteAmount || quoteData.totalTTC || quoteData.total || quoteData.totalAmount || 0)) || 0;
+        if (!totalHT && !totalTTC && items.length > 0) {
+          items.forEach((it: any) => {
+            const price = parseFloat(String(it.unitPrice || it.price || it.unitPriceExcludingTax || 0)) || 0;
+            const qty = parseFloat(String(it.quantity || 1)) || 1;
+            const tax = parseFloat(String(it.taxRate || it.tvaRate || 0)) || 0;
+            totalHT += qty * price;
+            totalTTC += qty * price * (1 + tax / 100);
+          });
+        }
+      }
+
+      const mappedItems = items.map((it: any) => {
+        const price = parseFloat(String(it.unit_price || it.unit_price_excluding_tax || it.unitPrice || it.price || it.unitPriceExcludingTax || it.priceExcludingTax || 0)) || 0;
+        const qty = parseFloat(String(it.quantity || 1)) || 1;
+        const tax = parseFloat(String(it.tax_rate || it.taxRate || it.tvaRate || 0)) || 0;
+        return {
+          description: it.description || it.name || "Prestation",
+          quantity: qty,
+          unit_price: String(price),
+          unit_price_excluding_tax: String(price),
+          tax_rate: String(tax),
+          total_excluding_tax: String(qty * price),
+          total_including_tax: String(qty * price * (1 + tax / 100)),
+        };
+      });
+
+      const invoicePayload = {
+        clientId,
+        quoteId: id,
+        status: "pending",
+        items: mappedItems,
+        lineItems: mappedItems,
+        total_excluding_tax: totalHT.toFixed(2),
+        total_including_tax: totalTTC.toFixed(2),
+        total: totalTTC.toFixed(2),
+        priceExcludingTax: totalHT.toFixed(2),
+        amount: totalTTC.toFixed(2),
+        taxAmount: (totalTTC - totalHT).toFixed(2),
+        tax_amount: (totalTTC - totalHT).toFixed(2),
+        issueDate: new Date().toISOString().split("T")[0],
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      };
+
+      const invoiceSegments = ["admin/invoices", "mobile/admin/invoices", "mobile/invoices"];
+      for (const seg of invoiceSegments) {
+        try {
+          const r = await fetch(`${EXTERNAL_API}/${seg}`, {
+            method: "POST",
+            headers: authHeaders,
+            redirect: "manual",
+            body: JSON.stringify(invoicePayload),
+          });
+          const txt = await r.text();
+          if (txt.includes("<!DOCTYPE") || txt.includes("<html")) {
+            console.log(`[ADMIN-CONVERT] ${seg} => HTML (auth failed)`);
+            continue;
+          }
+          const parsed = JSON.parse(txt);
+          if (r.ok && parsed?.id) {
+            console.log(`[ADMIN-CONVERT] ✅ Invoice created via ${seg}, status ${r.status}`);
+            return res.status(201).json({
+              ...parsed,
+              quoteId: id,
+              clientId,
+              total_excluding_tax: totalHT.toFixed(2),
+              total_including_tax: totalTTC.toFixed(2),
+              priceExcludingTax: totalHT.toFixed(2),
+              amount: totalTTC.toFixed(2),
+              items: mappedItems,
+            });
+          }
+          console.log(`[ADMIN-CONVERT] ${seg} => ${r.status}`, parsed?.message || "");
+        } catch (e) {
+          console.log(`[ADMIN-CONVERT] ${seg} => ${(e as any).message}`);
+        }
+      }
+
+      return res.status(400).json({ message: "Impossible de créer la facture." });
+    } catch (err: any) {
+      console.error(`[ADMIN-CONVERT] Error:`, err.message);
+      return res.status(500).json({ message: "Erreur serveur lors de la conversion." });
+    }
+  });
+
   app.use("/api/admin", async (req: Request, res: Response, next: NextFunction) => {
     try {
       const authHeaders: Record<string, string> = {

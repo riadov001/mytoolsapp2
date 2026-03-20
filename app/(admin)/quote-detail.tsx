@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator, Linking,
+  View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +12,7 @@ import { adminQuotes, adminClients, adminApiBase } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
+import { downloadPdfFile } from "@/lib/pdf-download";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "En attente", approved: "Approuvé", rejected: "Rejeté",
@@ -152,22 +153,30 @@ export default function QuoteDetailScreen() {
   const handlePdf = async () => {
     Haptics.selectionAsync();
     const directUrl = q?.pdfUrl || q?.pdf_url || q?.documentUrl;
-    if (directUrl) {
-      try { await Linking.openURL(directUrl); } catch {}
-      return;
-    }
+    const pdfFileName = `${q?.reference || q?.quoteNumber || "devis"}.pdf`;
+    
     setPdfLoading(true);
     try {
-      const result = await adminQuotes.getPdf(id);
-      const pdfUrl = result?.url || result?.pdfUrl || result?.pdf_url || result?.documentUrl;
-      if (pdfUrl) {
-        await Linking.openURL(pdfUrl);
-      } else {
-        const proxyUrl = `${adminApiBase}/api/quotes/${id}/pdf`;
-        await Linking.openURL(proxyUrl);
+      let urlToDownload = directUrl;
+      
+      if (!urlToDownload) {
+        const result = await adminQuotes.getPdf(id);
+        urlToDownload = result?.url || result?.pdfUrl || result?.pdf_url || result?.documentUrl;
       }
-    } catch {
-      showAlert({ type: "error", title: "PDF indisponible", message: "Le PDF n'est pas encore disponible pour ce devis.", buttons: [{ text: "OK" }] });
+      
+      if (!urlToDownload) {
+        urlToDownload = `${adminApiBase}/api/admin/quotes/${id}/pdf`;
+      }
+      
+      await downloadPdfFile(urlToDownload, pdfFileName);
+    } catch (err: any) {
+      console.error("[QUOTE-PDF] Error:", err);
+      showAlert({ 
+        type: "error", 
+        title: "Erreur", 
+        message: err?.message || "Impossible de télécharger le PDF.", 
+        buttons: [{ text: "OK" }] 
+      });
     } finally {
       setPdfLoading(false);
     }

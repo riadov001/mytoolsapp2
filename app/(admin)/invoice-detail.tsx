@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator, Linking,
+  View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +11,7 @@ import { adminInvoices, adminClients, adminApiBase } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
+import { downloadPdfFile } from "@/lib/pdf-download";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "En attente", paid: "Payée", cancelled: "Annulée",
@@ -102,21 +103,30 @@ export default function InvoiceDetailScreen() {
   const handlePdf = async () => {
     Haptics.selectionAsync();
     const directUrl = inv?.pdfUrl || inv?.pdf_url || inv?.documentUrl;
-    if (directUrl) {
-      try { await Linking.openURL(directUrl); } catch {}
-      return;
-    }
+    const pdfFileName = `${inv?.invoiceNumber || inv?.reference || "facture"}.pdf`;
+    
     setPdfLoading(true);
     try {
-      const result = await adminInvoices.getPdf(id);
-      const pdfUrl = result?.url || result?.pdfUrl || result?.pdf_url || result?.documentUrl;
-      if (pdfUrl) {
-        await Linking.openURL(pdfUrl);
-      } else {
-        await Linking.openURL(`${adminApiBase}/api/invoices/${id}/pdf`);
+      let urlToDownload = directUrl;
+      
+      if (!urlToDownload) {
+        const result = await adminInvoices.getPdf(id);
+        urlToDownload = result?.url || result?.pdfUrl || result?.pdf_url || result?.documentUrl;
       }
-    } catch {
-      showAlert({ type: "error", title: "PDF indisponible", message: "Le PDF n'est pas encore disponible pour cette facture.", buttons: [{ text: "OK" }] });
+      
+      if (!urlToDownload) {
+        urlToDownload = `${adminApiBase}/api/admin/invoices/${id}/pdf`;
+      }
+      
+      await downloadPdfFile(urlToDownload, pdfFileName);
+    } catch (err: any) {
+      console.error("[INVOICE-PDF] Error:", err);
+      showAlert({ 
+        type: "error", 
+        title: "Erreur", 
+        message: err?.message || "Impossible de télécharger le PDF.", 
+        buttons: [{ text: "OK" }] 
+      });
     } finally {
       setPdfLoading(false);
     }

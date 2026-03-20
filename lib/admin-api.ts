@@ -295,22 +295,31 @@ export const adminQuotes = {
     totalIncludingTax: string;
   }) => adminApiCall<any>(`/api/admin/quotes/${quoteId}/items`, { method: "POST", body: item }),
   addMedia: (quoteId: string, formData: FormData) => adminApiCall<any>(`/api/admin/quotes/${quoteId}/media`, { method: "POST", body: formData }),
-  update: (id: string, data: any) => adminApiCall<any>(`/api/quotes/${id}`, { method: "PATCH", body: data }),
-  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/quotes/${id}/status`, { method: "PATCH", body: { status } }),
-  delete: (id: string) => adminApiCall<any>(`/api/quotes/${id}`, { method: "DELETE" }),
-  convertToInvoice: (id: string, data?: any) => adminApiCall<any>(`/api/quotes/${id}/convert-to-invoice`, { method: "POST", body: data }),
-  createReservationFromQuote: (id: string, data: any) => adminApiCall<any>(`/api/quotes/${id}/create-reservation`, { method: "POST", body: data }),
-  getPdf: (id: string) => adminApiCall<any>(`/api/quotes/${id}/pdf`),
+  update: (id: string, data: any) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "PATCH", body: data }),
+  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "PATCH", body: { status } }),
+  delete: (id: string) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "DELETE" }),
+  convertToInvoice: (id: string, data?: any) => adminApiCall<any>(`/api/admin/quotes/${id}/convert-to-invoice`, { method: "POST", body: data }),
+  createReservationFromQuote: (id: string, data: any) => adminApiCall<any>(`/api/admin/quotes/${id}/create-reservation`, { method: "POST", body: data }),
+  getPdf: (id: string) => adminApiCall<any>(`/api/admin/quotes/${id}/pdf`),
 };
 
 export const adminInvoices = {
   getAll: () => adminApiCall<any[]>("/api/admin/invoices"),
   getById: (id: string) => adminApiCall<any>(`/api/admin/invoices/${id}`),
   create: (data: any) => adminApiCall<any>("/api/admin/invoices", { method: "POST", body: data }),
-  update: (id: string, data: any) => adminApiCall<any>(`/api/invoices/${id}`, { method: "PATCH", body: data }),
-  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/invoices/${id}/status`, { method: "PATCH", body: { status } }),
-  delete: (id: string) => adminApiCall<any>(`/api/invoices/${id}`, { method: "DELETE" }),
-  getPdf: (id: string) => adminApiCall<any>(`/api/invoices/${id}/pdf`),
+  addItem: (invoiceId: string, item: {
+    description: string;
+    quantity: string;
+    unitPriceExcludingTax: string;
+    totalExcludingTax: string;
+    taxRate: string;
+    taxAmount: string;
+    totalIncludingTax: string;
+  }) => adminApiCall<any>(`/api/admin/invoices/${invoiceId}/items`, { method: "POST", body: item }),
+  update: (id: string, data: any) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "PATCH", body: data }),
+  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "PATCH", body: { status } }),
+  delete: (id: string) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "DELETE" }),
+  getPdf: (id: string) => adminApiCall<any>(`/api/admin/invoices/${id}/pdf`),
 };
 
 export const adminReservations = {
@@ -318,7 +327,7 @@ export const adminReservations = {
   getById: (id: string) => adminApiCall<any>(`/api/admin/reservations/${id}`),
   create: (data: any) => adminApiCall<any>("/api/admin/reservations", { method: "POST", body: data }),
   update: (id: string, data: any) => adminApiCall<any>(`/api/admin/reservations/${id}`, { method: "PATCH", body: data }),
-  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/reservations/${id}/status`, { method: "PATCH", body: { status } }),
+  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/reservations/${id}`, { method: "PATCH", body: { status } }),
   delete: (id: string) => adminApiCall<any>(`/api/admin/reservations/${id}`, { method: "DELETE" }),
   getServices: (id: string) => adminApiCall<any[]>(`/api/admin/reservations/${id}/services`),
 };
