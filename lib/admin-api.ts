@@ -298,10 +298,7 @@ export const adminQuotes = {
   update: (id: string, data: any) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "PATCH", body: data }),
   updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "PATCH", body: { status } }),
   delete: (id: string) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "DELETE" }),
-  convertToInvoice: (id: string, data?: any) => adminApiCall<any>(`/api/admin/quotes/${id}/convert-to-invoice`, { method: "POST", body: data }),
-  convertToInvoiceDirect: (quoteId: string) => adminApiCall<any>(`/api/admin/invoices/direct`, { method: "POST", body: { quoteId } }),
   createReservationFromQuote: (id: string, data: any) => adminApiCall<any>(`/api/admin/quotes/${id}/create-reservation`, { method: "POST", body: data }),
-  getPdf: (id: string) => adminApiCall<any>(`/api/quotes/${id}/pdf`),
 };
 
 export const adminInvoices = {
@@ -320,7 +317,6 @@ export const adminInvoices = {
   update: (id: string, data: any) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "PATCH", body: data }),
   updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "PATCH", body: { status } }),
   delete: (id: string) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "DELETE" }),
-  getPdf: (id: string) => adminApiCall<any>(`/api/invoices/${id}/pdf`),
 };
 
 export const adminReservations = {
