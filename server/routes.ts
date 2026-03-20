@@ -146,96 +146,10 @@ console.error = (...args: any[]) => {
   pushLog("error", args.map(safeStringify).join(" "));
 };
 
-const APP_REVIEW_MODE = process.env.APP_REVIEW_MODE === "true";
-
-const REVIEWER_EMAIL = "review@mytools.eu";
-const REVIEWER_PASSWORD = "000000";
-const REVIEWER_USER = {
-  id: "reviewer-demo-001",
-  email: REVIEWER_EMAIL,
-  firstName: "Apple",
-  lastName: "Reviewer",
-  phone: null,
-  address: null,
-  postalCode: null,
-  city: null,
-  profileImageUrl: null,
-  role: "admin",
-  garageId: "1",
-  companyName: "MyTools Demo Garage",
-  siret: null,
-  tvaNumber: null,
-  companyAddress: null,
-  companyPostalCode: null,
-  companyCity: null,
-  companyCountry: "FR",
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
-
-function isReviewerLogin(body: any): boolean {
-  return APP_REVIEW_MODE && body?.email === REVIEWER_EMAIL && body?.password === REVIEWER_PASSWORD;
-}
-
-function isReviewerToken(authHeader: string): boolean {
-  return APP_REVIEW_MODE && authHeader.includes("reviewer-demo-token-");
-}
-
-let REVIEWER_DEMO_QUOTES = [
-  { id: "demo-q1", quoteNumber: "D-0042", clientId: "demo-c1", status: "pending", totalAmount: "1250.00", notes: "Remplacement pneus avant", items: [{ description: "Pneu Michelin 205/55R16", quantity: 2, unitPrice: "89.00", totalPrice: "178.00" }], photos: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), vehicleInfo: { brand: "Peugeot", model: "308", year: 2021, plate: "AB-123-CD" } },
-  { id: "demo-q2", quoteNumber: "D-0041", clientId: "demo-c2", status: "accepted", totalAmount: "890.00", notes: "Équilibrage + géométrie", items: [{ description: "Équilibrage 4 roues", quantity: 1, unitPrice: "60.00", totalPrice: "60.00" }], photos: [], createdAt: new Date(Date.now() - 86400000).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString(), vehicleInfo: { brand: "Renault", model: "Clio", year: 2020, plate: "EF-456-GH" } },
-];
-let REVIEWER_DEMO_INVOICES = [
-  { id: "demo-i1", quoteId: "demo-q2", clientId: "demo-c2", invoiceNumber: "F-0035", status: "paid", totalHT: "741.67", totalTTC: "890.00", tvaAmount: "148.33", tvaRate: "20", paidAt: new Date().toISOString(), items: [{ description: "Équilibrage 4 roues", quantity: 1, unitPrice: "60.00", totalPrice: "60.00" }], notes: null, createdAt: new Date(Date.now() - 172800000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: "demo-i2", quoteId: null, clientId: "demo-c1", invoiceNumber: "F-0034", status: "pending", totalHT: "500.00", totalTTC: "600.00", tvaAmount: "100.00", tvaRate: "20", paidAt: null, items: [{ description: "Changement freins", quantity: 1, unitPrice: "500.00", totalPrice: "500.00" }], notes: "À régler sous 30 jours", createdAt: new Date(Date.now() - 259200000).toISOString(), updatedAt: new Date(Date.now() - 259200000).toISOString() },
-];
-const REVIEWER_DEMO_RESERVATIONS = [
-  { id: "demo-r1", clientId: "demo-c1", quoteId: "demo-q1", serviceId: "demo-s1", reference: "RDV-2026-018", date: new Date(Date.now() + 86400000).toISOString(), scheduledDate: new Date(Date.now() + 86400000).toISOString(), estimatedEndDate: null, timeSlot: "09:00-10:30", status: "confirmed", notes: "Client confirmé par téléphone", vehicleInfo: { brand: "Peugeot", model: "308", year: 2021, plate: "AB-123-CD" }, wheelCount: 4, diameter: "16", priceExcludingTax: null, taxRate: null, taxAmount: null, productDetails: null, assignedEmployeeId: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-];
-const REVIEWER_DEMO_CLIENTS = [
-  { id: "demo-c1", email: "jean.dupont@example.com", firstName: "Jean", lastName: "Dupont", phone: "+33612345678", address: "12 Rue de Paris", postalCode: "75001", city: "Paris", role: "client", createdAt: new Date(Date.now() - 2592000000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: "demo-c2", email: "marie.bernard@example.com", firstName: "Marie", lastName: "Bernard", phone: "+33698765432", address: "5 Avenue Victor Hugo", postalCode: "69002", city: "Lyon", role: "client", createdAt: new Date(Date.now() - 5184000000).toISOString(), updatedAt: new Date().toISOString() },
-];
-const REVIEWER_DEMO_SERVICES = [
-  { id: "demo-s1", garageId: "1", name: "Montage pneus", description: "Montage et équilibrage de pneus toutes dimensions", basePrice: "45.00", category: "Pneumatiques", isActive: true, estimatedDuration: "45 min", imageUrl: null, customFormFields: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: "demo-s2", garageId: "1", name: "Géométrie", description: "Réglage de la géométrie des trains roulants", basePrice: "89.00", category: "Géométrie", isActive: true, estimatedDuration: "60 min", imageUrl: null, customFormFields: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-];
-
-function reviewerResponse() {
-  const token = "reviewer-demo-token-" + Date.now();
-  return {
-    user: REVIEWER_USER,
-    accessToken: token,
-    refreshToken: "reviewer-refresh-" + Date.now(),
-  };
-}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await initDatabase();
 
-  app.post("/api/mobile/login", (req: Request, res: Response, next: NextFunction) => {
-    if (isReviewerLogin(req.body)) {
-      console.log("[AUTH] Reviewer demo login via /api/mobile/login");
-      return res.status(200).json(reviewerResponse());
-    }
-    next();
-  });
-
-  app.post("/api/mobile/auth/me", (req: Request, res: Response, next: NextFunction) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      return res.status(200).json(REVIEWER_USER);
-    }
-    next();
-  });
-
-  app.get("/api/mobile/auth/me", (req: Request, res: Response, next: NextFunction) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      return res.status(200).json(REVIEWER_USER);
-    }
-    next();
-  });
 
   app.get("/api/admin/logs", async (req: Request, res: Response) => {
     const auth = req.headers["authorization"] || "";
@@ -577,12 +491,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/login", async (req: Request, res: Response) => {
-    if (isReviewerLogin(req.body)) {
-      console.log("[AUTH] Reviewer demo login via /api/login");
-      const resp = reviewerResponse();
-      res.setHeader("X-Session-Cookie", "reviewer_session=demo");
-      return res.status(200).json(resp.user);
-    }
 
     try {
       const email = req.body?.email;
@@ -1236,100 +1144,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.use("/api/mobile/admin", async (req: Request, res: Response, next: NextFunction) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      const path = req.url.replace(/\?.*$/, "");
-      const method = req.method;
-
-      if (path === "/analytics" || path === "/analytics/") {
-        return res.json({
-          totalRevenue: 12840, pendingRevenue: 3200, totalClients: 247,
-          totalReservations: 18, totalQuotes: 42, totalInvoices: 35,
-          revenueChart: [
-            { month: "Jan", amount: 8200 }, { month: "Fév", amount: 9500 },
-            { month: "Mar", amount: 7800 }, { month: "Avr", amount: 11200 },
-            { month: "Mai", amount: 10100 }, { month: "Juin", amount: 12840 },
-          ],
-          recentActivity: [
-            { type: "quote", message: "Nouveau devis #0042 créé", createdAt: new Date().toISOString() },
-            { type: "reservation", message: "RDV confirmé — M. Bernard", createdAt: new Date().toISOString() },
-            { type: "invoice", message: "Facture #F-0035 payée", createdAt: new Date().toISOString() },
-          ],
-        });
-      }
-      if (path === "/advanced-analytics" || path === "/advanced-analytics/") {
-        return res.json({ data: {} });
-      }
-
-      if (path === "/quotes" && method === "GET") return res.json(REVIEWER_DEMO_QUOTES);
-      if (path.match(/^\/quotes\/[^/]+$/) && method === "GET") {
-        const id = path.split("/")[2];
-        return res.json(REVIEWER_DEMO_QUOTES.find(q => q.id === id) || REVIEWER_DEMO_QUOTES[0]);
-      }
-      if (path === "/quotes" && method === "POST") {
-        const newQuote = { 
-          ...req.body, 
-          id: "demo-q-new-" + Date.now(), 
-          quoteNumber: "D-0043", 
-          totalAmount: req.body.totalTTC || req.body.totalAmount,
-          photos: req.body.photos || [],
-          createdAt: new Date().toISOString(), 
-          updatedAt: new Date().toISOString() 
-        };
-        REVIEWER_DEMO_QUOTES = [newQuote, ...REVIEWER_DEMO_QUOTES];
-        return res.status(201).json(newQuote);
-      }
-      if (path.match(/^\/quotes\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Devis mis à jour" });
-      if (path.match(/^\/quotes\/[^/]+\/status$/) && method === "PATCH") return res.json({ success: true, message: "Statut mis à jour" });
-      if (path.match(/^\/quotes\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Devis supprimé" });
-
-      if (path === "/invoices" && method === "GET") return res.json(REVIEWER_DEMO_INVOICES);
-      if (path.match(/^\/invoices\/[^/]+$/) && method === "GET") {
-        const id = path.split("/")[2];
-        return res.json(REVIEWER_DEMO_INVOICES.find(i => i.id === id) || REVIEWER_DEMO_INVOICES[0]);
-      }
-      if (path === "/invoices" && method === "POST") {
-        const newInvoice = { ...req.body, id: "demo-i-new-" + Date.now(), invoiceNumber: "F-0036", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-        REVIEWER_DEMO_INVOICES = [newInvoice, ...REVIEWER_DEMO_INVOICES];
-        return res.status(201).json(newInvoice);
-      }
-      if (path.match(/^\/invoices\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Facture mise à jour" });
-      if (path.match(/^\/invoices\/[^/]+\/status$/) && method === "PATCH") return res.json({ success: true, message: "Statut mis à jour" });
-      if (path.match(/^\/invoices\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Facture supprimée" });
-
-      if (path === "/reservations" && method === "GET") return res.json(REVIEWER_DEMO_RESERVATIONS);
-      if (path.match(/^\/reservations\/[^/]+$/) && method === "GET") {
-        const id = path.split("/")[2];
-        return res.json(REVIEWER_DEMO_RESERVATIONS.find(r => r.id === id) || REVIEWER_DEMO_RESERVATIONS[0]);
-      }
-      if (path === "/reservations" && method === "POST") return res.status(201).json({ ...req.body, id: "demo-r-new-" + Date.now(), reference: "RDV-2026-019", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-      if (path.match(/^\/reservations\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Réservation mise à jour" });
-      if (path.match(/^\/reservations\/[^/]+\/status$/) && method === "PATCH") return res.json({ success: true, message: "Statut mis à jour" });
-      if (path.match(/^\/reservations\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Réservation supprimée" });
-
-      if (path === "/users" && method === "GET") return res.json(REVIEWER_DEMO_CLIENTS);
-      if (path.match(/^\/users\/[^/]+$/) && method === "GET") {
-        const id = path.split("/")[2];
-        return res.json(REVIEWER_DEMO_CLIENTS.find(c => c.id === id) || REVIEWER_DEMO_CLIENTS[0]);
-      }
-      if (path === "/users" && method === "POST") return res.status(201).json({ ...req.body, id: "demo-c-new-" + Date.now(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-      if (path.match(/^\/users\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Client mis à jour" });
-      if (path.match(/^\/users\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Client supprimé" });
-
-      if (path === "/services" && method === "GET") return res.json(REVIEWER_DEMO_SERVICES);
-      if (path.match(/^\/services\/[^/]+$/) && method === "GET") {
-        const id = path.split("/")[2];
-        return res.json(REVIEWER_DEMO_SERVICES.find(s => s.id === id) || REVIEWER_DEMO_SERVICES[0]);
-      }
-      if (path === "/services" && method === "POST") return res.status(201).json({ ...req.body, id: "demo-s-new-" + Date.now(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-      if (path.match(/^\/services\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Service mis à jour" });
-      if (path.match(/^\/services\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Service supprimé" });
-
-      if (path === "/settings" && method === "GET") return res.json(REVIEWER_USER);
-      if (path === "/settings" && method === "PATCH") return res.json({ success: true, message: "Paramètres mis à jour" });
-
-      return res.json({ success: true, message: "OK" });
-    }
     try {
       const authHeaders: Record<string, string> = {
         "host": new URL(EXTERNAL_API).host,
@@ -1521,28 +1335,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   app.use("/api/mobile/invoices", async (req: Request, res: Response, next: NextFunction) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      const method = req.method;
-      const id = req.url.split("/").filter(Boolean)[0] || "";
-      if (method === "POST") return res.status(201).json({ ...req.body, id: "demo-i-new-" + Date.now(), invoiceNumber: "F-0036", status: req.body?.status || "pending", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-      if (method === "PATCH") return res.json({ ...REVIEWER_DEMO_INVOICES[0], ...req.body, id, updatedAt: new Date().toISOString() });
-      if (method === "DELETE") return res.json({ success: true, message: "Facture supprimée" });
-      return next();
-    }
     return mobileCrudProxy(req, res, "mobile/invoices", ["mobile/admin/invoices", "admin/invoices"]);
   });
 
   app.use("/api/mobile/reservations", async (req: Request, res: Response, next: NextFunction) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      const method = req.method;
-      const id = req.url.split("/").filter(Boolean)[0] || "";
-      if (method === "POST") return res.status(201).json({ ...req.body, id: "demo-r-new-" + Date.now(), reference: "RDV-2026-019", status: req.body?.status || "pending", scheduledDate: req.body?.scheduledDate || new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-      if (method === "PATCH") return res.json({ ...REVIEWER_DEMO_RESERVATIONS[0], ...req.body, id, updatedAt: new Date().toISOString() });
-      if (method === "DELETE") return res.json({ success: true, message: "Réservation supprimée" });
-      return next();
-    }
     return mobileCrudProxy(req, res, "mobile/reservations", ["mobile/admin/reservations", "admin/reservations"]);
   });
 
@@ -1695,48 +1491,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.use("/api/mobile/quotes", async (req: Request, res: Response, next: NextFunction) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      const method = req.method;
-      const parts = req.url.split("/").filter(Boolean);
-      const id = parts[0] || "";
-      const action = parts[1] || "";
-      if (method === "PATCH") return res.json({ ...REVIEWER_DEMO_QUOTES[0], ...req.body, id, updatedAt: new Date().toISOString() });
-      if (method === "DELETE") return res.json({ success: true, message: "Devis supprimé" });
-      if (method === "POST" && action === "convert-to-invoice") {
-        const q = REVIEWER_DEMO_QUOTES.find(q => q.id === id) || REVIEWER_DEMO_QUOTES[0];
-        const newInvoice = {
-          id: "demo-i-new-" + Date.now(),
-          invoiceNumber: "F-0036",
-          clientId: q.clientId,
-          quoteId: q.id,
-          status: "pending",
-          items: q.items,
-          totalHT: "1041.67",
-          totalTTC: q.totalAmount,
-          tvaAmount: "208.33",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        return res.status(201).json(newInvoice);
-      }
-      if (method === "POST" && action === "create-reservation") {
-        const q = REVIEWER_DEMO_QUOTES.find(q => q.id === id) || REVIEWER_DEMO_QUOTES[0];
-        const newReserv = {
-          id: "demo-r-new-" + Date.now(),
-          reference: "RDV-2026-019",
-          clientId: q.clientId,
-          quoteId: q.id,
-          status: "pending",
-          scheduledDate: req.body?.scheduledDate || new Date(Date.now() + 86400000).toISOString(),
-          notes: req.body?.notes || "",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        return res.status(201).json(newReserv);
-      }
-      return next();
-    }
     return mobileCrudProxy(req, res, "mobile/quotes", ["mobile/admin/quotes", "admin/quotes"]);
   });
 
