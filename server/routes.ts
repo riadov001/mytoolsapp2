@@ -671,86 +671,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/quotes/:id/pdf", async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const authHeaders = getAuthHeaders(req);
-    const attempts = [
-      `${EXTERNAL_API}/mobile/admin/quotes/${id}/pdf`,
-      `${EXTERNAL_API}/admin/quotes/${id}/pdf`,
-    ];
+  const fetchPdfOrData = async (
+    attempts: string[],
+    authHeaders: Record<string, string>,
+    label: string,
+    id: string,
+    filePrefix: string,
+    fallbackUrl: string,
+    res: Response
+  ) => {
     for (const url of attempts) {
       try {
         const r = await fetch(url, { headers: { ...authHeaders, "accept": "application/pdf,application/json,*/*" }, redirect: "follow" });
         if (!r.ok) {
-          console.log(`[PDF-QUOTE] ${url} => ${r.status}`);
+          console.log(`[${label}] ${url} => ${r.status}`);
           continue;
         }
         const ct = r.headers.get("content-type") || "";
         if (ct.includes("pdf")) {
-          console.log(`[PDF-QUOTE] ${url} => PDF OK`);
+          console.log(`[${label}] ${url} => PDF binary OK`);
           res.setHeader("content-type", "application/pdf");
-          res.setHeader("content-disposition", `attachment; filename="devis-${id}.pdf"`);
+          res.setHeader("content-disposition", `attachment; filename="${filePrefix}-${id}.pdf"`);
           const buf = await r.arrayBuffer();
           return res.send(Buffer.from(buf));
         }
         const txt = await r.text();
-        if (!txt.includes("<!DOCTYPE")) {
+        if (!txt.includes("<!DOCTYPE") && !txt.includes("<html")) {
           try {
             const parsed = JSON.parse(txt);
-            const pdfUrl = parsed?.url || parsed?.pdfUrl || parsed?.pdf_url;
+            // pdf-data endpoint returns { url } or { pdfUrl } or direct URL fields
+            const pdfUrl = parsed?.url || parsed?.pdfUrl || parsed?.pdf_url || parsed?.documentUrl;
             if (pdfUrl) {
-              console.log(`[PDF-QUOTE] ${url} => redirect to ${pdfUrl}`);
+              console.log(`[${label}] ${url} => PDF URL: ${pdfUrl}`);
               return res.json({ url: pdfUrl });
             }
           } catch {}
         }
       } catch (e) {
-        console.log(`[PDF-QUOTE] ${url} => error: ${(e as any).message}`);
+        console.log(`[${label}] ${url} => error: ${(e as any).message}`);
       }
     }
-    console.log(`[PDF-QUOTE] API failed, returning fallback for quote ${id}`);
-    return res.json({ url: `${EXTERNAL_API}/public/quotes/${id}/pdf` });
+    console.log(`[${label}] All attempts failed, returning public fallback for ${id}`);
+    return res.json({ url: fallbackUrl });
+  };
+
+  app.get("/api/quotes/:id/pdf", async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const authHeaders = getAuthHeaders(req);
+    return fetchPdfOrData(
+      [
+        `${EXTERNAL_API}/mobile/admin/quotes/${id}/pdf`,
+        `${EXTERNAL_API}/mobile/quotes/${id}/pdf`,
+        `${EXTERNAL_API}/admin/quotes/${id}/pdf`,
+      ],
+      authHeaders,
+      "PDF-QUOTE",
+      id,
+      "devis",
+      `${EXTERNAL_API}/public/quotes/${id}/pdf`,
+      res
+    );
   });
 
   app.get("/api/invoices/:id/pdf", async (req: Request, res: Response) => {
     const { id } = req.params;
     const authHeaders = getAuthHeaders(req);
-    const attempts = [
-      `${EXTERNAL_API}/mobile/admin/invoices/${id}/pdf`,
-      `${EXTERNAL_API}/admin/invoices/${id}/pdf`,
-    ];
-    for (const url of attempts) {
-      try {
-        const r = await fetch(url, { headers: { ...authHeaders, "accept": "application/pdf,application/json,*/*" }, redirect: "follow" });
-        if (!r.ok) {
-          console.log(`[PDF-INVOICE] ${url} => ${r.status}`);
-          continue;
-        }
-        const ct = r.headers.get("content-type") || "";
-        if (ct.includes("pdf")) {
-          console.log(`[PDF-INVOICE] ${url} => PDF OK`);
-          res.setHeader("content-type", "application/pdf");
-          res.setHeader("content-disposition", `attachment; filename="facture-${id}.pdf"`);
-          const buf = await r.arrayBuffer();
-          return res.send(Buffer.from(buf));
-        }
-        const txt = await r.text();
-        if (!txt.includes("<!DOCTYPE")) {
-          try {
-            const parsed = JSON.parse(txt);
-            const pdfUrl = parsed?.url || parsed?.pdfUrl || parsed?.pdf_url;
-            if (pdfUrl) {
-              console.log(`[PDF-INVOICE] ${url} => redirect to ${pdfUrl}`);
-              return res.json({ url: pdfUrl });
-            }
-          } catch {}
-        }
-      } catch (e) {
-        console.log(`[PDF-INVOICE] ${url} => error: ${(e as any).message}`);
-      }
-    }
-    console.log(`[PDF-INVOICE] API failed, returning fallback for invoice ${id}`);
-    return res.json({ url: `${EXTERNAL_API}/public/invoices/${id}/pdf` });
+    return fetchPdfOrData(
+      [
+        `${EXTERNAL_API}/mobile/invoices/${id}/pdf-data`,
+        `${EXTERNAL_API}/mobile/admin/invoices/${id}/pdf-data`,
+        `${EXTERNAL_API}/mobile/admin/invoices/${id}/pdf`,
+        `${EXTERNAL_API}/mobile/invoices/${id}/pdf`,
+        `${EXTERNAL_API}/admin/invoices/${id}/pdf`,
+      ],
+      authHeaders,
+      "PDF-INVOICE",
+      id,
+      "facture",
+      `${EXTERNAL_API}/public/invoices/${id}/pdf`,
+      res
+    );
   });
 
   app.get("/api/admin/reservations/:id/services", async (req: Request, res: Response) => {
@@ -1190,8 +1190,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
 
     for (const url of [
-      `${EXTERNAL_API}/admin/quotes/${id}/convert-to-invoice`,
+      `${EXTERNAL_API}/mobile/quotes/${id}/convert-to-invoice`,
       `${EXTERNAL_API}/mobile/admin/quotes/${id}/convert-to-invoice`,
+      `${EXTERNAL_API}/admin/quotes/${id}/convert-to-invoice`,
     ]) {
       const result = await tryUrl(url);
       if (result) return res.status(201).json(result);
@@ -1201,7 +1202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log(`[ADMIN-CONVERT] API failed, fetching quote ${id} for local conversion`);
     
     try {
-      const quoteSegments = ["admin/quotes", "mobile/admin/quotes", "mobile/quotes"];
+      const quoteSegments = ["mobile/admin/quotes", "mobile/quotes", "admin/quotes"];
       let quoteData: any = null;
       
       for (const seg of quoteSegments) {
@@ -1447,19 +1448,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const adminUrl = `${EXTERNAL_API}/admin${req.url}`;
       const mobileUrl = `${EXTERNAL_API}/mobile/admin${req.url}`;
 
-      // Toujours essayer /admin/ en premier, puis /mobile/admin/ en fallback
-      let result = await tryUrl(adminUrl);
+      // Toujours essayer /mobile/admin/ en premier (spec API), puis /admin/ en fallback
+      let result = await tryUrl(mobileUrl);
 
       if (!result) {
-        result = await tryUrl(mobileUrl);
-        if (result) console.log(`[MOBILE-ADMIN] ${req.method} /mobile/admin${req.url} => ${result.status} (mobile fallback)`);
+        result = await tryUrl(adminUrl);
+        if (result) console.log(`[MOBILE-ADMIN] ${req.method} /admin${req.url} => ${result.status} (legacy fallback)`);
       } else {
-        console.log(`[MOBILE-ADMIN] ${req.method} /admin${req.url} => ${result.status}`);
-        // Si la route admin retourne une erreur 4xx, tenter /mobile/admin/ comme fallback
+        console.log(`[MOBILE-ADMIN] ${req.method} /mobile/admin${req.url} => ${result.status}`);
+        // Si la route mobile retourne une erreur 4xx, tenter /admin/ comme fallback
         if (result.status >= 400) {
-          const fallback = await tryUrl(mobileUrl);
+          const fallback = await tryUrl(adminUrl);
           if (fallback && fallback.status < result.status) {
-            console.log(`[MOBILE-ADMIN] ${req.method} /mobile/admin${req.url} => ${fallback.status} (mobile fallback, better than ${result.status})`);
+            console.log(`[MOBILE-ADMIN] ${req.method} /admin${req.url} => ${fallback.status} (legacy fallback, better than ${result.status})`);
             result = fallback;
           }
         }
@@ -1666,11 +1667,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   app.use("/api/invoices", async (req: Request, res: Response, next: NextFunction) => {
-    return mobileCrudProxy(req, res, "mobile/invoices", ["admin/invoices", "mobile/admin/invoices"]);
+    return mobileCrudProxy(req, res, "mobile/invoices", ["mobile/admin/invoices", "admin/invoices"]);
   });
 
   app.use("/api/reservations", async (req: Request, res: Response, next: NextFunction) => {
-    return mobileCrudProxy(req, res, "mobile/reservations", ["admin/reservations", "mobile/admin/reservations"]);
+    return mobileCrudProxy(req, res, "mobile/reservations", ["mobile/admin/reservations", "admin/reservations"]);
   });
 
   app.post("/api/quotes/:id/convert-to-invoice", async (req: Request, res: Response) => {
@@ -1706,8 +1707,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
 
     for (const url of [
-      `${EXTERNAL_API}/admin/quotes/${id}/convert-to-invoice`,
+      `${EXTERNAL_API}/mobile/quotes/${id}/convert-to-invoice`,
       `${EXTERNAL_API}/mobile/admin/quotes/${id}/convert-to-invoice`,
+      `${EXTERNAL_API}/admin/quotes/${id}/convert-to-invoice`,
     ]) {
       const result = await tryUrl(url);
       if (result) return res.status(201).json(result);
@@ -1716,7 +1718,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log(`[CONVERT-INVOICE] API failed, creating invoice locally from quote data`);
 
     try {
-      const quoteSegments = ["mobile/admin/quotes", "admin/quotes", "mobile/quotes"];
+      const quoteSegments = ["mobile/admin/quotes", "mobile/quotes", "admin/quotes"];
       let quoteData: any = null;
       for (const seg of quoteSegments) {
         try {
@@ -1828,7 +1830,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.use("/api/quotes", async (req: Request, res: Response, next: NextFunction) => {
-    return mobileCrudProxy(req, res, "mobile/quotes", ["admin/quotes", "mobile/admin/quotes"]);
+    return mobileCrudProxy(req, res, "mobile/quotes", ["mobile/admin/quotes", "admin/quotes"]);
   });
 
   app.get("/api/auth/me", async (req: Request, res: Response) => {
