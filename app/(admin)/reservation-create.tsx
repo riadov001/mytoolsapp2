@@ -60,6 +60,12 @@ export default function ReservationCreateScreen() {
 
   useEffect(() => {
     if (!isEditMode || editLoaded || !editReservation) return;
+    const st = (editReservation.status || "").toLowerCase();
+    if (st === "completed" || st === "cancelled") {
+      setEditLoaded(true);
+      showAlert({ type: "warning", title: "Modification impossible", message: "Ce rendez-vous est terminé ou annulé.", buttons: [{ text: "OK", style: "primary", onPress: () => router.back() }] });
+      return;
+    }
     if (editReservation.clientId) setSelectedClientId(String(editReservation.clientId));
     if (editReservation.notes) setNotes(editReservation.notes);
     if (editReservation.quoteId) {

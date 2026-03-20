@@ -81,6 +81,30 @@ export default function AdminInvoicesScreen() {
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => adminInvoices.updateStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-analytics"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (err: any) => {
+      showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible de mettre à jour le statut.", buttons: [{ text: "OK", style: "primary" }] });
+    },
+  });
+
+  const confirmMarkPaid = (id: string, label: string) => {
+    showAlert({
+      type: "info",
+      title: "Marquer comme payée ?",
+      message: `La facture ${label} sera marquée comme payée.`,
+      buttons: [
+        { text: "Annuler" },
+        { text: "Confirmer", style: "primary", onPress: () => statusMutation.mutate({ id, status: "paid" }) },
+      ],
+    });
+  };
+
   const confirmDelete = (id: string, label: string) => {
     showAlert({
       type: "warning",
@@ -156,7 +180,7 @@ export default function AdminInvoicesScreen() {
             <View style={styles.cardActions}>
               <Pressable
                 style={[styles.actionBtn, { backgroundColor: "#22C55E20" }]}
-                onPress={() => {}}
+                onPress={() => confirmMarkPaid(String(item.id), item.invoiceNumber || item.reference || "")}
                 accessibilityLabel="Marquer payée"
               >
                 <Ionicons name="checkmark" size={16} color="#22C55E" />
@@ -166,7 +190,7 @@ export default function AdminInvoicesScreen() {
         </View>
       </Pressable>
     );
-  }, [theme, isAdmin, clientMap]);
+  }, [theme, isAdmin, clientMap, confirmMarkPaid]);
 
   return (
     <View style={styles.container}>

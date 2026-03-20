@@ -178,19 +178,21 @@ export default function AdminClientsScreen() {
         />
       )}
       {AlertComponent}
-      <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
-        <Pressable
-          style={({ pressed }) => [
-            styles.fab,
-            { bottom: Platform.OS === "web" ? 34 + 130 : insets.bottom + 130 },
-            pressed && styles.fabPressed,
-          ]}
-          onPress={() => router.push("/(admin)/client-form" as any)}
-          accessibilityLabel="Nouveau client"
-        >
-          <Ionicons name="add" size={26} color="#fff" />
-        </Pressable>
-      </View>
+      {isAdmin && (
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+          <Pressable
+            style={({ pressed }) => [
+              styles.fab,
+              { bottom: Platform.OS === "web" ? 34 + 130 : insets.bottom + 130 },
+              pressed && styles.fabPressed,
+            ]}
+            onPress={() => router.push("/(admin)/client-form" as any)}
+            accessibilityLabel="Nouveau client"
+          >
+            <Ionicons name="add" size={26} color="#fff" />
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }

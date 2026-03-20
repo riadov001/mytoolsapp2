@@ -251,18 +251,6 @@ export async function adminLogin(email: string, password: string) {
     }
   }
 
-  try {
-    const cookieRes = await fetchWithRetry(`${API_BASE}/api/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
-      body: JSON.stringify({ email, password }),
-    });
-    const xCookie = cookieRes.headers.get("x-session-cookie");
-    if (xCookie) {
-      setSessionCookie(xCookie);
-    }
-  } catch {}
-
   return { user, accessToken: data.accessToken || null, refreshToken: data.refreshToken || null };
 }
 

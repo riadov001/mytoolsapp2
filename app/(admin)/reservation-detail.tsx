@@ -43,7 +43,6 @@ function fmtTime(val: string | null | undefined): string {
   if (isNaN(d.getTime())) return "";
   const h = d.getHours();
   const m = d.getMinutes();
-  if (h === 0 && m === 0) return "";
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
