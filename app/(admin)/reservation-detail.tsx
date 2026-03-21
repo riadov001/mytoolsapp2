@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform, ActivityIndicator,
 } from "react-native";
@@ -6,9 +6,11 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as Calendar from "expo-calendar";
 import { adminReservations, adminClients, adminQuotes, adminServices } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
+import { useCustomAlert } from "@/components/CustomAlert";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "En attente", confirmed: "Confirmé", cancelled: "Annulé",
@@ -54,6 +56,7 @@ export default function ReservationDetailScreen() {
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
   const queryClient = useQueryClient();
+  const { showAlert, AlertComponent } = useCustomAlert();
 
   const { data: r, isLoading, error } = useQuery({
     queryKey: ["admin-reservation", id],
@@ -96,6 +99,69 @@ export default function ReservationDetailScreen() {
     retry: 0,
     staleTime: 5 * 60 * 1000,
   });
+
+  const [addingToCalendar, setAddingToCalendar] = useState(false);
+
+  const handleAddToCalendar = async () => {
+    if (Platform.OS === "web") {
+      showAlert({
+        type: "info",
+        title: "Calendrier",
+        message: "L'ajout au calendrier n'est pas disponible sur navigateur.",
+        buttons: [{ text: "OK" }],
+      });
+      return;
+    }
+    setAddingToCalendar(true);
+    try {
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+      if (status !== "granted") {
+        showAlert({
+          type: "warning",
+          title: "Permission refusée",
+          message: "Veuillez autoriser l'accès au calendrier dans les paramètres.",
+          buttons: [{ text: "OK" }],
+        });
+        setAddingToCalendar(false);
+        return;
+      }
+      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+      const defaultCalendar = calendars.find((c) => c.allowsModifications) || calendars[0];
+      if (!defaultCalendar) {
+        showAlert({ type: "error", title: "Erreur", message: "Aucun calendrier disponible.", buttons: [{ text: "OK" }] });
+        setAddingToCalendar(false);
+        return;
+      }
+      const dateStr = r?.scheduledDate || r?.reservationDate || r?.date;
+      const eventStart = dateStr ? new Date(dateStr) : new Date();
+      const eventEnd = new Date(eventStart.getTime() + 2 * 60 * 60 * 1000);
+      const title = linkedService?.name
+        ? `MyTools — ${linkedService.name}`
+        : `MyTools — Rendez-vous ${r?.reference || ""}`;
+      const notes = [
+        linkedService?.name ? `Service : ${linkedService.name}` : null,
+        r?.notes ? `Notes : ${r.notes}` : null,
+      ].filter(Boolean).join("\n");
+      await Calendar.createEventAsync(defaultCalendar.id, {
+        title,
+        startDate: eventStart,
+        endDate: eventEnd,
+        notes: notes || undefined,
+        alarms: [{ relativeOffset: -60 }, { relativeOffset: -1440 }],
+      });
+      showAlert({
+        type: "success",
+        title: "Ajouté au calendrier",
+        message: "Le rendez-vous a été ajouté à votre calendrier avec des rappels.",
+        buttons: [{ text: "OK" }],
+      });
+    } catch (err: any) {
+      console.error("[CALENDAR] error:", err.message);
+      showAlert({ type: "error", title: "Erreur", message: "Impossible d'ajouter au calendrier.", buttons: [{ text: "OK" }] });
+    } finally {
+      setAddingToCalendar(false);
+    }
+  };
 
   const clientMap = useMemo(() => {
     const map: Record<string, any> = {};
@@ -347,15 +413,34 @@ export default function ReservationDetailScreen() {
         ) : null}
 
         {statusKey !== "completed" && statusKey !== "cancelled" && (
-          <Pressable
-            style={styles.editBtn}
-            onPress={() => router.push({ pathname: "/(admin)/reservation-create", params: { editId: id } } as any)}
-          >
-            <Ionicons name="create-outline" size={18} color="#fff" />
-            <Text style={styles.editBtnText}>Modifier le rendez-vous</Text>
-          </Pressable>
+          <>
+            {dateStr && (
+              <Pressable
+                style={({ pressed }) => [styles.calendarBtn, pressed && { opacity: 0.8 }]}
+                onPress={handleAddToCalendar}
+                disabled={addingToCalendar}
+              >
+                {addingToCalendar ? (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                ) : (
+                  <>
+                    <Ionicons name="calendar-outline" size={18} color={theme.primary} />
+                    <Text style={styles.calendarBtnText}>Ajouter au calendrier</Text>
+                  </>
+                )}
+              </Pressable>
+            )}
+            <Pressable
+              style={styles.editBtn}
+              onPress={() => router.push({ pathname: "/(admin)/reservation-create", params: { editId: id } } as any)}
+            >
+              <Ionicons name="create-outline" size={18} color="#fff" />
+              <Text style={styles.editBtnText}>Modifier le rendez-vous</Text>
+            </Pressable>
+          </>
         )}
       </ScrollView>
+      {AlertComponent}
     </View>
   );
 }
@@ -390,6 +475,12 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   serviceChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   serviceChipText: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textSecondary },
   serviceRow: { paddingTop: 4 },
+  calendarBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    borderRadius: 14, height: 54, marginBottom: 8,
+    borderWidth: 1, borderColor: theme.primary, backgroundColor: theme.surface,
+  },
+  calendarBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.primary },
   editBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     backgroundColor: theme.primary, borderRadius: 14, height: 54, marginTop: 4,
