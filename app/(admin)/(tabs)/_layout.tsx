@@ -10,6 +10,7 @@ import * as Haptics from "expo-haptics";
 
 function CreateModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
 
   const options = [
     {
@@ -57,29 +58,29 @@ function CreateModal({ visible, onClose }: { visible: boolean; onClose: () => vo
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-        <View style={styles.sheetHandle} />
-        <Text style={styles.sheetTitle}>Créer</Text>
-        <View style={styles.sheetOptions}>
+      <TouchableOpacity style={modalStyles(theme).overlay} activeOpacity={1} onPress={onClose} />
+      <View style={[modalStyles(theme).sheet, { paddingBottom: Math.max(insets.bottom, 28) }]}>
+        <View style={modalStyles(theme).sheetHandle} />
+        <Text style={modalStyles(theme).sheetTitle}>Créer</Text>
+        <View style={modalStyles(theme).sheetOptions}>
           {options.map((opt) => (
             <Pressable
               key={opt.label}
-              style={({ pressed }) => [styles.optionRow, pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [modalStyles(theme).optionRow, pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }]}
               onPress={() => {
                 Haptics.selectionAsync();
                 onClose();
                 setTimeout(() => router.push(opt.route as any), 150);
               }}
             >
-              <View style={[styles.optionIcon, { backgroundColor: opt.color + "22" }]}>
+              <View style={[modalStyles(theme).optionIcon, { backgroundColor: opt.color + "18" }]}>
                 <Ionicons name={opt.icon} size={22} color={opt.color} />
               </View>
-              <View style={styles.optionText}>
-                <Text style={styles.optionLabel}>{opt.label}</Text>
-                <Text style={styles.optionSub}>{opt.sub}</Text>
+              <View style={modalStyles(theme).optionText}>
+                <Text style={modalStyles(theme).optionLabel}>{opt.label}</Text>
+                <Text style={modalStyles(theme).optionSub}>{opt.sub}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#6B7280" />
+              <Ionicons name="chevron-forward" size={16} color={theme.textTertiary} />
             </Pressable>
           ))}
         </View>
@@ -195,6 +196,77 @@ export default function AdminTabLayout() {
   );
 }
 
+const modalStyles = (theme: any) => StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.isDark ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.45)",
+  },
+  sheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: theme.isDark ? theme.surfaceSecondary : theme.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 16,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: theme.isDark ? theme.border : "#D4D4D8",
+    borderRadius: 3,
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  sheetTitle: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: theme.text,
+    marginBottom: 16,
+    marginLeft: 2,
+  },
+  sheetOptions: {
+    gap: 8,
+    marginBottom: 8,
+  },
+  optionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: theme.isDark ? theme.surfaceElevated : theme.background,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: theme.isDark ? theme.border : "#F0F0F2",
+  },
+  optionIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  optionText: { flex: 1 },
+  optionLabel: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: theme.text,
+  },
+  optionSub: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: theme.textSecondary,
+    marginTop: 2,
+  },
+});
+
 const styles = StyleSheet.create({
   plusWrapper: {
     flex: 1,
@@ -212,67 +284,7 @@ const styles = StyleSheet.create({
     shadowColor: "#DC2626",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.45,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#1C1C1E",
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-  },
-  sheetHandle: {
-    width: 38,
-    height: 4,
-    backgroundColor: "#48484A",
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 18,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    color: "#fff",
-    marginBottom: 14,
-  },
-  sheetOptions: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  optionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#2C2C2E",
-    borderRadius: 14,
-    padding: 12,
-  },
-  optionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  optionText: { flex: 1 },
-  optionLabel: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: "#fff",
-  },
-  optionSub: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    color: "#9CA3AF",
-    marginTop: 2,
+    shadowRadius: 12,
+    elevation: 10,
   },
 });

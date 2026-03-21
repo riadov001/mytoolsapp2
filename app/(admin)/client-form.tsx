@@ -242,19 +242,44 @@ export default function ClientFormScreen() {
 
 const getStyles = (theme: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.border },
-  backBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
-  headerTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", color: theme.text },
-  scroll: { paddingHorizontal: 16, paddingTop: 16, gap: 6 },
-  sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: theme.text, marginTop: 16 },
-  label: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: theme.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8 },
-  input: { backgroundColor: theme.surface, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 14, height: 48, fontSize: 15, fontFamily: "Inter_400Regular", color: theme.text },
-  roleRow: { flexDirection: "row", gap: 10, marginTop: 4 },
-  roleChip: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, alignItems: "center" },
+  header: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingBottom: 14,
+    borderBottomWidth: 1, borderBottomColor: theme.border,
+  },
+  backBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: "center", alignItems: "center" },
+  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: theme.text },
+  scroll: { paddingHorizontal: 20, paddingTop: 20, gap: 4 },
+  sectionTitle: {
+    fontSize: 15, fontFamily: "Inter_700Bold", color: theme.text,
+    marginTop: 24, marginBottom: 4, paddingBottom: 8,
+    borderBottomWidth: 1, borderBottomColor: theme.border,
+  },
+  label: {
+    fontSize: 12, fontFamily: "Inter_600SemiBold", color: theme.textTertiary,
+    textTransform: "uppercase", letterSpacing: 0.6, marginTop: 14, marginBottom: 6,
+  },
+  input: {
+    backgroundColor: theme.inputBg || theme.surface, borderRadius: 12, borderWidth: 1.5,
+    borderColor: theme.inputBorder || theme.border, paddingHorizontal: 16, height: 52,
+    fontSize: 15, fontFamily: "Inter_400Regular", color: theme.text,
+  },
+  roleRow: { flexDirection: "row", gap: 10, marginTop: 6 },
+  roleChip: {
+    flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5,
+    borderColor: theme.border, backgroundColor: theme.surface, alignItems: "center",
+  },
   roleChipText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.textSecondary },
-  row: { flexDirection: "row", gap: 10 },
+  row: { flexDirection: "row", gap: 12 },
   phoneRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  callBtn: { width: 48, height: 48, borderRadius: 12, justifyContent: "center", alignItems: "center" },
-  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.primary, borderRadius: 14, height: 52, marginTop: 24 },
-  saveBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  callBtn: {
+    width: 52, height: 52, borderRadius: 14, justifyContent: "center", alignItems: "center",
+    shadowColor: theme.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 4,
+  },
+  saveBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    backgroundColor: theme.primary, borderRadius: 16, height: 56, marginTop: 32,
+    shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 6,
+  },
+  saveBtnText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
 });
