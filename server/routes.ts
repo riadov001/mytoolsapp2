@@ -1,6 +1,9 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "node:http";
 import pg from "pg";
+import path from "node:path";
+import fs from "node:fs";
+import Busboy from "busboy";
 
 const EXTERNAL_API = "https://saas3.mytoolsgroup.eu/api";
 console.log(`[CONFIG] External API: ${EXTERNAL_API}`);
@@ -29,6 +32,13 @@ async function initDatabase() {
         items JSONB,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS document_photos (
+        id SERIAL PRIMARY KEY,
+        doc_id TEXT NOT NULL,
+        doc_type TEXT NOT NULL,
+        photo_uri TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS quote_responses (
         id SERIAL PRIMARY KEY,
@@ -1015,6 +1025,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+  app.use("/uploads", (await import("express")).default.static(uploadsDir));
+
+  function parseMultipartFiles(rawBody: Buffer, contentType: string): Promise<Array<{ filename: string; savedPath: string }>> {
+    return new Promise((resolve, reject) => {
+      const savedFiles: Array<{ filename: string; savedPath: string }> = [];
+      const bb = Busboy({ headers: { "content-type": contentType } });
+
+      bb.on("file", (_fieldname: string, fileStream: any, info: any) => {
+        const origName = info.filename || "photo.jpg";
+        const unique = Date.now() + "-" + Math.random().toString(36).substring(2, 9);
+        const ext = path.extname(origName) || ".jpg";
+        const diskName = `${unique}${ext}`;
+        const diskPath = path.join(uploadsDir, diskName);
+        const writeStream = fs.createWriteStream(diskPath);
+        fileStream.pipe(writeStream);
+        writeStream.on("finish", () => {
+          savedFiles.push({ filename: diskName, savedPath: diskPath });
+        });
+      });
+
+      bb.on("finish", () => {
+        setTimeout(() => resolve(savedFiles), 100);
+      });
+      bb.on("error", reject);
+      bb.end(rawBody);
+    });
+  }
+
+  app.post("/api/admin/:docType(quotes|invoices)/:docId/media", async (req: Request, res: Response) => {
+    const { docType, docId } = req.params;
+    const type = docType === "quotes" ? "quote" : "invoice";
+    const rawBody = (req as any).rawBody as Buffer;
+    const ct = req.headers["content-type"] || "";
+
+    if (!rawBody || !ct.includes("multipart")) {
+      return res.status(400).json({ message: "Aucun fichier reçu" });
+    }
+
+    let savedFiles: Array<{ filename: string; savedPath: string }> = [];
+    try {
+      savedFiles = await parseMultipartFiles(rawBody, ct);
+    } catch (e: any) {
+      console.warn("[PHOTOS] Parse error:", e.message);
+    }
+
+    const protocol = req.headers["x-forwarded-proto"] || "https";
+    const host = req.headers["host"] || "localhost:5000";
+    const baseUrl = `${protocol}://${host}`;
+
+    const savedUrls: string[] = [];
+    for (const file of savedFiles) {
+      const publicUrl = `${baseUrl}/uploads/${file.filename}`;
+      savedUrls.push(publicUrl);
+      try {
+        await pool.query(
+          "INSERT INTO document_photos (doc_id, doc_type, photo_uri) VALUES ($1, $2, $3)",
+          [docId, type, publicUrl]
+        );
+      } catch (e: any) {
+        console.warn("[PHOTOS] DB save failed:", e.message);
+      }
+    }
+    console.log(`[PHOTOS] Saved ${savedUrls.length} photos for ${type} ${docId}: ${savedUrls.join(", ")}`);
+
+    const authHeaders: Record<string, string> = {
+      "host": new URL(EXTERNAL_API).host,
+      "accept": "application/json",
+      "x-requested-with": "XMLHttpRequest",
+    };
+    if (req.headers["authorization"]) authHeaders["authorization"] = req.headers["authorization"] as string;
+    if (req.headers["cookie"]) authHeaders["cookie"] = req.headers["cookie"] as string;
+    authHeaders["content-type"] = ct;
+
+    try {
+      const mobileUrl = `${EXTERNAL_API}/mobile/admin/${docType}/${docId}/media`;
+      const r = await fetch(mobileUrl, { method: "POST", headers: authHeaders, body: rawBody, redirect: "manual" });
+      const txt = await r.text();
+      if (!txt.includes("<!DOCTYPE")) {
+        console.log(`[PHOTOS] External API response: ${r.status} ${txt.substring(0, 200)}`);
+      }
+    } catch (e: any) {
+      console.log(`[PHOTOS] External API forward failed (non-blocking): ${e.message}`);
+    }
+
+    return res.json({ success: true, photos: savedUrls });
+  });
+
   app.use("/api/admin", async (req: Request, res: Response, next: NextFunction) => {
     try {
       const authHeaders: Record<string, string> = {
@@ -1217,7 +1317,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 console.log(`[ENRICH] Injected ${localItems.length} local items for ${item.id}`);
               }
 
-              if (enriched._localAmounts || enriched._localItems) return enriched;
+              if (enriched._localAmounts || enriched._localItems) {
+                try {
+                  const photoRows = await pool.query("SELECT photo_uri FROM document_photos WHERE doc_id=$1 ORDER BY created_at", [item.id]);
+                  if (photoRows.rows.length > 0) {
+                    const photoUrls = photoRows.rows.map((r: any) => r.photo_uri);
+                    enriched.photos = photoUrls;
+                    enriched.mediaUrls = photoUrls;
+                  }
+                } catch {}
+                return enriched;
+              }
+            }
+          } catch {}
+
+          // Injecter les photos locales même si les montants viennent de l'API
+          try {
+            const photoRows = await pool.query("SELECT photo_uri FROM document_photos WHERE doc_id=$1 ORDER BY created_at", [item.id]);
+            if (photoRows.rows.length > 0) {
+              const photoUrls = photoRows.rows.map((r: any) => r.photo_uri);
+              const existingPhotos: string[] = item.requestDetails?.mediaUrls || item.photos || item.mediaUrls || [];
+              if (existingPhotos.length === 0) {
+                item = { ...item, photos: photoUrls, mediaUrls: photoUrls };
+              }
             }
           } catch {}
 
