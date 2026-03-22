@@ -26,7 +26,14 @@
         "NSPhotoLibraryAddUsageDescription": "MyTools Admin peut enregistrer des photos dans votre bibliothèque.",
         "NSCalendarsUsageDescription": "MyTools synchronise vos rendez-vous avec votre calendrier natif.",
         "ITSAppUsesNonExemptEncryption": "NO",
-        "NSUserNotificationsUsageDescription": "MyTools vous envoie des notifications pour les mises à jour de devis, nouvelles factures et rappels de rendez-vous."
+        "NSUserNotificationsUsageDescription": "MyTools vous envoie des notifications pour les mises à jour de devis, nouvelles factures et rappels de rendez-vous.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -54,6 +61,7 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
+      "expo-apple-authentication",
       [
         "expo-notifications",
         {
