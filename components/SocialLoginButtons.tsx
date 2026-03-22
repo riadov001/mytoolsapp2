@@ -30,6 +30,14 @@ if (Platform.OS === "ios") {
 function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps) {
   const [loading, setLoading] = useState<string | null>(null);
 
+  // Pre-warm firebase/auth import on web so signInWithPopup is called synchronously
+  // after user gesture (avoids popup blocker issues)
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      import("firebase/auth").catch(() => {});
+    }
+  }, []);
+
   const Google = require("expo-auth-session/providers/google");
 
   const redirectUri = makeRedirectUri({

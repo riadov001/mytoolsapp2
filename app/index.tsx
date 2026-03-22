@@ -36,7 +36,9 @@ export default function IndexScreen() {
     }
   }, [isLoading, isAuthenticated, isAdminOrEmployee]);
 
-  if (!isLoading && isAuthenticated && !isAdminOrEmployee) {
+  // Social/client users (uid present = social login) are allowed in /(main)
+  const isSocialUser = !!(user as any)?.uid;
+  if (!isLoading && isAuthenticated && !isAdminOrEmployee && !isSocialUser) {
     return (
       <View style={[styles.deniedContainer, { paddingTop: Platform.OS === "web" ? 67 : insets.top, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom }]}>
         <View style={styles.deniedCard}>

@@ -1,13 +1,16 @@
-// Load DEV_SECRETS_KEYS JSON config for development
+// Load DEV_SECRETS_KEYS JSON config for development (only override if value is non-empty)
 if (typeof window !== "undefined") {
   try {
     const secretsJson = process.env.DEV_SECRETS_KEYS || "{}";
     const secrets = JSON.parse(secretsJson);
-    process.env.EXPO_PUBLIC_FIREBASE_API_KEY = secrets.EXPO_PUBLIC_FIREBASE_API_KEY || secrets.GOOGLE_API_KEY_2 || "";
-    process.env.EXPO_PUBLIC_FIREBASE_APP_ID = secrets.EXPO_PUBLIC_FIREBASE_APP_ID || "";
-    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "";
-  } catch (e) {
-    // Ignore parse errors
+    const apiKey = secrets.EXPO_PUBLIC_FIREBASE_API_KEY || secrets.GOOGLE_API_KEY_2;
+    const appId = secrets.EXPO_PUBLIC_FIREBASE_APP_ID;
+    const clientId = secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+    if (apiKey) process.env.EXPO_PUBLIC_FIREBASE_API_KEY = apiKey;
+    if (appId) process.env.EXPO_PUBLIC_FIREBASE_APP_ID = appId;
+    if (clientId) process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = clientId;
+  } catch {
+    // Ignore parse errors — EXPO_PUBLIC_ vars already set via Replit secrets
   }
 }
 
@@ -33,16 +36,6 @@ import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 
 SplashScreen.preventAutoHideAsync();
-
-// Debug: Check Firebase env vars
-if (typeof window !== "undefined") {
-  console.log("[DEBUG] Firebase env vars on web:", {
-    apiKey: !!process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-    projectId: !!process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-    appId: !!process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-    googleClientId: !!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  });
-}
 
 // Suppress uncaught font-loading timeout errors (FontFaceObserver)
 if (typeof window !== "undefined") {
