@@ -192,8 +192,9 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
     ...(Platform.OS === "ios"
       ? [{ key: "apple", label: "Apple", icon: "logo-apple" as const, color: "#fff", onPress: handleApple }]
       : []),
-    { key: "facebook", label: "Facebook", icon: "logo-facebook" as const, color: "#1877F2", onPress: handleFacebook },
-    { key: "twitter", label: "Twitter / X", icon: "logo-twitter" as const, color: "#1DA1F2", onPress: handleTwitter },
+    // Facebook et Twitter configurés mais masqués pour plus tard
+    // { key: "facebook", label: "Facebook", icon: "logo-facebook" as const, color: "#1877F2", onPress: handleFacebook },
+    // { key: "twitter", label: "Twitter / X", icon: "logo-twitter" as const, color: "#1DA1F2", onPress: handleTwitter },
   ];
 
   return (
