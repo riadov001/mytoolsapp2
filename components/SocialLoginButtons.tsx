@@ -231,7 +231,10 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
 
 // ── Outer component: guard — no hooks from providers run if not configured ──
 export function SocialLoginButtons(props: SocialLoginButtonsProps) {
-  if (!isFirebaseConfigured()) {
+  // On web, env vars might not be available yet during build. Show buttons anyway.
+  const isConfigured = isFirebaseConfigured();
+  
+  if (!isConfigured && Platform.OS !== "web") {
     return (
       <View style={styles.notConfigured}>
         <Ionicons name="information-circle-outline" size={14} color="#888" />
@@ -241,6 +244,7 @@ export function SocialLoginButtons(props: SocialLoginButtonsProps) {
       </View>
     );
   }
+  
   return <SocialLoginButtonsInner {...props} />;
 }
 

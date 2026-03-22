@@ -6,11 +6,20 @@ let firebaseAuth: any = null;
 let initAttempted = false;
 
 export function isFirebaseConfigured(): boolean {
-  return !!(
-    process.env.EXPO_PUBLIC_FIREBASE_API_KEY &&
-    process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID &&
-    process.env.EXPO_PUBLIC_FIREBASE_APP_ID
-  );
+  const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
+  const projectId = process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+  const appId = process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
+  
+  if (!apiKey || !projectId || !appId) {
+    console.log("[Firebase] Missing config:", {
+      apiKey: !!apiKey,
+      projectId: !!projectId,
+      appId: !!appId,
+    });
+    return false;
+  }
+  
+  return true;
 }
 
 export function getFirebaseAuth() {

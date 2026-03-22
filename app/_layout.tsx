@@ -21,6 +21,16 @@ import { ThemeProvider, useTheme } from "@/lib/theme";
 
 SplashScreen.preventAutoHideAsync();
 
+// Debug: Check Firebase env vars
+if (typeof window !== "undefined") {
+  console.log("[DEBUG] Firebase env vars on web:", {
+    apiKey: !!process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    projectId: !!process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+    appId: !!process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+    googleClientId: !!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  });
+}
+
 // Suppress uncaught font-loading timeout errors (FontFaceObserver)
 if (typeof window !== "undefined") {
   window.addEventListener("unhandledrejection", (event) => {
