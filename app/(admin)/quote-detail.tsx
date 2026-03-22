@@ -317,9 +317,9 @@ export default function QuoteDetailScreen() {
             <Text style={styles.sectionTitle}>Prestations ({items.length})</Text>
             {items.map((it: any, i: number) => {
               const qty = it.quantity ?? 1;
-              const unitHT = it.unitPriceExcludingTax ?? it.unitPrice ?? it.price ?? 0;
-              const tva = it.taxRate ?? it.tvaRate ?? 0;
-              const lineTotal = it.totalIncludingTax ?? it.totalPrice ?? (parseFloat(String(unitHT)) * parseFloat(String(qty)));
+              const unitHT = it.unit_price_excluding_tax ?? it.unit_price ?? it.unitPriceExcludingTax ?? it.unitPrice ?? it.price ?? it.basePrice ?? it.hourlyRate ?? 0;
+              const tva = it.tax_rate ?? it.taxRate ?? it.tvaRate ?? 0;
+              const lineTotal = it.total_including_tax ?? it.totalIncludingTax ?? it.totalPrice ?? it.total ?? (parseFloat(String(unitHT)) * parseFloat(String(qty)) * (1 + parseFloat(String(tva)) / 100));
               return (
                 <View key={i} style={[styles.lineItem, i > 0 && { borderTopWidth: 1, borderTopColor: theme.border }]}>
                   <Text style={styles.lineDesc}>{it.description || it.name || `Ligne ${i + 1}`}</Text>

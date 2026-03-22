@@ -4,6 +4,7 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
@@ -130,6 +131,7 @@ export default function InvoiceDetailScreen() {
   const totalTVA = inv.taxAmount || inv.vat_amount || inv.tvaAmount || inv.taxTotal || "";
   const totalTTC = inv.total_including_tax || inv.amount || inv.totalTTC || inv.total || inv.totalIncludingTax || "";
   const { name, email, phone } = resolveClient(inv, clientMap);
+  const photos: string[] = inv.requestDetails?.mediaUrls || inv.photos || inv.mediaUrls || [];
 
   return (
     <View style={styles.container}>
@@ -264,6 +266,18 @@ export default function InvoiceDetailScreen() {
           </View>
         ) : null}
 
+        {/* Photos */}
+        {photos.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Photos</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+              {photos.map((uri: string, i: number) => (
+                <Image key={i} source={{ uri }} style={styles.photo} contentFit="cover" />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
         {/* Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actions</Text>
@@ -391,4 +405,5 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   totalValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: theme.border },
   actionBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  photo: { width: 100, height: 100, borderRadius: 10, marginRight: 8 },
 });

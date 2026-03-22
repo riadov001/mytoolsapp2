@@ -64,7 +64,7 @@ export default function ReservationCreateScreen() {
     if (editReservation.notes) setNotes(editReservation.notes);
     if (editReservation.quoteId) {
       setPickedQuoteId(String(editReservation.quoteId));
-      setPickedQuoteName(editReservation.quoteReference || `Devis #${editReservation.quoteId}`);
+      setPickedQuoteName(editReservation.quoteReference || editReservation.quoteNumber || "Devis associé");
     }
     if (editReservation.serviceId) setSelectedServiceId(String(editReservation.serviceId));
     else if (editReservation.service_id) setSelectedServiceId(String(editReservation.service_id));
@@ -111,7 +111,7 @@ export default function ReservationCreateScreen() {
   const selectedQuoteObj = quotesArr.find((q: any) => String(q.id) === String(pickedQuoteId));
 
   const applyQuote = (q: any) => {
-    const ref = q.quoteNumber || q.reference || `Devis #${q.id}`;
+    const ref = q.quoteNumber || q.reference || "Devis associé";
     setPickedQuoteId(String(q.id));
     setPickedQuoteName(ref);
     setShowQuotePicker(false);
@@ -239,7 +239,7 @@ export default function ReservationCreateScreen() {
               <View style={styles.quoteSelectedIcon}>
                 <Ionicons name="document-text" size={18} color={theme.primary} />
               </View>
-              <Text style={styles.quoteSelectedRef}>{pickedQuoteName || `Devis #${pickedQuoteId}`}</Text>
+              <Text style={styles.quoteSelectedRef}>{pickedQuoteName || "Devis associé"}</Text>
               <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
             </View>
           ) : (
@@ -268,7 +268,7 @@ export default function ReservationCreateScreen() {
                       <Text style={styles.noClient}>Aucun devis trouvé</Text>
                     ) : (
                       filteredQuotes.map((q: any) => {
-                        const ref = q.quoteNumber || q.reference || `Devis #${q.id}`;
+                        const ref = q.quoteNumber || q.reference || "Devis";
                         const cn = `${q.clientFirstName || ""} ${q.clientLastName || ""}`.trim() || q.clientName || "";
                         return (
                           <Pressable key={q.id} style={styles.clientOption} onPress={() => applyQuote(q)}>

@@ -282,6 +282,25 @@ export const adminAnalytics = {
   getAdvanced: () => adminApiCall<any>("/api/admin/advanced-analytics"),
 };
 
+export async function getGaragePlan(): Promise<{ plan: string; features: string[] }> {
+  try {
+    const me = await adminGetMe();
+    const garage = me?.garage || me?.partnerGarage || me?.garageInfo || {};
+    const plan = (garage?.plan || garage?.subscriptionPlan || garage?.subscription?.plan || me?.plan || "free").toLowerCase();
+    const customFeatures: string[] = garage?.features || garage?.enabledFeatures || garage?.customFeatures || me?.features || [];
+    const proPlans = ["pro", "premium", "enterprise", "business", "unlimited", "custom"];
+    const isPro = proPlans.includes(plan) || customFeatures.length > 0;
+    const features: string[] = ["reservations"];
+    if (isPro || customFeatures.includes("ai_analytics") || customFeatures.includes("analytics")) {
+      features.push("ai_analytics");
+    }
+    features.push("ocr");
+    return { plan, features };
+  } catch {
+    return { plan: "free", features: ["reservations", "ocr"] };
+  }
+}
+
 export const adminQuotes = {
   getAll: () => adminApiCall<any[]>("/api/admin/quotes"),
   getById: (id: string) => adminApiCall<any>(`/api/admin/quotes/${id}`),
@@ -316,6 +335,7 @@ export const adminInvoices = {
     taxAmount: string;
     totalIncludingTax: string;
   }) => adminApiCall<any>(`/api/admin/invoices/${invoiceId}/items`, { method: "POST", body: item }),
+  addMedia: (invoiceId: string, formData: FormData) => adminApiCall<any>(`/api/admin/invoices/${invoiceId}/media`, { method: "POST", body: formData }),
   update: (id: string, data: any) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "PATCH", body: data }),
   updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "PATCH", body: { status } }),
   delete: (id: string) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "DELETE" }),

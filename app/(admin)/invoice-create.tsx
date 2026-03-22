@@ -153,17 +153,26 @@ export default function InvoiceCreateScreen() {
 
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
-      if (isEditMode) {
-        const validItems = JSON.parse(payload.items || "[]");
-        const items = validItems.map((item: any) => ({
+      const rawItems: any[] = Array.isArray(payload.items) ? payload.items : [];
+      const mappedItems = rawItems.map((item: any) => {
+        const qty = parseFloat(String(item.quantity)) || 1;
+        const price = parseFloat(String(item.unit_price_excluding_tax || item.unit_price)) || 0;
+        const tax = parseFloat(String(item.tax_rate)) || 0;
+        const totalHT = qty * price;
+        const taxAmt = totalHT * (tax / 100);
+        const totalTTC = totalHT + taxAmt;
+        return {
           description: item.description,
-          quantity: String(item.quantity),
-          unitPriceExcludingTax: item.unit_price_excluding_tax,
-          totalExcludingTax: String(parseFloat(item.unit_price_excluding_tax) * item.quantity),
-          taxRate: item.tax_rate,
-          taxAmount: String(parseFloat(item.unit_price_excluding_tax) * item.quantity * (parseFloat(item.tax_rate) / 100)),
-          totalIncludingTax: String(parseFloat(item.unit_price_excluding_tax) * item.quantity * (1 + parseFloat(item.tax_rate) / 100)),
-        }));
+          quantity: String(qty),
+          unitPriceExcludingTax: price.toFixed(2),
+          totalExcludingTax: totalHT.toFixed(2),
+          taxRate: String(tax),
+          taxAmount: taxAmt.toFixed(2),
+          totalIncludingTax: totalTTC.toFixed(2),
+        };
+      });
+
+      if (isEditMode) {
         return await adminInvoices.update(editId, {
           clientId: payload.clientId,
           total_excluding_tax: payload.total_excluding_tax,
@@ -171,7 +180,7 @@ export default function InvoiceCreateScreen() {
           amount: payload.amount,
           notes: payload.notes,
           paymentMethod: payload.paymentMethod,
-          items,
+          items: mappedItems,
         });
       }
 
@@ -189,17 +198,23 @@ export default function InvoiceCreateScreen() {
       
       if (!invoiceShell?.id) throw new Error("Invoice creation failed: no ID returned");
       
-      const validItems = JSON.parse(payload.items || "[]");
-      for (const item of validItems) {
-        await adminInvoices.addItem(invoiceShell.id, {
-          description: item.description,
-          quantity: String(item.quantity),
-          unitPriceExcludingTax: item.unit_price_excluding_tax,
-          totalExcludingTax: String(parseFloat(item.unit_price_excluding_tax) * item.quantity),
-          taxRate: item.tax_rate,
-          taxAmount: String(parseFloat(item.unit_price_excluding_tax) * item.quantity * (parseFloat(item.tax_rate) / 100)),
-          totalIncludingTax: String(parseFloat(item.unit_price_excluding_tax) * item.quantity * (1 + parseFloat(item.tax_rate) / 100)),
+      for (const item of mappedItems) {
+        await adminInvoices.addItem(invoiceShell.id, item);
+      }
+
+      const photosList: any[] = payload.photos || [];
+      if (photosList.length > 0) {
+        const mediaForm = new FormData();
+        photosList.forEach((photo: any, idx: number) => {
+          mediaForm.append("media", {
+            uri: photo.uri,
+            name: photo.name || `invoice_photo_${idx}.jpg`,
+            type: "image/jpeg",
+          } as any);
         });
+        try {
+          await adminInvoices.addMedia(invoiceShell.id, mediaForm);
+        } catch {}
       }
       
       return invoiceShell;
@@ -355,7 +370,7 @@ export default function InvoiceCreateScreen() {
     const payload = {
       clientId: selectedClientId,
       status: "pending",
-      items: JSON.stringify(mappedItems),
+      items: mappedItems,
       total_excluding_tax: totalHT.toFixed(2),
       total_including_tax: totalTTC.toFixed(2),
       amount: totalTTC.toFixed(2),
@@ -363,6 +378,7 @@ export default function InvoiceCreateScreen() {
       dueDate: dueDateStr,
       notes: notes.trim() || null,
       paymentMethod: paymentMethod || null,
+      photos,
     };
     
     createMutation.mutate(payload);

@@ -162,10 +162,16 @@ export default function AdminTabLayout() {
           }}
         />
         <Tabs.Screen
+          name="more"
+          options={{
+            title: "Plus",
+            tabBarIcon: ({ color, size }) => <Ionicons name="apps-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="reservations"
           options={{
-            title: "RDV",
-            tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
+            href: null,
           }}
         />
         <Tabs.Screen
