@@ -21,6 +21,16 @@ import { ThemeProvider, useTheme } from "@/lib/theme";
 
 SplashScreen.preventAutoHideAsync();
 
+// Suppress uncaught font-loading timeout errors (FontFaceObserver)
+if (typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (event) => {
+    const msg = event?.reason?.message || "";
+    if (msg.includes("timeout exceeded") || msg.includes("FontFace") || msg.includes("font")) {
+      event.preventDefault();
+    }
+  });
+}
+
 function RootLayoutNav() {
   const theme = useTheme();
   return (
@@ -86,7 +96,16 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) return null;
+  // Safety fallback: if fonts take more than 8s (e.g. network timeout), proceed anyway
+  useEffect(() => {
+    const fallback = setTimeout(() => {
+      setAppReady(true);
+      SplashScreen.hideAsync().catch(() => {});
+    }, 8000);
+    return () => clearTimeout(fallback);
+  }, []);
+
+  if (!fontsLoaded && !fontError && !appReady) return null;
 
   if (!appReady) {
     return (
