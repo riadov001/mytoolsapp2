@@ -6,20 +6,11 @@ let firebaseAuth: any = null;
 let initAttempted = false;
 
 export function isFirebaseConfigured(): boolean {
-  const hasRequired =
+  return !!(
     process.env.EXPO_PUBLIC_FIREBASE_API_KEY &&
     process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID &&
-    process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
-
-  if (!hasRequired) return false;
-
-  // Additional validation: API key should not contain template strings
-  const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "";
-  if (apiKey.includes("${") || apiKey.includes("AIzaSy") === false) {
-    return false;
-  }
-
-  return true;
+    process.env.EXPO_PUBLIC_FIREBASE_APP_ID
+  );
 }
 
 export function getFirebaseAuth() {
