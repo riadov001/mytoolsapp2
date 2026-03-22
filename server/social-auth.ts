@@ -4,10 +4,41 @@ import pg from "pg";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
-const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY || "";
-const SOCIAL_JWT_SECRET = process.env.SOCIAL_JWT_SECRET || "social-auth-secret-change-in-production";
+const SOCIAL_JWT_SECRET =
+  process.env.SOCIAL_JWT_SECRET || "social-auth-secret-change-in-production";
 const JWT_EXPIRES_IN = "30d";
 
+// ── Firebase Admin SDK (lazy init) ──────────────────────────────────────────
+let adminApp: any = null;
+
+function getAdminAuth() {
+  if (adminApp) return adminApp;
+
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    throw new Error(
+      "FIREBASE_SERVICE_ACCOUNT_JSON non configuré sur le serveur"
+    );
+  }
+
+  try {
+    const admin = require("firebase-admin");
+    const serviceAccount = JSON.parse(serviceAccountJson);
+
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+
+    adminApp = admin.auth();
+    return adminApp;
+  } catch (err: any) {
+    throw new Error(`Erreur init Firebase Admin: ${err.message}`);
+  }
+}
+
+// ── DB init ──────────────────────────────────────────────────────────────────
 async function initSocialUsersTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS social_users (
@@ -28,39 +59,21 @@ initSocialUsersTable().catch((err) =>
   console.error("[SocialAuth] DB init error:", err.message)
 );
 
+// ── Token verification ───────────────────────────────────────────────────────
 async function verifyFirebaseIdToken(idToken: string): Promise<{
   uid: string;
   email?: string;
   displayName?: string;
   photoUrl?: string;
 }> {
-  if (!FIREBASE_WEB_API_KEY) {
-    throw new Error("FIREBASE_WEB_API_KEY not configured on server");
-  }
-
-  const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_WEB_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
-    }
-  );
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Firebase token invalid: ${body}`);
-  }
-
-  const data = await res.json();
-  const user = data?.users?.[0];
-  if (!user) throw new Error("Aucun utilisateur trouvé dans la réponse Firebase");
+  const auth = getAdminAuth();
+  const decoded = await auth.verifyIdToken(idToken);
 
   return {
-    uid: user.localId,
-    email: user.email || undefined,
-    displayName: user.displayName || undefined,
-    photoUrl: user.photoUrl || undefined,
+    uid: decoded.uid,
+    email: decoded.email || undefined,
+    displayName: decoded.name || decoded.display_name || undefined,
+    photoUrl: decoded.picture || undefined,
   };
 }
 
@@ -75,9 +88,7 @@ async function verifyTwitterAccessToken(accessToken: string): Promise<{
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
 
-  if (!res.ok) {
-    throw new Error("Token Twitter invalide");
-  }
+  if (!res.ok) throw new Error("Token Twitter invalide");
 
   const data = await res.json();
   const user = data?.data;
@@ -90,6 +101,7 @@ async function verifyTwitterAccessToken(accessToken: string): Promise<{
   };
 }
 
+// ── DB helpers ───────────────────────────────────────────────────────────────
 async function upsertSocialUser(params: {
   firebase_uid: string;
   provider: string;
@@ -119,11 +131,18 @@ async function upsertSocialUser(params: {
     `INSERT INTO social_users (firebase_uid, provider, email, display_name, photo_url)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING id, onboarding_completed`,
-    [params.firebase_uid, params.provider, params.email, params.display_name, params.photo_url]
+    [
+      params.firebase_uid,
+      params.provider,
+      params.email,
+      params.display_name,
+      params.photo_url,
+    ]
   );
   return { ...result.rows[0], isNew: true };
 }
 
+// ── Routes ───────────────────────────────────────────────────────────────────
 export function registerSocialAuthRoutes(app: Express) {
   app.post("/api/auth/social", async (req: Request, res: Response) => {
     try {
@@ -136,7 +155,12 @@ export function registerSocialAuthRoutes(app: Express) {
         return res.status(400).json({ message: "token et provider requis" });
       }
 
-      let firebaseUser: { uid: string; email?: string; displayName?: string; photoUrl?: string };
+      let firebaseUser: {
+        uid: string;
+        email?: string;
+        displayName?: string;
+        photoUrl?: string;
+      };
 
       if (provider === "twitter") {
         firebaseUser = await verifyTwitterAccessToken(token);
@@ -173,30 +197,37 @@ export function registerSocialAuthRoutes(app: Express) {
       });
     } catch (err: any) {
       console.error("[SocialAuth] Error:", err.message);
-      return res.status(401).json({ message: err.message || "Authentification sociale échouée" });
+      return res
+        .status(401)
+        .json({ message: err.message || "Authentification sociale échouée" });
     }
   });
 
-  app.post("/api/auth/social/onboarding-complete", async (req: Request, res: Response) => {
-    try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader?.startsWith("Bearer ")) {
-        return res.status(401).json({ message: "Token manquant" });
+  app.post(
+    "/api/auth/social/onboarding-complete",
+    async (req: Request, res: Response) => {
+      try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith("Bearer ")) {
+          return res.status(401).json({ message: "Token manquant" });
+        }
+        const token = authHeader.slice(7);
+        const decoded = jwt.verify(token, SOCIAL_JWT_SECRET) as any;
+
+        await pool.query(
+          "UPDATE social_users SET onboarding_completed = TRUE WHERE firebase_uid = $1",
+          [decoded.uid]
+        );
+
+        const newPayload = { ...decoded, onboarding_completed: true };
+        const newToken = jwt.sign(newPayload, SOCIAL_JWT_SECRET, {
+          expiresIn: JWT_EXPIRES_IN,
+        });
+
+        return res.json({ token: newToken });
+      } catch (err: any) {
+        return res.status(401).json({ message: "Token invalide" });
       }
-      const token = authHeader.slice(7);
-      const decoded = jwt.verify(token, SOCIAL_JWT_SECRET) as any;
-
-      await pool.query(
-        "UPDATE social_users SET onboarding_completed = TRUE WHERE firebase_uid = $1",
-        [decoded.uid]
-      );
-
-      const newPayload = { ...decoded, onboarding_completed: true };
-      const newToken = jwt.sign(newPayload, SOCIAL_JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-
-      return res.json({ token: newToken });
-    } catch (err: any) {
-      return res.status(401).json({ message: "Token invalide" });
     }
-  });
+  );
 }
