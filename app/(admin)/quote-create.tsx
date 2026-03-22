@@ -173,6 +173,13 @@ export default function QuoteCreateScreen() {
           };
         });
         updateBody.items = items;
+        const sumHT = items.reduce((s, it) => s + (parseFloat(it.totalExcludingTax) || 0), 0);
+        const sumTTC = items.reduce((s, it) => s + (parseFloat(it.totalIncludingTax) || 0), 0);
+        updateBody.priceExcludingTax = sumHT.toFixed(2);
+        updateBody.total_excluding_tax = sumHT.toFixed(2);
+        updateBody.quoteAmount = sumTTC.toFixed(2);
+        updateBody.total_including_tax = sumTTC.toFixed(2);
+        updateBody.amount = sumTTC.toFixed(2);
         return await adminQuotes.update(editId, updateBody);
       }
 

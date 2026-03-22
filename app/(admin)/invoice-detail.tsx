@@ -127,9 +127,35 @@ export default function InvoiceDetailScreen() {
   const statusLabel = STATUS_LABELS[statusKey] || inv.status;
 
   const items: any[] = inv.items || inv.lineItems || inv.lines || inv.invoice_lines || [];
-  const totalHT = inv.total_excluding_tax || inv.priceExcludingTax || inv.totalHT || inv.totalExcludingTax || inv.subtotal || "";
-  const totalTVA = inv.taxAmount || inv.vat_amount || inv.tvaAmount || inv.taxTotal || "";
-  const totalTTC = inv.total_including_tax || inv.amount || inv.totalTTC || inv.total || inv.totalIncludingTax || "";
+
+  const computedTotals = items.reduce((acc: { ht: number; ttc: number }, it: any) => {
+    const price = parseFloat(String(
+      it.unit_price ??
+      it.unit_price_excluding_tax ??
+      it.unitPrice ?? 
+      it.price ?? 
+      it.unitPriceExcludingTax ?? 
+      it.priceExcludingTax ?? 
+      0
+    )) || 0;
+    const qty = parseFloat(String(it.quantity ?? 1)) || 1;
+    const tax = parseFloat(String(it.tax_rate ?? it.taxRate ?? it.tvaRate ?? 0)) || 0;
+    
+    const lineHT = it.total_excluding_tax ?? it.totalExcludingTax ?? (qty * price);
+    let lineTTC = it.total_including_tax ?? it.totalIncludingTax ?? it.totalPrice ?? it.total ?? null;
+    if (!lineTTC) {
+      lineTTC = qty * price * (1 + tax / 100);
+    }
+    
+    return { ht: acc.ht + (parseFloat(String(lineHT)) || 0), ttc: acc.ttc + (parseFloat(String(lineTTC)) || 0) };
+  }, { ht: 0, ttc: 0 });
+
+  const rawTotalHT = inv.total_excluding_tax || inv.priceExcludingTax || inv.totalHT || inv.totalExcludingTax || inv.subtotal;
+  const rawTotalTTC = inv.total_including_tax || inv.amount || inv.totalTTC || inv.total || inv.totalIncludingTax;
+  const totalHT = parseFloat(String(rawTotalHT)) || computedTotals.ht;
+  const totalTVA_raw = inv.taxAmount || inv.vat_amount || inv.tvaAmount || inv.taxTotal;
+  const totalTTC = parseFloat(String(rawTotalTTC)) || computedTotals.ttc;
+  const totalTVA = parseFloat(String(totalTVA_raw)) || (totalTTC - totalHT);
   const { name, email, phone } = resolveClient(inv, clientMap);
   const photos: string[] = inv.requestDetails?.mediaUrls || inv.photos || inv.mediaUrls || [];
 

@@ -1032,7 +1032,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return { body: JSON.stringify(req.body), contentType: "application/json" };
       };
       const path = req.url.replace(/\?.*$/, "");
-      if ((path.replace(/\/$/, "") === "/invoices" || path.replace(/\/$/, "") === "/quotes") && req.method === "POST" && req.body) {
+      const cleanPath = path.replace(/\/$/, "");
+      const isDocMutation = (cleanPath === "/invoices" || cleanPath === "/quotes" || /^\/(invoices|quotes)\/[^/]+$/.test(cleanPath)) && (req.method === "POST" || req.method === "PATCH" || req.method === "PUT") && req.body;
+      if (isDocMutation) {
         // Map root-level amount fields vers tous les formats possibles
         const htVal = req.body.totalHT || req.body.priceExcludingTax || req.body.total_excluding_tax;
         const ttcVal = req.body.totalTTC || req.body.quoteAmount || req.body.amount || req.body.total || req.body.total_including_tax;
@@ -1143,20 +1145,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const docType = isQuoteRoute ? "quote" : isInvoiceRoute ? "invoice" : null;
 
         // Extraire les montants du body de la requête (source de vérité pour la création)
-        const bodyHT = parseFloat(String(req.body?.priceExcludingTax || req.body?.totalHT || req.body?.total_excluding_tax || 0)) || 0;
-        const bodyTTC = parseFloat(String(req.body?.quoteAmount || req.body?.amount || req.body?.total || req.body?.total_including_tax || 0)) || 0;
-        const bodyItems = req.body?.items;
+        let bodyHT = parseFloat(String(req.body?.priceExcludingTax || req.body?.totalHT || req.body?.total_excluding_tax || 0)) || 0;
+        let bodyTTC = parseFloat(String(req.body?.quoteAmount || req.body?.amount || req.body?.total || req.body?.total_including_tax || 0)) || 0;
+        const bodyItems = req.body?.items || req.body?.lineItems;
 
-        // Sauvegarder les montants localement après création réussie
-        if (req.method === "POST" && result.status < 300 && docType && data?.id && bodyTTC > 0) {
+        if ((bodyHT <= 0 || bodyTTC <= 0) && Array.isArray(bodyItems) && bodyItems.length > 0) {
+          let calcHT = 0, calcTTC = 0;
+          for (const it of bodyItems) {
+            const price = parseFloat(String(it.unitPriceExcludingTax || it.unit_price_excluding_tax || it.unitPrice || it.unit_price || it.price || 0)) || 0;
+            const qty = parseFloat(String(it.quantity || 1)) || 1;
+            const tax = parseFloat(String(it.taxRate || it.tax_rate || it.tvaRate || 0)) || 0;
+            const lineHT = parseFloat(String(it.totalExcludingTax || it.total_excluding_tax || 0)) || qty * price;
+            const lineTTC = parseFloat(String(it.totalIncludingTax || it.total_including_tax || 0)) || lineHT * (1 + tax / 100);
+            calcHT += lineHT;
+            calcTTC += lineTTC;
+          }
+          if (bodyHT <= 0) bodyHT = calcHT;
+          if (bodyTTC <= 0) bodyTTC = calcTTC;
+          console.log(`[AMOUNTS] Computed from ${bodyItems.length} items: HT=${bodyHT} TTC=${bodyTTC}`);
+        }
+
+        // Sauvegarder les montants localement après création ou modification réussie
+        const isMutationSuccess = (req.method === "POST" || req.method === "PATCH" || req.method === "PUT") && result.status < 300;
+        if (isMutationSuccess && docType && (data?.id || (req.method !== "POST" && routePath.match(/\/(quotes|invoices)\/([^/]+)$/))) && (bodyTTC > 0 || Array.isArray(bodyItems))) {
+          const docId = data?.id || routePath.match(/\/(quotes|invoices)\/([^/]+)$/)?.[2] || "";
           const taxAmt = bodyTTC - bodyHT;
           pool.query(
             `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
              VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, items=$6, updated_at=NOW()`,
-            [data.id, docType, bodyHT, bodyTTC, taxAmt, JSON.stringify(bodyItems || [])]
+            [docId, docType, bodyHT, bodyTTC, taxAmt, JSON.stringify(bodyItems || [])]
           ).catch((e: any) => console.warn("[AMOUNTS] save failed:", e.message));
-          console.log(`[AMOUNTS] Saved ${docType} ${data.id}: HT=${bodyHT} TTC=${bodyTTC}`);
+          console.log(`[AMOUNTS] Saved ${docType} ${docId}: HT=${bodyHT} TTC=${bodyTTC} items=${Array.isArray(bodyItems) ? bodyItems.length : 0}`);
         }
 
         // Enrichir les réponses avec les montants locaux si l'API retourne 0
@@ -1164,29 +1184,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!item?.id) return item;
           const apiHT = parseFloat(String(item.priceExcludingTax || item.totalHT || item.total_excluding_tax || 0)) || 0;
           const apiTTC = parseFloat(String(item.quoteAmount || item.amount || item.totalTTC || item.total || item.total_including_tax || 0)) || 0;
-          if (apiHT > 0 || apiTTC > 0) return item;
+          // Vérifier si les items manquent ou sont vides
+          const existingItems: any[] = item.items || item.lineItems || item.lines || [];
+          const hasLocalItems = existingItems.length > 0;
 
-          // Essayer depuis la base locale d'abord
+          // Essayer depuis la base locale pour montants ET items
           try {
             const row = await pool.query("SELECT * FROM document_amounts WHERE doc_id=$1", [item.id]);
             if (row.rows.length > 0) {
               const r = row.rows[0];
               const ht = parseFloat(r.price_excluding_tax) || 0;
               const ttc = parseFloat(r.total_including_tax) || 0;
-              if (ttc > 0) {
-                return {
-                  ...item,
-                  priceExcludingTax: String(ht),
-                  quoteAmount: String(ttc),
-                  amount: String(ttc),
-                  total_excluding_tax: String(ht),
-                  total_including_tax: String(ttc),
-                  taxAmount: String(parseFloat(r.tax_amount) || (ttc - ht)),
-                  _localAmounts: true,
-                };
+              let localItems: any[] = [];
+              try { localItems = JSON.parse(r.items || "[]"); } catch {}
+
+              const enriched: any = { ...item };
+
+              if (ttc > 0 && (apiHT <= 0 && apiTTC <= 0)) {
+                enriched.priceExcludingTax = String(ht);
+                enriched.quoteAmount = String(ttc);
+                enriched.amount = String(ttc);
+                enriched.total_excluding_tax = String(ht);
+                enriched.total_including_tax = String(ttc);
+                enriched.taxAmount = String(parseFloat(r.tax_amount) || (ttc - ht));
+                enriched._localAmounts = true;
               }
+
+              if (!hasLocalItems && localItems.length > 0) {
+                enriched.items = localItems;
+                enriched.lineItems = localItems;
+                enriched._localItems = true;
+                console.log(`[ENRICH] Injected ${localItems.length} local items for ${item.id}`);
+              }
+
+              if (enriched._localAmounts || enriched._localItems) return enriched;
             }
           } catch {}
+
+          if (apiHT > 0 || apiTTC > 0) return item;
 
           // Calculer depuis les items retournés par l'API si disponibles
           const apiItems: any[] = item.items || item.lineItems || item.lines || [];
@@ -1225,7 +1260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         let enriched = data;
-        if (docType && (req.method === "GET" || (req.method === "POST" && result.status < 300))) {
+        if (docType && (req.method === "GET" || (isMutationSuccess))) {
           if (Array.isArray(data)) {
             enriched = await Promise.all(data.map(enrichItem));
           } else if (data?.id) {
