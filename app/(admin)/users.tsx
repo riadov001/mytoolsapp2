@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminUsers } from "@/lib/admin-api";
+import { adminClients } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -26,12 +26,12 @@ export default function UsersScreen() {
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["admin-users"],
-    queryFn: () => adminUsers.getAll(),
+    queryFn: () => adminClients.getAll(),
     staleTime: 30 * 1000,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => adminUsers.create(data),
+    mutationFn: (data: any) => adminClients.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       setShowCreateModal(false);
@@ -45,7 +45,7 @@ export default function UsersScreen() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => adminUsers.update(editingUser.id, data),
+    mutationFn: (data: any) => adminClients.update(editingUser.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       setEditingUser(null);
@@ -59,7 +59,7 @@ export default function UsersScreen() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => adminUsers.delete(id),
+    mutationFn: (id: string) => adminClients.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
