@@ -195,6 +195,14 @@ export default function GarageRegisterScreen() {
             setStep("success");
             return;
           }
+          showAlert({
+            type: "info",
+            title: "Compte créé",
+            message: "Votre compte a été créé avec succès. Veuillez vous connecter.",
+            buttons: [{ text: "Se connecter", style: "primary", onPress: () => router.replace("/(auth)/login") }],
+          });
+          setLoading(false);
+          return;
         } catch (loginErr: any) {
           console.error("[Register] Auto-login after registration failed:", loginErr.message);
           showAlert({
