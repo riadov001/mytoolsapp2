@@ -115,6 +115,13 @@ The "Plus" tab replaced the previous "RDV" tab and provides access to:
 - AI analytics features gated behind Pro+ plans
 - Custom features array also checked for granular feature enablement
 
+## Package Version Compatibility
+All Expo packages must be compatible with the installed SDK version. Use `npx expo install --check` to verify. Key packages that previously caused native crashes due to version mismatch (55.x installed for SDK 54):
+- `expo-apple-authentication` → must be `~8.0.8` for SDK 54
+- `expo-auth-session` → must be `~7.0.10` for SDK 54
+- `expo-clipboard` → must be `~8.0.8` for SDK 54
+Always run `npx expo install <package> --fix` or `npx expo install --fix` to auto-resolve version mismatches.
+
 ## External Dependencies
 - **Backend API**: `saas3.mytoolsgroup.eu` (configurable via `EXTERNAL_API_URL`)
 - **Authentication**: Bearer tokens and cookie sessions managed by the external API.
