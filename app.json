@@ -40,7 +40,6 @@
       "package": "com.mytools.app",
       "versionCode": 2,
       "googleServicesFile": "./google-services.json",
-      "googleMobileAdsAppId": "ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0A",
         "foregroundImage": "./assets/images/logo_new.png"
