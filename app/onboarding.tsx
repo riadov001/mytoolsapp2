@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
+import { useAuth } from "@/lib/auth-context";
 
 const { width } = Dimensions.get("window");
 
@@ -71,15 +72,19 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
+  const { completeOnboarding } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
-  const goToNext = () => {
+  const goToNext = async () => {
     if (currentIndex < slides.length - 1) {
       flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
       setCurrentIndex(currentIndex + 1);
     } else {
-      router.back();
+      try {
+        await completeOnboarding();
+      } catch {}
+      router.replace("/(main)" as any);
     }
   };
 
@@ -101,7 +106,10 @@ export default function OnboardingScreen() {
           { paddingTop: Platform.OS === "web" ? 67 + 12 : insets.top + 12 },
         ]}
       >
-        <Pressable style={styles.closeBtn} onPress={() => router.back()}>
+        <Pressable style={styles.closeBtn} onPress={async () => {
+          try { await completeOnboarding(); } catch {}
+          router.replace("/(main)" as any);
+        }}>
           <Ionicons name="close" size={24} color={theme.text} />
         </Pressable>
       </View>
@@ -150,7 +158,10 @@ export default function OnboardingScreen() {
         </Pressable>
 
         {currentIndex < slides.length - 1 && (
-          <Pressable style={styles.skipBtn} onPress={() => router.back()}>
+          <Pressable style={styles.skipBtn} onPress={async () => {
+            try { await completeOnboarding(); } catch {}
+            router.replace("/(main)" as any);
+          }}>
             <Text style={styles.skipBtnText}>Passer</Text>
           </Pressable>
         )}

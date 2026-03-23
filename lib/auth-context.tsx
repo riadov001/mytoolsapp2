@@ -63,6 +63,7 @@ interface AuthContextValue {
   refreshUser: () => Promise<void>;
   biometricLogin: () => Promise<boolean>;
   socialLogin: (idToken: string, provider: string) => Promise<SocialLoginResult>;
+  completeOnboarding: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -335,6 +336,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { user: socialUser, isNewUser: data.isNewUser };
   };
 
+  const completeOnboarding = async (): Promise<void> => {
+    const socialToken = await getToken("social_access_token");
+    if (!socialToken) return;
+
+    const apiBase = (() => {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        const origin = window.location.origin;
+        if (origin.includes("localhost:8081") || origin.includes("127.0.0.1:8081")) {
+          return origin.replace(/:8081\b/, ":5000");
+        }
+        return origin;
+      }
+      if (process.env.EXPO_PUBLIC_DOMAIN) return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+      return "https://saas3.mytoolsgroup.eu";
+    })();
+
+    const res = await fetch(`${apiBase}/api/auth/social/onboarding-complete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${socialToken}`,
+      },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.token) {
+        await storeToken("social_access_token", data.token);
+        setStoredAccessToken(data.token);
+        try {
+          const parts = data.token.split(".");
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1]));
+            setUser(payload as any);
+          }
+        } catch {}
+      }
+    }
+  };
+
   const biometricLogin = async (): Promise<boolean> => {
     if (Platform.OS === "web" || !LocalAuthentication) return false;
     try {
@@ -409,6 +450,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshUser,
       biometricLogin,
       socialLogin,
+      completeOnboarding,
     }),
     [user, isLoading, storedAccessToken]
   );
