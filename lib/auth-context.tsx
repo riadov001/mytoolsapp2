@@ -157,24 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const socialToken = await getToken("social_access_token");
-      if (socialToken) {
-        try {
-          const parts = socialToken.split(".");
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            const now = Math.floor(Date.now() / 1000);
-            if (payload.exp && payload.exp > now && payload.uid) {
-              setStoredAccessToken(socialToken);
-              setUser(payload as any);
-              setIsLoading(false);
-              return;
-            }
-          }
-        } catch {
-          await removeToken("social_access_token");
-        }
-      }
+      await removeToken("social_access_token");
 
       const savedAccessToken = await getToken("access_token");
       const savedRefreshToken = await getToken("refresh_token");

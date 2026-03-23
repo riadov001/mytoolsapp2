@@ -1,15 +1,7 @@
 import type { Express, Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import pg from "pg";
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-
-const SOCIAL_JWT_SECRET =
-  process.env.SOCIAL_JWT_SECRET || "social-auth-secret-change-in-production";
-const JWT_EXPIRES_IN = "30d";
 const EXTERNAL_API = "https://saas3.mytoolsgroup.eu/api";
 
-// ── Firebase Admin SDK (lazy init) ──────────────────────────────────────────
 let adminApp: any = null;
 
 function getAdminAuth() {
@@ -45,28 +37,6 @@ function getAdminAuth() {
   }
 }
 
-// ── DB init ──────────────────────────────────────────────────────────────────
-async function initSocialUsersTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS social_users (
-      id SERIAL PRIMARY KEY,
-      firebase_uid TEXT UNIQUE,
-      provider TEXT NOT NULL,
-      email TEXT,
-      display_name TEXT,
-      photo_url TEXT,
-      onboarding_completed BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-}
-
-initSocialUsersTable().catch((err) =>
-  console.error("[SocialAuth] DB init error:", err.message)
-);
-
-// ── Token verification ───────────────────────────────────────────────────────
 async function verifyFirebaseIdToken(idToken: string): Promise<{
   uid: string;
   email?: string;
@@ -84,7 +54,6 @@ async function verifyFirebaseIdToken(idToken: string): Promise<{
   };
 }
 
-// ── Routes ───────────────────────────────────────────────────────────────────
 export function registerSocialAuthRoutes(app: Express) {
   app.post("/api/auth/social", async (req: Request, res: Response) => {
     try {

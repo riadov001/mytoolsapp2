@@ -73,7 +73,7 @@ Key features include:
 - Invoice creation is integrated with quotes via a "Générer facture" button in quote detail, requiring photo upload for quotes.
 - Numeric conversion and sanitization of items array for API payloads.
 - PDF sharing via PWA URLs (saas3.mytoolsgroup.eu/quotes/view/{viewToken} or /invoices/view/{viewToken}).
-- Client creation is disabled — only editing existing clients is allowed. "Nouveau client" buttons have been removed from the create modal, clients list, and all create forms (quote, invoice, reservation).
+- Client creation is re-enabled with a "+" button in the Clients tab header. Only client (particulier/professionnel) roles can be created from this screen.
 
 ## Tab Navigation
 The admin tab bar has the following tabs:
@@ -87,15 +87,27 @@ The admin tab bar has the following tabs:
 
 The "Plus" tab replaced the previous "RDV" tab and provides access to:
 - Rendez-vous (reservations) — always available
-- Utilisateurs — CRUD management of garage users (create, edit, delete) via `/api/admin/users`
+- Utilisateurs — visible only for super_admin and root_admin roles. CRUD management of garage staff.
 - OCR Scanner (quote/invoice) — always available
+- Logs système — visible only for root_admin. Real-time server log viewer with filtering, search, export (JSON/CSV), and auto-refresh.
 - AI Analytics (global, commercial, growth) — conditionally available based on garage plan (Pro+)
 
 ## Users Management
 - Screen: `app/(admin)/users.tsx` — modal presentation from Plus tab
-- API: `adminClients` in `lib/admin-api.ts` (routes to `/api/admin/users`)
-- Features: list users, create, edit (modal form), delete with confirmation
-- Handles various API response formats (array, `{data:[]}`, `{users:[]}`, `{results:[]}`)
+- Only accessible to super_admin and root_admin (hidden from regular admins in more.tsx)
+- Role hierarchy permissions:
+  - root_admin: can view/edit/delete all users, can create super_admin
+  - super_admin: can view all except root_admin, can edit/delete admin and employee, cannot create super_admin
+- Available roles in create form depend on logged-in user's role
+- Proper role labels and color coding (Root Admin=red, Super Admin=purple, Admin=blue, Employee=green)
+
+## Admin Logs
+- Screen: `app/(admin)/admin-logs.tsx` — root_admin only
+- Backend: `GET /api/admin/logs` with `?level=`, `?search=`, `?limit=`, `?offset=` params
+- Export: `GET /api/admin/logs/export?format=json|csv`
+- Clear: `DELETE /api/admin/logs`
+- Buffer: 2000 entries in-memory, reverse chronological order
+- Auto-refresh: 5s/10s/30s configurable interval
 
 ## Photo Upload
 - Quotes: Two-step process — create quote shell, then upload media via POST to `/api/admin/quotes/{id}/media`
@@ -103,7 +115,7 @@ The "Plus" tab replaced the previous "RDV" tab and provides access to:
 - Photos are displayed in both quote-detail and invoice-detail screens
 
 ## OCR
-- Uses Gemini 2.0 Flash vision model via `/api/ocr/analyze` endpoint
+- Uses Gemini 2.5 Flash vision model via `/api/ocr/analyze` endpoint (registered before catch-all proxy)
 - Supports both camera capture and gallery import
 - Extracts structured data: client info, vehicle info (quotes), line items, payment method (invoices)
 - 30-second timeout for AI analysis
@@ -126,6 +138,6 @@ Always run `npx expo install <package> --fix` or `npx expo install --fix` to aut
 - **Backend API**: `saas3.mytoolsgroup.eu` (configurable via `EXTERNAL_API_URL`)
 - **Authentication**: Bearer tokens and cookie sessions managed by the external API.
 - **Data Storage**: AsyncStorage for GDPR consent, SecureStore for authentication tokens and session cookies.
-- **OCR**: Gemini Vision via `/api/ocr/analyze` endpoint for document scanning.
+- **OCR**: Gemini Vision via `@google/genai` SDK (Replit AI Integrations) at `/api/ocr/analyze` endpoint for document scanning.
 - **AI Analytics**: Via `/api/admin/advanced-analytics` endpoint.
 - **Push Notifications**: Integrated for user notifications.
