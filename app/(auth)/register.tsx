@@ -137,25 +137,22 @@ export default function GarageRegisterScreen() {
 
       const body: any = {
         email: email.trim(),
+        password: firebaseUid ? undefined : password,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         garageName: garageName.trim() || company?.name || "",
+        companyName: company?.name || "",
+        siret: company?.siret || "",
+        siren: company?.siren || "",
+        address: company?.address || "",
+        city: company?.city || "",
+        postalCode: company?.postalCode || "",
+        tvaNumber: company?.tvaNumber || "",
+        legalForm: company?.legalForm || "",
         smsConsent,
-        company: {
-          name: company?.name || "",
-          siret: company?.siret || "",
-          address: company?.address || "",
-          city: company?.city || "",
-          postalCode: company?.postalCode || "",
-          tvaNumber: company?.tvaNumber || "",
-        },
+        firebaseUid: firebaseUid || undefined,
       };
-      if (!firebaseUid && password) {
-        body.password = password;
-      }
-      if (firebaseUid) {
-        body.firebaseUid = firebaseUid;
-      }
+      Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
 
       const res = await fetch(`${apiBase}/api/mobile/auth/register`, {
         method: "POST",
