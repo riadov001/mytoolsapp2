@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "MyTools",
-    "slug": "mytoolsmobile",
+    "name": "Myt",
+    "slug": "myt",
     "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/logo_new.png",
-    "scheme": "mytools",
+    "scheme": "myt",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.mytoolsmobile.mytoolsgroup.eu",
+      "bundleIdentifier": "com.myt.app",
       "buildNumber": "14",
       "config": {
         "usesNonExemptEncryption": false
@@ -37,7 +37,7 @@
       }
     },
     "android": {
-      "package": "com.mytools.app",
+      "package": "com.myt.app",
       "versionCode": 2,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
