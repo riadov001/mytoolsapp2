@@ -12,7 +12,7 @@
       },
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc",
-        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:129808585113:web:089c2bf99d833a519b4308",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:129808585113:ios:e2cece15b5280cb59b4308",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "crud-ae9d9.firebaseapp.com",
         "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "crud-ae9d9",
         "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "crud-ae9d9.firebasestorage.app",
@@ -31,7 +31,7 @@
       },
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc",
-        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:129808585113:web:089c2bf99d833a519b4308",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:129808585113:ios:e2cece15b5280cb59b4308",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "crud-ae9d9.firebaseapp.com",
         "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "crud-ae9d9",
         "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "crud-ae9d9.firebasestorage.app",
@@ -51,7 +51,7 @@
       },
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc",
-        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:129808585113:web:089c2bf99d833a519b4308",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:129808585113:ios:e2cece15b5280cb59b4308",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "crud-ae9d9.firebaseapp.com",
         "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "crud-ae9d9",
         "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "crud-ae9d9.firebasestorage.app",
