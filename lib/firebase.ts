@@ -53,10 +53,12 @@ export function getFirebaseAuth() {
       setPersistence(firebaseAuth, browserLocalPersistence).catch(() => {});
     } else {
       try {
-        const { initializeAuth, inMemoryPersistence } =
+        const { initializeAuth, getReactNativePersistence } =
           require("firebase/auth");
+        const ReactNativeAsyncStorage =
+          require("@react-native-async-storage/async-storage").default;
         firebaseAuth = initializeAuth(app, {
-          persistence: inMemoryPersistence,
+          persistence: getReactNativePersistence(ReactNativeAsyncStorage),
         });
       } catch {
         const { getAuth } = require("firebase/auth");

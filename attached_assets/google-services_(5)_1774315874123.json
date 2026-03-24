@@ -1,0 +1,83 @@
+{
+  "project_info": {
+    "project_number": "129808585113",
+    "firebase_url": "https://crud-ae9d9.firebaseio.com",
+    "project_id": "crud-ae9d9",
+    "storage_bucket": "crud-ae9d9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:129808585113:android:dacc7c9acec1378e9b4308",
+        "android_client_info": {
+          "package_name": "app.mytoolsmobile.mytoolsgroup.eu"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUNfnuhi9Ya1z47qNqE6BevaINRWxQNN8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "129808585113-atcn4gnb3jund8ttee1nubc1gr3kt2ln.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.mytoolsmobile.mytoolsgroup.eu"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:129808585113:android:ad489f04f677444e9b4308",
+        "android_client_info": {
+          "package_name": "com.mytools.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUNfnuhi9Ya1z47qNqE6BevaINRWxQNN8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "129808585113-atcn4gnb3jund8ttee1nubc1gr3kt2ln.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.mytoolsmobile.mytoolsgroup.eu"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

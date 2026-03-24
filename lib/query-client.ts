@@ -9,10 +9,12 @@ export function getApiUrl(): string {
   let host = process.env.EXPO_PUBLIC_DOMAIN;
 
   if (!host) {
-    throw new Error("EXPO_PUBLIC_DOMAIN is not set");
+    console.warn("[API] EXPO_PUBLIC_DOMAIN is not set, using fallback");
+    host = "localhost:5000";
   }
 
-  let url = new URL(`https://${host}`);
+  const protocol = host.includes("localhost") ? "http" : "https";
+  let url = new URL(`${protocol}://${host}`);
 
   return url.href;
 }
