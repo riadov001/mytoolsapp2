@@ -21,10 +21,12 @@ export function getFirebaseApp() {
     authDomain:
       process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ||
       "crud-ae9d9.firebaseapp.com",
+    databaseURL: "https://crud-ae9d9.firebaseio.com",
     projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
     storageBucket:
       process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ||
       "crud-ae9d9.firebasestorage.app",
+    messagingSenderId: "129808585113",
     appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
   };
 
