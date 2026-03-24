@@ -35,7 +35,7 @@ import { queryClient } from "@/lib/query-client";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 
-SplashScreen.preventAutoHideAsync();
+//SplashScreen.preventAutoHideAsync();
 
 // Suppress uncaught font-loading timeout errors (FontFaceObserver)
 if (typeof window !== "undefined") {
