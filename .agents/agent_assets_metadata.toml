@@ -6,3 +6,9 @@ id = "kJdiwKYHo5lBSguA9rReT"
 uri = "file://.local/prompt-backend-saas3.md"
 type = "text"
 title = "Prompt pour corriger le backend saas3"
+
+[[outputs]]
+id = "-JdBxlqRUNu2XizfG8r79"
+uri = "file://AUDIT_TECHNICO_FONCTIONNEL.md"
+type = "text"
+title = "Documentation Technico-Fonctionnelle pour Audit"
