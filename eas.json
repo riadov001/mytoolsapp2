@@ -67,7 +67,7 @@
         "serviceAccountKeyPath": "$GOOGLE_SERVICE_ACCOUNT_KEY",
         "track": "internal",
         "releaseStatus": "draft",
-        "applicationId": "com.mytools.app"
+        "applicationId": "app.mytoolsmobile.mytoolsgroup.eu"
       },
       "ios": {
         "appleId": "your@apple.email",

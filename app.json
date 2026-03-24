@@ -37,7 +37,7 @@
       }
     },
     "android": {
-      "package": "com.myt.app",
+      "package": "app.mytoolsmobile.mytoolsgroup.eu",
       "versionCode": 2,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
