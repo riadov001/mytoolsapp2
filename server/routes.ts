@@ -333,6 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     try {
       const endpoints = [
+        { url: `${EXTERNAL_API}/mobile/quotes/${id}/accept`, method: "POST" as const, body: undefined as string | undefined },
         { url: `${EXTERNAL_API}/quotes/${id}/accept`, method: "POST" as const, body: undefined as string | undefined },
         { url: `${EXTERNAL_API}/quotes/${id}/respond`, method: "POST" as const, body: JSON.stringify({ status: "accepted", response: "accepted" }) },
         { url: `${EXTERNAL_API}/quotes/${id}`, method: "PUT" as const, body: JSON.stringify({ status: "accepted" }) },
@@ -365,6 +366,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     try {
       const endpoints = [
+        { url: `${EXTERNAL_API}/mobile/quotes/${id}/reject`, method: "POST" as const, body: undefined as string | undefined },
         { url: `${EXTERNAL_API}/quotes/${id}/reject`, method: "POST" as const, body: undefined as string | undefined },
         { url: `${EXTERNAL_API}/quotes/${id}/respond`, method: "POST" as const, body: JSON.stringify({ status: "rejected", response: "rejected" }) },
         { url: `${EXTERNAL_API}/quotes/${id}`, method: "PUT" as const, body: JSON.stringify({ status: "rejected" }) },
@@ -548,6 +550,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       try {
+        await fetch(`${EXTERNAL_API}/mobile/profile`, {
+          method: "DELETE",
+          headers: { ...headers, "content-type": "application/json" },
+          redirect: "manual",
+        });
+      } catch {}
+      try {
         await fetch(`${EXTERNAL_API}/admin/users/${userId}`, {
           method: "DELETE",
           headers: { ...headers, "content-type": "application/json" },
@@ -704,12 +713,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/invoices", async (req: Request, res: Response) => {
     const headers = getAuthHeaders(req);
+    const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
     try {
-      const r = await fetch(`${EXTERNAL_API}/invoices${req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : ""}`, {
-        method: "GET", headers, redirect: "manual",
-      });
+      let r = await fetch(`${EXTERNAL_API}/mobile/invoices${qs}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API}/invoices${qs}`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(r.status >= 400 ? r.status : 401).json({ message: "Non authentifié" });
       }
@@ -727,11 +739,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { id } = req.params;
     const headers = getAuthHeaders(req);
     try {
-      const r = await fetch(`${EXTERNAL_API}/invoices`, {
-        method: "GET", headers, redirect: "manual",
-      });
+      let r = await fetch(`${EXTERNAL_API}/mobile/invoices/${id}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      let usedDetailEndpoint = false;
+      if (!text.includes("<!DOCTYPE") && !text.includes("<html")) {
+        try {
+          const directItem = JSON.parse(text);
+          if (directItem && (directItem.id || directItem._id) && r.status < 400) {
+            usedDetailEndpoint = true;
+            forwardSetCookie(r, res);
+            console.log(`[PROXY] GET /api/invoices/${id} => found via /mobile/invoices/:id`);
+            return res.status(200).json(directItem);
+          }
+        } catch {}
+      }
+      if (!usedDetailEndpoint) {
+        r = await fetch(`${EXTERNAL_API}/mobile/invoices`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+        if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+          r = await fetch(`${EXTERNAL_API}/invoices`, { method: "GET", headers, redirect: "manual" });
+          text = await r.text();
+        }
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(401).json({ message: "Non authentifié" });
       }
@@ -755,11 +785,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { id } = req.params;
     const headers = getAuthHeaders(req);
     try {
-      const r = await fetch(`${EXTERNAL_API}/quotes`, {
-        method: "GET", headers, redirect: "manual",
-      });
+      let r = await fetch(`${EXTERNAL_API}/mobile/quotes/${id}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      let usedDetailEndpoint = false;
+      if (!text.includes("<!DOCTYPE") && !text.includes("<html")) {
+        try {
+          const directItem = JSON.parse(text);
+          if (directItem && (directItem.id || directItem._id) && r.status < 400) {
+            usedDetailEndpoint = true;
+            forwardSetCookie(r, res);
+            try {
+              const localRes = await pool.query("SELECT action FROM quote_responses WHERE quote_id = $1 ORDER BY created_at DESC LIMIT 1", [id]);
+              if (localRes.rows.length > 0) directItem.status = localRes.rows[0].action;
+            } catch {}
+            console.log(`[PROXY] GET /api/quotes/${id} => found via /mobile/quotes/:id`);
+            return res.status(200).json(directItem);
+          }
+        } catch {}
+      }
+      if (!usedDetailEndpoint) {
+        r = await fetch(`${EXTERNAL_API}/mobile/quotes`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+        if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+          r = await fetch(`${EXTERNAL_API}/quotes`, { method: "GET", headers, redirect: "manual" });
+          text = await r.text();
+        }
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(401).json({ message: "Non authentifié" });
       }
@@ -792,11 +844,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { id } = req.params;
     const headers = getAuthHeaders(req);
     try {
-      const r = await fetch(`${EXTERNAL_API}/reservations`, {
-        method: "GET", headers, redirect: "manual",
-      });
+      let r = await fetch(`${EXTERNAL_API}/mobile/reservations/${id}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      let usedDetailEndpoint = false;
+      if (!text.includes("<!DOCTYPE") && !text.includes("<html")) {
+        try {
+          const directItem = JSON.parse(text);
+          if (directItem && (directItem.id || directItem._id) && r.status < 400) {
+            usedDetailEndpoint = true;
+            forwardSetCookie(r, res);
+            try {
+              const localRes = await pool.query("SELECT action FROM reservation_confirmations WHERE reservation_id = $1 ORDER BY created_at DESC LIMIT 1", [id]);
+              if (localRes.rows.length > 0) directItem.status = localRes.rows[0].action;
+            } catch {}
+            console.log(`[PROXY] GET /api/reservations/${id} => found via /mobile/reservations/:id`);
+            return res.status(200).json(directItem);
+          }
+        } catch {}
+      }
+      if (!usedDetailEndpoint) {
+        r = await fetch(`${EXTERNAL_API}/mobile/reservations`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+        if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+          r = await fetch(`${EXTERNAL_API}/reservations`, { method: "GET", headers, redirect: "manual" });
+          text = await r.text();
+        }
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(401).json({ message: "Non authentifié" });
       }
@@ -828,12 +902,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/quotes", async (req: Request, res: Response) => {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
+    const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
     try {
-      const r = await fetch(`${EXTERNAL_API}/quotes${req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : ""}`, {
-        method: "GET", headers, redirect: "manual",
-      });
+      let r = await fetch(`${EXTERNAL_API}/mobile/quotes${qs}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API}/quotes${qs}`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(r.status >= 400 ? r.status : 401).json({ message: "Non authentifié" });
       }
@@ -962,11 +1039,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
     try {
+      await fetch(`${EXTERNAL_API}/mobile/notifications/mark-all-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
       await fetch(`${EXTERNAL_API}/notifications/read-all`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
       await fetch(`${EXTERNAL_API}/notifications/mark-all-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
     } catch {}
     try {
-      const notifRes = await fetch(`${EXTERNAL_API}/notifications`, { method: "GET", headers, redirect: "manual" });
+      let notifRes = await fetch(`${EXTERNAL_API}/mobile/notifications`, { method: "GET", headers, redirect: "manual" });
+      let notifCheck = await notifRes.clone().text();
+      if (notifCheck.includes("<!DOCTYPE") || notifCheck.includes("<html")) {
+        notifRes = await fetch(`${EXTERNAL_API}/notifications`, { method: "GET", headers, redirect: "manual" });
+      }
       const notifText = await notifRes.text();
       if (!notifText.includes("<!DOCTYPE") && !notifText.includes("<html")) {
         const notifData = JSON.parse(notifText);
@@ -992,6 +1074,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
     try {
+      await fetch(`${EXTERNAL_API}/mobile/notifications/${id}/read`, { method: "PATCH", headers, redirect: "manual" }).catch(() => {});
       await fetch(`${EXTERNAL_API}/notifications/${id}/read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
       await fetch(`${EXTERNAL_API}/notifications/${id}/mark-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
     } catch {}
@@ -1008,8 +1091,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
     try {
-      const r = await fetch(`${EXTERNAL_API}/notifications`, { method: "GET", headers, redirect: "manual" });
-      const text = await r.text();
+      let r = await fetch(`${EXTERNAL_API}/mobile/notifications`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API}/notifications`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
       if (text.includes("<!DOCTYPE") || text.includes("<html")) return res.json([]);
       let data: any;
       try { data = JSON.parse(text); } catch { return res.json([]); }
@@ -1039,12 +1126,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/reservations", async (req: Request, res: Response) => {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
+    const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
     try {
-      const r = await fetch(`${EXTERNAL_API}/reservations${req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : ""}`, {
-        method: "GET", headers, redirect: "manual",
-      });
+      let r = await fetch(`${EXTERNAL_API}/mobile/reservations${qs}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API}/reservations${qs}`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(r.status >= 400 ? r.status : 401).json({ message: "Non authentifié" });
       }
@@ -1612,6 +1702,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   registerSocialAuthRoutes(app);
+
+  app.post("/api/register", async (req: Request, res: Response) => {
+    const headers = getAuthHeaders(req);
+    try {
+      const r = await fetch(`${EXTERNAL_API}/mobile/auth/register`, {
+        method: "POST", headers, body: JSON.stringify(req.body), redirect: "manual",
+      });
+      forwardSetCookie(r, res);
+      const text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(400).json({ message: "Erreur lors de l'inscription" });
+      }
+      try { return res.status(r.status).json(JSON.parse(text)); }
+      catch { return res.status(r.status).send(text); }
+    } catch (err: any) {
+      return res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+
+  app.get("/api/auth/user", async (req: Request, res: Response) => {
+    const headers = getAuthHeaders(req);
+    try {
+      let r = await fetch(`${EXTERNAL_API}/mobile/profile`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API}/mobile/auth/me`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(401).json({ message: "Non authentifié" });
+      }
+      forwardSetCookie(r, res);
+      try { return res.status(r.status).json(JSON.parse(text)); }
+      catch { return res.status(r.status).send(text); }
+    } catch (err: any) {
+      return res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+
+  app.put("/api/auth/user", async (req: Request, res: Response) => {
+    const headers = getAuthHeaders(req);
+    try {
+      let r = await fetch(`${EXTERNAL_API}/mobile/profile`, {
+        method: "PATCH", headers, body: JSON.stringify(req.body), redirect: "manual",
+      });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html") || r.status >= 400) {
+        r = await fetch(`${EXTERNAL_API}/auth/user`, {
+          method: "PUT", headers, body: JSON.stringify(req.body), redirect: "manual",
+        });
+        text = await r.text();
+      }
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(400).json({ message: "Erreur de mise à jour du profil" });
+      }
+      forwardSetCookie(r, res);
+      try { return res.status(r.status).json(JSON.parse(text)); }
+      catch { return res.status(r.status).send(text); }
+    } catch (err: any) {
+      return res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+
+  app.post("/api/auth/change-password", async (req: Request, res: Response) => {
+    const headers = getAuthHeaders(req);
+    try {
+      let r = await fetch(`${EXTERNAL_API}/user/password`, {
+        method: "PATCH", headers, body: JSON.stringify(req.body), redirect: "manual",
+      });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html") || r.status >= 400) {
+        r = await fetch(`${EXTERNAL_API}/auth/change-password`, {
+          method: "POST", headers, body: JSON.stringify(req.body), redirect: "manual",
+        });
+        text = await r.text();
+      }
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(400).json({ message: "Erreur de changement de mot de passe" });
+      }
+      forwardSetCookie(r, res);
+      try { return res.status(r.status).json(JSON.parse(text)); }
+      catch { return res.status(r.status).send(text); }
+    } catch (err: any) {
+      return res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+
+  app.post("/api/quotes/:id/create-reservation", async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const headers = getAuthHeaders(req);
+    try {
+      const r = await fetch(`${EXTERNAL_API}/mobile/quotes/${id}/create-reservation`, {
+        method: "POST", headers, body: JSON.stringify(req.body), redirect: "manual",
+      });
+      forwardSetCookie(r, res);
+      const text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(400).json({ message: "Erreur lors de la création de réservation" });
+      }
+      try { return res.status(r.status).json(JSON.parse(text)); }
+      catch { return res.status(r.status).send(text); }
+    } catch (err: any) {
+      return res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+
+  app.get("/api/services", async (req: Request, res: Response) => {
+    const headers = getAuthHeaders(req);
+    const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
+    try {
+      let r = await fetch(`${EXTERNAL_API}/mobile/services${qs}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API}/services${qs}`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.json([]);
+      }
+      forwardSetCookie(r, res);
+      try { return res.status(r.status).json(JSON.parse(text)); }
+      catch { return res.status(r.status).send(text); }
+    } catch (err: any) {
+      return res.json([]);
+    }
+  });
 
   app.post("/api/ocr/analyze", async (req: Request, res: Response) => {
     try {

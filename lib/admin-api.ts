@@ -266,7 +266,7 @@ export async function adminGetMe(): Promise<any> {
 }
 
 export const adminAnalytics = {
-  get: () => adminApiCall<any>("/api/admin/analytics"),
+  get: () => adminApiCall<any>("/api/admin/dashboard"),
   getAdvanced: () => adminApiCall<any>("/api/admin/advanced-analytics"),
 };
 
@@ -306,8 +306,8 @@ export const adminQuotes = {
   update: (id: string, data: any) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "PATCH", body: data }),
   updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "PATCH", body: { status } }),
   delete: (id: string) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "DELETE" }),
-  createReservationFromQuote: (id: string, data: any) => adminApiCall<any>(`/api/admin/quotes/${id}/create-reservation`, { method: "POST", body: data }),
-  convertToInvoice: (id: string) => adminApiCall<any>(`/api/mobile/quotes/${id}/convert-to-invoice`, { method: "POST", body: {} }),
+  createReservationFromQuote: (id: string, data: any) => adminApiCall<any>(`/api/quotes/${id}/create-reservation`, { method: "POST", body: data }),
+  convertToInvoice: (id: string) => adminApiCall<any>(`/api/admin/quotes/${id}/convert-to-invoice`, { method: "POST", body: {} }),
 };
 
 export const adminInvoices = {
@@ -371,8 +371,8 @@ export const adminLogs = {
 export const adminNotifications = {
   getAll: () => adminApiCall<any[]>("/api/notifications"),
   getUnreadCount: () => adminApiCall<{ count: number }>("/api/notifications/unread-count"),
-  markRead: (id: string) => adminApiCall<any>(`/api/notifications/${id}/read`, { method: "POST" }),
-  markAllRead: () => adminApiCall<any>("/api/notifications/read-all", { method: "POST" }),
+  markRead: (id: string) => adminApiCall<any>(`/api/notifications/${id}/read`, { method: "PATCH" }),
+  markAllRead: () => adminApiCall<any>("/api/notifications/mark-all-read", { method: "POST" }),
 };
 
 export function getMobilePdfUrl(type: "quotes" | "invoices", id: string): string {
