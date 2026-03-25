@@ -1,4 +1,5 @@
-import { fetch as expoFetch } from "expo/fetch";
+let expoFetch: typeof globalThis.fetch;
+try { expoFetch = require("expo/fetch").fetch; } catch { expoFetch = globalThis.fetch; }
 import { Platform } from "react-native";
 
 const REQUEST_TIMEOUT_MS = 15000;

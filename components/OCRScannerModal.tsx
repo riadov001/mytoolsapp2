@@ -6,7 +6,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
-import { fetch as expoFetch } from "expo/fetch";
+let expoFetch: typeof globalThis.fetch;
+try { expoFetch = require("expo/fetch").fetch; } catch { expoFetch = globalThis.fetch; }
 import { useTheme } from "@/lib/theme";
 import { getApiUrl } from "@/lib/query-client";
 

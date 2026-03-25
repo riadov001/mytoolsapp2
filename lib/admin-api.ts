@@ -1,4 +1,5 @@
-import { fetch as expoFetch } from "expo/fetch";
+let expoFetch: typeof globalThis.fetch;
+try { expoFetch = require("expo/fetch").fetch; } catch { expoFetch = globalThis.fetch; }
 import { Platform, Share } from "react-native";
 import { router } from "expo-router";
 import { getSessionCookie, setSessionCookie } from "./api";

@@ -1,10 +1,14 @@
-import { fetch } from "expo/fetch";
+let expoFetch: typeof globalThis.fetch;
+try {
+  expoFetch = require("expo/fetch").fetch;
+  console.log("[STARTUP] expo/fetch loaded");
+} catch (e) {
+  console.warn("[STARTUP] expo/fetch failed, using global fetch");
+  expoFetch = globalThis.fetch;
+}
+
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-/**
- * Gets the base URL for the Express API server (e.g., "http://localhost:3000")
- * @returns {string} The API base URL
- */
 export function getApiUrl(): string {
   let host = process.env.EXPO_PUBLIC_DOMAIN;
 
@@ -34,7 +38,7 @@ export async function apiRequest(
   const baseUrl = getApiUrl();
   const url = new URL(route, baseUrl);
 
-  const res = await fetch(url.toString(), {
+  const res = await expoFetch(url.toString(), {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -54,7 +58,7 @@ export const getQueryFn: <T>(options: {
     const baseUrl = getApiUrl();
     const url = new URL(queryKey.join("/") as string, baseUrl);
 
-    const res = await fetch(url.toString(), {
+    const res = await expoFetch(url.toString(), {
       credentials: "include",
     });
 
