@@ -1,4 +1,3 @@
-// Load DEV_SECRETS_KEYS JSON config for development (only override if value is non-empty)
 if (typeof window !== "undefined") {
   try {
     const secretsJson = process.env.DEV_SECRETS_KEYS || "{}";
@@ -9,43 +8,75 @@ if (typeof window !== "undefined") {
     if (apiKey) process.env.EXPO_PUBLIC_FIREBASE_API_KEY = apiKey;
     if (appId) process.env.EXPO_PUBLIC_FIREBASE_APP_ID = appId;
     if (clientId) process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = clientId;
-  } catch {
-    // Ignore parse errors — EXPO_PUBLIC_ vars already set via Replit secrets
-  }
+  } catch {}
 }
+
+console.log("[STARTUP] _layout.tsx module loading...");
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Text, useColorScheme } from "react-native";
-import { Image } from "expo-image";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { KeyboardProvider } from "react-native-keyboard-controller";
-import {
-  useFonts,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from "@expo-google-fonts/inter";
-import { Michroma_400Regular } from "@expo-google-fonts/michroma";
+import { View, StyleSheet, Text, Platform } from "react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 
-SplashScreen.preventAutoHideAsync();
-
-// Suppress uncaught font-loading timeout errors (FontFaceObserver)
-if (typeof window !== "undefined") {
-  window.addEventListener("unhandledrejection", (event) => {
-    const msg = event?.reason?.message || "";
-    if (msg.includes("timeout exceeded") || msg.includes("FontFace") || msg.includes("font")) {
-      event.preventDefault();
-    }
-  });
+let GestureHandlerRootView: React.ComponentType<any>;
+try {
+  GestureHandlerRootView = require("react-native-gesture-handler").GestureHandlerRootView;
+  console.log("[STARTUP] GestureHandler loaded");
+} catch (e) {
+  console.warn("[STARTUP] GestureHandler failed, using View fallback");
+  GestureHandlerRootView = View;
 }
+
+let KeyboardProvider: React.ComponentType<any>;
+try {
+  KeyboardProvider = require("react-native-keyboard-controller").KeyboardProvider;
+  console.log("[STARTUP] KeyboardProvider loaded");
+} catch (e) {
+  console.warn("[STARTUP] KeyboardProvider failed, using passthrough");
+  KeyboardProvider = ({ children }: any) => <>{children}</>;
+}
+
+let useFontsHook: any;
+let Inter_400Regular: any, Inter_500Medium: any, Inter_600SemiBold: any, Inter_700Bold: any;
+let Michroma_400Regular: any;
+try {
+  const interModule = require("@expo-google-fonts/inter");
+  useFontsHook = interModule.useFonts;
+  Inter_400Regular = interModule.Inter_400Regular;
+  Inter_500Medium = interModule.Inter_500Medium;
+  Inter_600SemiBold = interModule.Inter_600SemiBold;
+  Inter_700Bold = interModule.Inter_700Bold;
+  const michromaModule = require("@expo-google-fonts/michroma");
+  Michroma_400Regular = michromaModule.Michroma_400Regular;
+  console.log("[STARTUP] Fonts modules loaded");
+} catch (e) {
+  console.warn("[STARTUP] Font modules failed:", e);
+  useFontsHook = null;
+}
+
+try {
+  SplashScreen.preventAutoHideAsync();
+} catch (e) {
+  console.warn("[STARTUP] preventAutoHideAsync failed:", e);
+}
+
+if (typeof window !== "undefined") {
+  try {
+    window.addEventListener("unhandledrejection", (event) => {
+      const msg = event?.reason?.message || "";
+      if (msg.includes("timeout exceeded") || msg.includes("FontFace") || msg.includes("font")) {
+        event.preventDefault();
+      }
+    });
+  } catch {}
+}
+
+console.log("[STARTUP] Module-level init complete");
 
 function RootLayoutNav() {
   const theme = useTheme();
@@ -72,64 +103,61 @@ function RootLayoutNav() {
   );
 }
 
-function SplashView() {
-  const theme = useTheme();
-  return (
-    <View style={[styles.splashContainer, { backgroundColor: theme.background }]}>
-      <View style={styles.logoWrapper}>
-        <Image
-          source={require("@/assets/images/logo_new.png")}
-          style={styles.splashLogo}
-          contentFit="contain"
-        />
-      </View>
-      <View style={styles.versionBottom}>
-        <Text style={[styles.versionTextSplash, { color: theme.textTertiary, fontFamily: theme.fontTitle }]}>
-          v1.0
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Michroma_400Regular,
-  });
+
+  let fontsLoaded = false;
+  let fontError: Error | null = null;
+
+  if (useFontsHook) {
+    try {
+      const result = useFontsHook({
+        Inter_400Regular,
+        Inter_500Medium,
+        Inter_600SemiBold,
+        Inter_700Bold,
+        Michroma_400Regular,
+      });
+      fontsLoaded = result[0];
+      fontError = result[1];
+    } catch (e) {
+      console.warn("[STARTUP] useFonts hook failed:", e);
+      fontError = e as Error;
+    }
+  } else {
+    fontError = new Error("Font modules not available");
+  }
+
+  useEffect(() => {
+    console.log("[STARTUP] RootLayout mounted, fontsLoaded:", fontsLoaded, "fontError:", !!fontError);
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
+      console.log("[STARTUP] Fonts resolved — fontsLoaded:", fontsLoaded, "fontError:", fontError?.message);
       const timer = setTimeout(() => {
         setAppReady(true);
         SplashScreen.hideAsync().catch(() => {});
-      }, 500);
+        console.log("[STARTUP] App ready (fonts resolved)");
+      }, 200);
       return () => clearTimeout(timer);
     }
   }, [fontsLoaded, fontError]);
 
-  // Safety fallback: if fonts take more than 8s (e.g. network timeout), proceed anyway
   useEffect(() => {
     const fallback = setTimeout(() => {
+      console.log("[STARTUP] Fallback timer fired — forcing app ready");
       setAppReady(true);
       SplashScreen.hideAsync().catch(() => {});
-    }, 8000);
+    }, 2500);
     return () => clearTimeout(fallback);
   }, []);
 
-  if (!fontsLoaded && !fontError && !appReady) return null;
-
-  if (!appReady) {
-    return (
-      <ThemeProvider>
-        <SplashView />
-      </ThemeProvider>
-    );
+  if (!appReady && !fontsLoaded && !fontError) {
+    return null;
   }
+
+  console.log("[STARTUP] Rendering main app tree");
 
   return (
     <ErrorBoundary>
@@ -147,31 +175,3 @@ export default function RootLayout() {
     </ErrorBoundary>
   );
 }
-
-const styles = StyleSheet.create({
-  splashContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  logoWrapper: {
-    width: 240,
-    height: 240,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  splashLogo: {
-    width: "100%",
-    height: "100%",
-  },
-  versionBottom: {
-    position: "absolute",
-    bottom: 40,
-    alignItems: "center",
-  },
-  versionTextSplash: {
-    fontSize: 12,
-    opacity: 0.5,
-    letterSpacing: 2,
-  },
-});
