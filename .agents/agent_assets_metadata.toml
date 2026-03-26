@@ -18,3 +18,9 @@ id = "FL_E7yoq9CLsPE6-y0co-"
 uri = "file://AUDIT.md"
 type = "text"
 title = "Documentation Technique — Audit de Code MyToolsApp v2.0.1"
+
+[[outputs]]
+id = "Ej-bA4PwEOEKeytQVA1MJ"
+uri = "file://AUDIT_MyToolsApp_v2.pdf"
+type = "pdf"
+title = "Audit interne MyToolsApp mobile v2"
