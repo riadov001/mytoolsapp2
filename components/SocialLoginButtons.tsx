@@ -12,8 +12,15 @@ import { makeRedirectUri } from "expo-auth-session";
 import { Ionicons } from "@expo/vector-icons";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { useTheme } from "@/lib/theme";
+import Constants from "expo-constants";
 
 WebBrowser.maybeCompleteAuthSession();
+
+const IOS_CLIENT_ID = "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com";
+const ANDROID_CLIENT_ID = "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com";
+const WEB_CLIENT_ID = "129808585113-atcn4gnb3jund8ttee1nubc1gr3kt2ln.apps.googleusercontent.com";
+
+const isExpoGo = Constants.appOwnership === "expo";
 
 export interface SocialLoginButtonsProps {
   onIdToken: (idToken: string, provider: string) => Promise<void>;
@@ -27,11 +34,27 @@ if (Platform.OS === "ios") {
   } catch {}
 }
 
+function buildNativeRedirectUri() {
+  if (isExpoGo) {
+    return makeRedirectUri({ scheme: "mytools", path: "auth/callback" });
+  }
+  if (Platform.OS === "ios") {
+    return makeRedirectUri({
+      native: `com.googleusercontent.apps.${IOS_CLIENT_ID.split(".apps.")[0]}:/oauthredirect`,
+    });
+  }
+  if (Platform.OS === "android") {
+    return makeRedirectUri({
+      native: `com.googleusercontent.apps.${ANDROID_CLIENT_ID.split(".apps.")[0]}:/oauthredirect`,
+    });
+  }
+  return makeRedirectUri({});
+}
+
 function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps) {
   const [loading, setLoading] = useState<string | null>(null);
+  const theme = useTheme();
 
-  // Pre-warm firebase/auth import on web so signInWithPopup is called synchronously
-  // after user gesture (avoids popup blocker issues)
   useEffect(() => {
     if (Platform.OS === "web") {
       import("firebase/auth").catch(() => {});
@@ -40,25 +63,15 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
 
   const Google = require("expo-auth-session/providers/google");
 
-  const redirectUri = makeRedirectUri({
-    scheme: "mytools",
-    path: "auth/callback",
-  });
+  const redirectUri = Platform.OS === "web" ? makeRedirectUri({}) : buildNativeRedirectUri();
 
   const [, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    webClientId:
-      process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-      "129808585113-atcn4gnb3jund8ttee1nubc1gr3kt2ln.apps.googleusercontent.com",
-    iosClientId:
-      process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
-      "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com",
-    androidClientId:
-      process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
-      "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || ANDROID_CLIENT_ID,
     redirectUri,
   });
 
-  // Native Google response handler
   useEffect(() => {
     if (Platform.OS === "web") return;
     if (googleResponse?.type === "success") {
@@ -84,15 +97,10 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
     }
     try {
       const { getFirebaseAuth } = require("@/lib/firebase");
-      const { signInWithCredential, GoogleAuthProvider } = await import(
-        "firebase/auth"
-      );
+      const { signInWithCredential, GoogleAuthProvider } = await import("firebase/auth");
       const fbAuth = getFirebaseAuth();
       if (!fbAuth) throw new Error("Firebase non configuré");
-      const credential = GoogleAuthProvider.credential(
-        googleIdToken,
-        accessToken
-      );
+      const credential = GoogleAuthProvider.credential(googleIdToken, accessToken);
       const result = await signInWithCredential(fbAuth, credential);
       await onIdToken(await result.user.getIdToken(), "google");
     } catch (err: any) {
@@ -106,11 +114,8 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
     setLoading("google");
     try {
       if (Platform.OS === "web") {
-        // Web: use Firebase popup (no redirect URI config needed)
         const { getFirebaseAuth } = require("@/lib/firebase");
-        const { signInWithPopup, GoogleAuthProvider } = await import(
-          "firebase/auth"
-        );
+        const { signInWithPopup, GoogleAuthProvider } = await import("firebase/auth");
         const fbAuth = getFirebaseAuth();
         if (!fbAuth) throw new Error("Firebase non configuré");
         const provider = new GoogleAuthProvider();
@@ -120,7 +125,6 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
         await onIdToken(await result.user.getIdToken(), "google");
         setLoading(null);
       } else {
-        // Native: use expo-auth-session (result handled in useEffect above)
         await googlePromptAsync();
       }
     } catch (err: any) {
@@ -143,9 +147,7 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
     setLoading("apple");
     try {
       const { getFirebaseAuth } = require("@/lib/firebase");
-      const { signInWithCredential, OAuthProvider } = await import(
-        "firebase/auth"
-      );
+      const { signInWithCredential, OAuthProvider } = await import("firebase/auth");
       const fbAuth = getFirebaseAuth();
       if (!fbAuth) throw new Error("Firebase non configuré");
 
@@ -155,13 +157,10 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
-      if (!appleCredential.identityToken)
-        throw new Error("Aucun token Apple reçu");
+      if (!appleCredential.identityToken) throw new Error("Aucun token Apple reçu");
 
       const provider = new OAuthProvider("apple.com");
-      const firebaseCredential = provider.credential({
-        idToken: appleCredential.identityToken,
-      });
+      const firebaseCredential = provider.credential({ idToken: appleCredential.identityToken });
       const result = await signInWithCredential(fbAuth, firebaseCredential);
       await onIdToken(await result.user.getIdToken(), "apple");
     } catch (err: any) {
@@ -225,6 +224,14 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
           </Pressable>
         ))}
       </View>
+      {isExpoGo && Platform.OS !== "web" && (
+        <View style={styles.expoGoNotice}>
+          <Ionicons name="information-circle-outline" size={13} color="#888" />
+          <Text style={styles.expoGoNoticeText}>
+            Google Sign-In fonctionne dans l'app installée (pas Expo Go)
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -293,6 +300,19 @@ const styles = StyleSheet.create({
   },
   notConfiguredText: {
     fontSize: 11,
+    color: "#888",
+    fontFamily: "Inter_400Regular",
+    flex: 1,
+  },
+  expoGoNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    opacity: 0.45,
+  },
+  expoGoNoticeText: {
+    fontSize: 10,
     color: "#888",
     fontFamily: "Inter_400Regular",
     flex: 1,
