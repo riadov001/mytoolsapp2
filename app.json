@@ -54,7 +54,6 @@
     "web": {
       "favicon": "./assets/images/logo_new.png"
     },
-    "privacyPolicyUrl": "https://www.mytoolsgroup.eu/privacy",
     "plugins": [
       "expo-router",
       "expo-font",
@@ -80,7 +79,8 @@
         {
           "photosPermission": "MyTools Admin accède à la galerie pour joindre des photos aux devis et demandes de service."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
