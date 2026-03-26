@@ -12,3 +12,9 @@ id = "-JdBxlqRUNu2XizfG8r79"
 uri = "file://AUDIT_TECHNICO_FONCTIONNEL.md"
 type = "text"
 title = "Documentation Technico-Fonctionnelle pour Audit"
+
+[[outputs]]
+id = "FL_E7yoq9CLsPE6-y0co-"
+uri = "file://AUDIT.md"
+type = "text"
+title = "Documentation Technique — Audit de Code MyToolsApp v2.0.1"
