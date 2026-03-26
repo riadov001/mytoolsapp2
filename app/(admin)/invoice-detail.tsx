@@ -8,10 +8,11 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminInvoices, adminClients, sharePdfDirect, getAdminAccessToken } from "@/lib/admin-api";
+import { adminInvoices, adminClients, sharePdfDirect, getAdminAccessToken, getMobilePdfUrl } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
+import { downloadPdfFile } from "@/lib/pdf-download";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "En attente", paid: "Payée", cancelled: "Annulée",
@@ -65,6 +66,7 @@ export default function InvoiceDetailScreen() {
   const queryClient = useQueryClient();
   const { showAlert, AlertComponent } = useCustomAlert();
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const { data: inv, isLoading, error } = useQuery({
     queryKey: ["admin-invoice", id],
@@ -351,6 +353,34 @@ export default function InvoiceDetailScreen() {
               : <Ionicons name="share-outline" size={18} color={theme.primary} />
             }
             <Text style={[styles.actionBtnText, { color: theme.primary }]}>Partager le PDF</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.actionBtn, { borderColor: "#22C55E50", opacity: downloadingPdf ? 0.6 : 1 }]}
+            disabled={downloadingPdf}
+            onPress={async () => {
+              setDownloadingPdf(true);
+              try {
+                const ref = inv?.invoiceNumber || inv?.reference || id;
+                const url = getMobilePdfUrl("invoices", id);
+                await downloadPdfFile(url, `facture-${ref}.pdf`);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              } catch (err: any) {
+                showAlert({
+                  type: "error",
+                  title: "Erreur",
+                  message: err?.message || "Impossible de télécharger le PDF.",
+                  buttons: [{ text: "OK", style: "primary" }],
+                });
+              } finally {
+                setDownloadingPdf(false);
+              }
+            }}
+          >
+            {downloadingPdf
+              ? <ActivityIndicator size="small" color="#22C55E" />
+              : <Ionicons name="download-outline" size={18} color="#22C55E" />
+            }
+            <Text style={[styles.actionBtnText, { color: "#22C55E" }]}>Télécharger le PDF</Text>
           </Pressable>
         </View>
 

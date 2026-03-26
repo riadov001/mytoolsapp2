@@ -1,12 +1,12 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform,
   TextInput, ActivityIndicator,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { adminServices } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
@@ -29,6 +29,11 @@ const DURATIONS = [
 ];
 
 export default function ServiceCreateScreen() {
+  const params = useLocalSearchParams();
+  const rawId = params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : (typeof rawId === "string" ? rawId : "");
+  const isEdit = id.length > 0;
+
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
@@ -42,6 +47,24 @@ export default function ServiceCreateScreen() {
   const [category, setCategory] = useState("");
   const [showCategories, setShowCategories] = useState(false);
   const [showDurations, setShowDurations] = useState(false);
+
+  const { data: existing, isLoading: loadingExisting } = useQuery({
+    queryKey: ["admin-service", id],
+    queryFn: () => adminServices.getById(id),
+    enabled: isEdit,
+    retry: 1,
+  });
+
+  useEffect(() => {
+    if (existing && isEdit) {
+      setName(existing.name || "");
+      setDescription(existing.description || "");
+      const price = existing.basePrice || existing.price || existing.unit_price || existing.priceExcludingTax || "";
+      setBasePrice(String(price));
+      setDuration(existing.duration || 60);
+      setCategory(existing.category || "");
+    }
+  }, [existing]);
 
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
@@ -60,15 +83,19 @@ export default function ServiceCreateScreen() {
         duration,
         category: category || "Autre",
       };
+      if (isEdit) {
+        return adminServices.update(id, payload);
+      }
       return adminServices.create(payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-services"] });
+      if (isEdit) queryClient.invalidateQueries({ queryKey: ["admin-service", id] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showAlert({
         type: "success",
-        title: "Service créé",
-        message: `Le service "${name}" a été ajouté avec succès.`,
+        title: isEdit ? "Service modifié" : "Service créé",
+        message: isEdit ? `Le service "${name}" a été mis à jour.` : `Le service "${name}" a été ajouté avec succès.`,
         buttons: [{ text: "OK", onPress: () => router.back() }],
       });
     },
@@ -77,13 +104,50 @@ export default function ServiceCreateScreen() {
       showAlert({
         type: "error",
         title: "Erreur",
-        message: err?.message || "Impossible de créer le service.",
+        message: err?.message || "Impossible de sauvegarder le service.",
         buttons: [{ text: "OK" }],
       });
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => adminServices.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-services"] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    },
+    onError: (err: any) => {
+      showAlert({
+        type: "error",
+        title: "Erreur",
+        message: err?.message || "Impossible de supprimer le service.",
+        buttons: [{ text: "OK" }],
+      });
+    },
+  });
+
+  const handleDelete = () => {
+    showAlert({
+      type: "warning",
+      title: "Supprimer le service",
+      message: `Voulez-vous vraiment supprimer "${name}" ? Cette action est irréversible.`,
+      buttons: [
+        { text: "Annuler" },
+        { text: "Supprimer", style: "destructive", onPress: () => deleteMutation.mutate() },
+      ],
+    });
+  };
+
   const selectedDurationLabel = DURATIONS.find(d => d.value === duration)?.label || `${duration} min`;
+
+  if (isEdit && loadingExisting) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -92,7 +156,7 @@ export default function ServiceCreateScreen() {
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color={theme.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Nouveau service</Text>
+        <Text style={styles.headerTitle}>{isEdit ? "Modifier le service" : "Nouveau service"}</Text>
         <Pressable
           style={[styles.saveBtn, mutation.isPending && { opacity: 0.5 }]}
           onPress={() => { Haptics.selectionAsync(); mutation.mutate(); }}
@@ -100,7 +164,7 @@ export default function ServiceCreateScreen() {
         >
           {mutation.isPending
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={styles.saveBtnText}>Créer</Text>}
+            : <Text style={styles.saveBtnText}>{isEdit ? "Enregistrer" : "Créer"}</Text>}
         </Pressable>
       </View>
 
@@ -109,7 +173,6 @@ export default function ServiceCreateScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Nom */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nom du service *</Text>
           <TextInput
@@ -118,11 +181,10 @@ export default function ServiceCreateScreen() {
             onChangeText={setName}
             placeholder="Ex : Vidange + filtres"
             placeholderTextColor={theme.textTertiary}
-            autoFocus
+            autoFocus={!isEdit}
           />
         </View>
 
-        {/* Description */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Description</Text>
           <TextInput
@@ -136,7 +198,6 @@ export default function ServiceCreateScreen() {
           />
         </View>
 
-        {/* Prix de base */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Prix de base (€ HT)</Text>
           <TextInput
@@ -149,7 +210,6 @@ export default function ServiceCreateScreen() {
           />
         </View>
 
-        {/* Durée */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Durée estimée</Text>
           <Pressable
@@ -176,7 +236,6 @@ export default function ServiceCreateScreen() {
           )}
         </View>
 
-        {/* Catégorie */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Catégorie</Text>
           <Pressable
@@ -203,7 +262,6 @@ export default function ServiceCreateScreen() {
           )}
         </View>
 
-        {/* Résumé */}
         {name ? (
           <View style={[styles.section, { borderColor: theme.primary + "40", borderWidth: 1 }]}>
             <Text style={[styles.sectionTitle, { color: theme.primary }]}>Résumé</Text>
@@ -229,6 +287,20 @@ export default function ServiceCreateScreen() {
             </View>
           </View>
         ) : null}
+
+        {isEdit && (
+          <Pressable
+            style={[styles.section, { borderColor: "#EF444440", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }]}
+            onPress={handleDelete}
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending
+              ? <ActivityIndicator size="small" color="#EF4444" />
+              : <Ionicons name="trash-outline" size={18} color="#EF4444" />
+            }
+            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#EF4444" }}>Supprimer le service</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </View>
   );

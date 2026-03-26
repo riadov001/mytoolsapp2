@@ -42,6 +42,7 @@ export default function ClientFormScreen() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: existing, isLoading: loadingExisting, error: loadingError } = useQuery({
     queryKey: ["admin-client", id],
@@ -126,20 +127,6 @@ export default function ClientFormScreen() {
 
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
-
-  if (!isEdit) {
-    return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center", gap: 16 }]}>
-        <Ionicons name="close-circle-outline" size={48} color="#EF4444" />
-        <Text style={{ fontSize: 16, color: theme.text, textAlign: "center", paddingHorizontal: 32, fontFamily: "Inter_500Medium" }}>
-          La création de clients est désactivée.
-        </Text>
-        <Pressable style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: theme.primary, borderRadius: 12 }} onPress={() => router.back()}>
-          <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>Retour</Text>
-        </Pressable>
-      </View>
-    );
-  }
 
   if (isEdit && loadingExisting) {
     return (
@@ -237,6 +224,45 @@ export default function ClientFormScreen() {
             </>
           )}
         </Pressable>
+
+        {isEdit && (
+          <Pressable
+            style={({ pressed }) => [styles.saveBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: "#EF4444", marginTop: 12 }, pressed && { opacity: 0.7 }]}
+            disabled={deleting}
+            onPress={() => {
+              showAlert({
+                type: "warning",
+                title: "Supprimer le client",
+                message: `Voulez-vous vraiment supprimer ${firstName} ${lastName} ? Cette action est irréversible.`,
+                buttons: [
+                  { text: "Annuler" },
+                  {
+                    text: "Supprimer", style: "destructive", onPress: async () => {
+                      setDeleting(true);
+                      try {
+                        await adminClients.delete(id);
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        queryClient.invalidateQueries({ queryKey: ["admin-clients"] });
+                        router.back();
+                      } catch (err: any) {
+                        showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible de supprimer.", buttons: [{ text: "OK" }] });
+                      } finally {
+                        setDeleting(false);
+                      }
+                    },
+                  },
+                ],
+              });
+            }}
+          >
+            {deleting ? <ActivityIndicator size="small" color="#EF4444" /> : (
+              <>
+                <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                <Text style={[styles.saveBtnText, { color: "#EF4444" }]}>Supprimer le client</Text>
+              </>
+            )}
+          </Pressable>
+        )}
       </ScrollView>
       {AlertComponent}
     </View>
