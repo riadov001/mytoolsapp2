@@ -156,8 +156,6 @@ export async function apiCall<T = any>(
     fetchHeaders["Cookie"] = sessionCookie;
   }
 
-  const url = `${API_BASE}${endpoint}`;
-
   let res: Response;
 
   if (isFormData) {

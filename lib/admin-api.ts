@@ -157,7 +157,6 @@ export async function adminApiCall<T = any>(
     fetchOptions.body = isFormData ? body : JSON.stringify(body);
   }
 
-  const url = `${API_BASE}${endpoint}`;
   const res = await fetchWithNativeFallback(endpoint, fetchOptions, isFormData);
 
   const xSessionCookie = res.headers.get("x-session-cookie");
@@ -170,7 +169,7 @@ export async function adminApiCall<T = any>(
       const refreshed = await tryRefreshToken();
       if (refreshed) {
         fetchHeaders["Authorization"] = `Bearer ${accessToken}`;
-        const retryRes = await fetchWithRetry(url, { ...fetchOptions, headers: fetchHeaders }, isFormData);
+        const retryRes = await fetchWithNativeFallback(endpoint, { ...fetchOptions, headers: fetchHeaders }, isFormData);
         if (retryRes.ok) return parseResponse<T>(retryRes);
       }
     }

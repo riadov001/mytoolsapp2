@@ -287,7 +287,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const socialLogin = async (idToken: string, provider: string): Promise<SocialLoginResult> => {
-    const apiBase = (() => {
+    const getWebBase = () => {
       if (Platform.OS === "web" && typeof window !== "undefined") {
         const origin = window.location.origin;
         if (origin.includes("localhost:8081") || origin.includes("127.0.0.1:8081")) {
@@ -295,15 +295,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         return origin;
       }
-      if (process.env.EXPO_PUBLIC_DOMAIN) return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
-      return "https://saas2.mytoolsgroup.eu";
-    })();
+      return null;
+    };
 
-    const res = await fetch(`${apiBase}/api/auth/social`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: idToken, provider }),
-    });
+    const webBase = getWebBase();
+    const nativeBases = [
+      "https://saas2.mytoolsgroup.eu",
+      "https://saas3.mytoolsgroup.eu",
+    ];
+
+    const bases = webBase
+      ? [webBase]
+      : process.env.EXPO_PUBLIC_DOMAIN
+        ? [`https://${process.env.EXPO_PUBLIC_DOMAIN}`]
+        : nativeBases;
+
+    let res: globalThis.Response | null = null;
+    let lastErr: any = null;
+    for (const base of bases) {
+      try {
+        res = await fetch(`${base}/api/auth/social`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: idToken, provider }),
+        });
+        break;
+      } catch (err: any) {
+        lastErr = err;
+        console.warn(`[SocialLogin] ${base} unreachable, trying next...`);
+      }
+    }
+    if (!res) throw lastErr || new Error("Authentification sociale échouée");
 
     const data = await res.json().catch(() => ({}));
 

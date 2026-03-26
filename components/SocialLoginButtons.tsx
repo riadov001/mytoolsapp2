@@ -47,13 +47,14 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
 
   const [, googleResponse, googlePromptAsync] = Google.useAuthRequest({
     webClientId:
-      process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "placeholder",
+      process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+      "129808585113-atcn4gnb3jund8ttee1nubc1gr3kt2ln.apps.googleusercontent.com",
     iosClientId:
       process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
       "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com",
     androidClientId:
       process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
-      "620744025416-3uq2eou0n3b5kiubn2qas6ndivl5lf0p.apps.googleusercontent.com",
+      "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
     redirectUri,
   });
 
