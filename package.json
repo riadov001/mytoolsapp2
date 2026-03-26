@@ -21,6 +21,7 @@
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/michroma": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",
+    "@fontsource/exo-2": "^5.2.8",
     "@google/genai": "^1.41.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@stardazed/streams-text-encoding": "^1.0.2",

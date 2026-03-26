@@ -1,516 +1,528 @@
 #!/usr/bin/env node
 /**
  * Génération PDF — Audit interne MyToolsApp mobile v2
- * Auteur script : MyTools Group
+ * Police : Exo 2 | Thème : MyTools Group
  */
 
+"use strict";
+
 const PDFDocument = require("pdfkit");
-const fs = require("fs");
-const path = require("path");
+const fs          = require("fs");
+const path        = require("path");
 
-const OUTPUT = path.join(__dirname, "../AUDIT_MyToolsApp_v2.pdf");
-const LOGO = path.join(__dirname, "../assets/images/logo_new.png");
-const AUDIT_MD = path.join(__dirname, "../AUDIT.md");
+// ─── Chemins ─────────────────────────────────────────────────────────────────
+const ROOT   = path.join(__dirname, "..");
+const OUTPUT = path.join(ROOT, "AUDIT_MyToolsApp_v2.pdf");
+const LOGO   = path.join(ROOT, "assets/images/logo_new.png");
+const MD     = path.join(ROOT, "AUDIT.md");
+const FONTS  = path.join(__dirname, "fonts");
 
-// ─── Palette de couleurs (thème app) ────────────────────────────────────────
-const C = {
-  red:        "#DC2626",
-  redDark:    "#991B1B",
-  redLight:   "#FEE2E2",
-  dark:       "#0A0A0A",
-  darkGray:   "#1C1C1E",
-  midGray:    "#3A3A3C",
-  lightGray:  "#F5F5F7",
-  borderGray: "#E5E7EB",
-  text:       "#111827",
-  textLight:  "#6B7280",
-  white:      "#FFFFFF",
-  accent:     "#1D4ED8",
+const F = {
+  Regular:  path.join(FONTS, "Exo2-Regular.woff"),
+  Bold:     path.join(FONTS, "Exo2-Bold.woff"),
+  SemiBold: path.join(FONTS, "Exo2-SemiBold.woff"),
+  Italic:   path.join(FONTS, "Exo2-Italic.woff"),
 };
 
-const PAGE_W = 595.28;
-const PAGE_H = 841.89;
-const MARGIN = 50;
-const CONTENT_W = PAGE_W - MARGIN * 2;
+// ─── Palette ──────────────────────────────────────────────────────────────────
+const C = {
+  red:       "#DC2626",
+  redDark:   "#991B1B",
+  redLight:  "#FFF1F1",
+  dark:      "#111827",
+  darkCard:  "#1F2937",
+  midGray:   "#6B7280",
+  border:    "#E5E7EB",
+  bg:        "#F9FAFB",
+  text:      "#1F2937",
+  white:     "#FFFFFF",
+};
 
-// ─── Créer le document ───────────────────────────────────────────────────────
+// ─── Dimensions ───────────────────────────────────────────────────────────────
+const PW     = 595.28;   // A4 largeur
+const PH     = 841.89;   // A4 hauteur
+const ML     = 52;       // marge gauche
+const MR     = 52;       // marge droite
+const CW     = PW - ML - MR; // largeur contenu
+const HDR_H  = 42;       // hauteur en-tête
+const FTR_H  = 36;       // hauteur pied de page
+const TOP    = HDR_H + 14; // Y de début contenu
+const BOT    = PH - FTR_H - 10; // Y de fin contenu
+
+// ─── Document ─────────────────────────────────────────────────────────────────
 const doc = new PDFDocument({
   size: "A4",
-  margins: { top: MARGIN, bottom: 60, left: MARGIN, right: MARGIN },
-  info: {
-    Title: "Audit interne MyToolsApp mobile v2",
-    Author: "Riad BELMAHI — CTO, MyTools Group",
-    Subject: "Audit de code — Application mobile partenaires garages",
-    Creator: "MyTools Group",
-    Producer: "PDFKit",
-  },
+  autoFirstPage: false,
   bufferPages: true,
+  info: {
+    Title:    "Audit interne MyToolsApp mobile v2",
+    Author:   "Riad BELMAHI — CTO, MyTools Group",
+    Subject:  "Audit de code — Application mobile partenaires garages",
+    Creator:  "MyTools Group / Paf Invest Limited",
+    Keywords: "audit, mobile, expo, react-native, mytoolsapp",
+  },
 });
+
+// Enregistrer les polices
+doc.registerFont("Regular",  F.Regular);
+doc.registerFont("Bold",     F.Bold);
+doc.registerFont("SemiBold", F.SemiBold);
+doc.registerFont("Italic",   F.Italic);
 
 doc.pipe(fs.createWriteStream(OUTPUT));
 
-let pageCount = 0;
+// ─── Utilitaires bas niveau ───────────────────────────────────────────────────
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function newPage() {
-  doc.addPage();
-  pageCount++;
+function rect(x, y, w, h, fill, stroke) {
+  doc.save();
+  doc.rect(x, y, w, h);
+  if (fill)   doc.fill(fill);
+  if (stroke) doc.stroke(stroke);
+  doc.restore();
 }
 
-function fillRect(x, y, w, h, color) {
-  doc.save().rect(x, y, w, h).fill(color).restore();
+function line(x1, y1, x2, y2, color = C.border, lw = 0.5) {
+  doc.save().moveTo(x1, y1).lineTo(x2, y2)
+    .strokeColor(color).lineWidth(lw).stroke().restore();
 }
 
-function hRule(y, color = C.borderGray, width = CONTENT_W) {
-  doc.save()
-    .moveTo(MARGIN, y).lineTo(MARGIN + width, y)
-    .strokeColor(color).lineWidth(0.5).stroke()
-    .restore();
+// Nettoyer le markdown inline (gras, italique, code, liens)
+function clean(str = "") {
+  return str
+    .replace(/\*\*\*([^*]+)\*\*\*/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\\([*_`])/g, "$1")
+    .trim();
 }
 
-function badge(text, x, y, bg = C.red, fg = C.white) {
-  const pad = 6;
-  const fw = doc.widthOfString(text, { size: 8 }) + pad * 2;
-  const fh = 16;
-  doc.save()
-    .roundedRect(x, y, fw, fh, 3).fill(bg)
-    .fontSize(8).fillColor(fg).font("Helvetica-Bold")
-    .text(text, x + pad, y + 4, { width: fw - pad * 2, align: "center" })
-    .restore();
-  return fw;
-}
+// ─── En-tête & pied de page ───────────────────────────────────────────────────
 
-// ─── Page de couverture ──────────────────────────────────────────────────────
-
-function drawCover() {
-  pageCount = 1;
-
-  // Fond header sombre
-  fillRect(0, 0, PAGE_W, 320, C.dark);
-
-  // Bande rouge en bas du header
-  fillRect(0, 308, PAGE_W, 12, C.red);
-
-  // Logo centré dans le header
-  const logoSize = 90;
-  const logoX = (PAGE_W - logoSize) / 2;
-  if (fs.existsSync(LOGO)) {
-    doc.image(LOGO, logoX, 50, { width: logoSize, height: logoSize, fit: [logoSize, logoSize], align: "center" });
-  }
-
-  // Titre
-  doc.fontSize(28).font("Helvetica-Bold").fillColor(C.white)
-    .text("Audit interne", MARGIN, 170, { width: CONTENT_W, align: "center" });
-  doc.fontSize(22).font("Helvetica-Bold").fillColor(C.red)
-    .text("MyToolsApp mobile v2", MARGIN, 205, { width: CONTENT_W, align: "center" });
-
-  // Sous-titre
-  doc.fontSize(11).font("Helvetica").fillColor("#9CA3AF")
-    .text("Application mobile partenaires garages — React Native / Expo SDK 54", MARGIN, 245, {
-      width: CONTENT_W, align: "center",
-    });
-
-  // Date + version
-  const now = new Date();
-  const dateStr = now.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-  doc.fontSize(9).fillColor("#6B7280")
-    .text(`Version 2.0.1  •  ${dateStr}`, MARGIN, 275, { width: CONTENT_W, align: "center" });
-
-  // ── Bloc équipe ──
-  const cardY = 345;
-  const cardH = 195;
-
-  // Ombre / bordure card
-  fillRect(MARGIN - 1, cardY - 1, CONTENT_W + 2, cardH + 2, C.borderGray);
-  fillRect(MARGIN, cardY, CONTENT_W, cardH, C.white);
-
-  // Bande rouge gauche
-  fillRect(MARGIN, cardY, 4, cardH, C.red);
-
-  // Titre card
-  doc.fontSize(10).font("Helvetica-Bold").fillColor(C.red)
-    .text("ÉQUIPE & COMMANDITAIRE", MARGIN + 18, cardY + 14);
-  hRule(cardY + 32, C.borderGray, CONTENT_W - 18);
-
-  // Lignes équipe
-  const rows = [
-    { label: "Rédacteur", value: "Riad BELMAHI", role: "CTO — Chief Technology Officer" },
-    { label: "Direction", value: "Iliass MEGAIZ", role: "CEO — Chief Executive Officer" },
-    { label: "Commanditaire", value: "Paf Invest Limited", role: "Groupe investisseur" },
-    { label: "Président", value: "Naime BELAMIRI", role: "Président — Paf Invest Limited" },
-  ];
-
-  let ry = cardY + 42;
-  rows.forEach((r, i) => {
-    if (i % 2 === 0) fillRect(MARGIN + 4, ry - 2, CONTENT_W - 8, 30, "#FAFAFA");
-    doc.fontSize(8).font("Helvetica").fillColor(C.textLight)
-      .text(r.label.toUpperCase(), MARGIN + 18, ry + 2, { width: 90 });
-    doc.fontSize(11).font("Helvetica-Bold").fillColor(C.text)
-      .text(r.value, MARGIN + 115, ry, { width: 180 });
-    doc.fontSize(9).font("Helvetica").fillColor(C.textLight)
-      .text(r.role, MARGIN + 300, ry + 2, { width: 220 });
-    ry += 38;
-  });
-
-  // ── Bloc statut ──
-  const statY = cardY + cardH + 22;
-  const statItems = [
-    { label: "Statut", val: "CONFIDENTIEL", color: C.red },
-    { label: "expo-doctor", val: "17/17 ✓", color: "#16A34A" },
-    { label: "EAS Build", val: "Configuré", color: "#2563EB" },
-    { label: "Plateforme", val: "iOS + Android", color: C.midGray },
-  ];
-
-  let sx = MARGIN;
-  const boxW = (CONTENT_W - 15) / 4;
-  statItems.forEach((s) => {
-    fillRect(sx, statY, boxW, 52, C.lightGray);
-    doc.save().rect(sx, statY, boxW, 52).stroke(C.borderGray).restore();
-    fillRect(sx, statY, boxW, 4, s.color);
-    doc.fontSize(7).font("Helvetica").fillColor(C.textLight)
-      .text(s.label.toUpperCase(), sx + 8, statY + 12, { width: boxW - 16 });
-    doc.fontSize(11).font("Helvetica-Bold").fillColor(s.color)
-      .text(s.val, sx + 8, statY + 24, { width: boxW - 16 });
-    sx += boxW + 5;
-  });
-
-  // ── Ligne de pied de couverture ──
-  fillRect(0, PAGE_H - 48, PAGE_W, 48, C.darkGray);
-  doc.fontSize(8).font("Helvetica").fillColor("#6B7280")
-    .text("Document confidentiel — Usage interne uniquement — © 2026 MyTools Group / Paf Invest Limited",
-      MARGIN, PAGE_H - 28, { width: CONTENT_W, align: "center" });
-}
-
-// ─── En-tête de page courante ─────────────────────────────────────────────────
-
-function drawHeader(sectionTitle = "") {
-  fillRect(0, 0, PAGE_W, 38, C.dark);
-  fillRect(0, 36, PAGE_W, 2, C.red);
+function drawPageHeader(section = "") {
+  rect(0, 0, PW, HDR_H, C.dark);
+  rect(0, HDR_H - 2, PW, 2, C.red);
 
   if (fs.existsSync(LOGO)) {
-    doc.image(LOGO, MARGIN, 7, { height: 22, fit: [22, 22] });
+    try { doc.image(LOGO, ML, 9, { height: 24, fit: [24, 24] }); } catch (_) {}
   }
 
-  doc.fontSize(8).font("Helvetica-Bold").fillColor(C.white)
-    .text("Audit interne MyToolsApp mobile v2", MARGIN + 30, 10);
-  doc.fontSize(7).font("Helvetica").fillColor("#9CA3AF")
-    .text("CONFIDENTIEL — Paf Invest Limited", MARGIN + 30, 22);
+  doc.font("Bold").fontSize(9).fillColor(C.white)
+    .text("Audit interne MyToolsApp mobile v2", ML + 32, 11, { lineBreak: false });
 
-  if (sectionTitle) {
-    doc.fontSize(8).font("Helvetica").fillColor("#9CA3AF")
-      .text(sectionTitle, 0, 14, { width: PAGE_W - MARGIN, align: "right" });
+  doc.font("Regular").fontSize(7.5).fillColor("#9CA3AF")
+    .text("CONFIDENTIEL — Paf Invest Limited", ML + 32, 23, { lineBreak: false });
+
+  if (section) {
+    const sw = doc.widthOfString(section, { font: "Regular", size: 7.5 });
+    doc.font("Regular").fontSize(7.5).fillColor("#9CA3AF")
+      .text(section, PW - MR - sw - 4, 20, { lineBreak: false });
   }
 }
 
-function drawFooter(pageNum) {
-  fillRect(0, PAGE_H - 36, PAGE_W, 36, C.lightGray);
-  hRule(PAGE_H - 36, C.borderGray);
+function drawPageFooter(pageNum, total) {
+  rect(0, PH - FTR_H, PW, FTR_H, C.bg);
+  line(0, PH - FTR_H, PW, PH - FTR_H, C.border, 0.5);
 
-  doc.fontSize(7).font("Helvetica").fillColor(C.textLight)
-    .text("Riad BELMAHI — CTO  •  Iliass MEGAIZ — CEO  •  Paf Invest Limited  •  Président : Naime BELAMIRI",
-      MARGIN, PAGE_H - 22, { width: CONTENT_W - 40, align: "left" });
-  doc.fontSize(8).font("Helvetica-Bold").fillColor(C.red)
-    .text(`${pageNum}`, PAGE_W - MARGIN - 20, PAGE_H - 22, { width: 20, align: "right" });
+  doc.font("Regular").fontSize(7).fillColor(C.midGray)
+    .text(
+      "Riad BELMAHI (CTO)  \u2022  Iliass MEGAIZ (CEO)  \u2022  Paf Invest Limited  \u2022  Pr\u00e9sident : Naime BELAMIRI",
+      ML, PH - FTR_H + 12,
+      { lineBreak: false }
+    );
+
+  const pStr = `${pageNum} / ${total}`;
+  const pw2  = doc.widthOfString(pStr, { font: "Bold", size: 9 });
+  doc.font("Bold").fontSize(9).fillColor(C.red)
+    .text(pStr, PW - MR - pw2, PH - FTR_H + 10, { lineBreak: false });
 }
 
-// ─── Parser le Markdown ──────────────────────────────────────────────────────
+// ─── Page de couverture ───────────────────────────────────────────────────────
 
-function parseMd(mdText) {
-  const lines = mdText.split("\n");
+function buildCover() {
+  doc.addPage({ size: "A4", margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+
+  // Fond sombre haut
+  rect(0, 0, PW, 340, C.dark);
+  rect(0, 338, PW, 3, C.red);
+
+  // Logo
+  if (fs.existsSync(LOGO)) {
+    try { doc.image(LOGO, (PW - 100) / 2, 44, { fit: [100, 100] }); } catch (_) {}
+  }
+
+  // Titre principal
+  doc.font("Bold").fontSize(30).fillColor(C.white)
+    .text("Audit interne", ML, 162, { width: CW, align: "center", lineBreak: false });
+
+  doc.font("Bold").fontSize(26).fillColor(C.red)
+    .text("MyToolsApp mobile v2", ML, 197, { width: CW, align: "center", lineBreak: false });
+
+  doc.font("Regular").fontSize(11).fillColor("#9CA3AF")
+    .text(
+      "Application mobile partenaires garages\nReact Native \u2022 Expo SDK 54 \u2022 EAS Build",
+      ML, 236, { width: CW, align: "center" }
+    );
+
+  const today = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  doc.font("Regular").fontSize(9).fillColor("#6B7280")
+    .text("Version 2.0.1  \u2022  " + today, ML, 284, { width: CW, align: "center", lineBreak: false });
+
+  // ── Carte equipe ──────────────────────────────────────────────────────────
+  const CY = 358;
+  const CH = 210;
+  rect(ML - 1, CY - 1, CW + 2, CH + 2, null, C.border);
+  rect(ML,     CY,     CW,     CH,     C.white);
+  rect(ML,     CY,     4,      CH,     C.red);
+
+  doc.font("Bold").fontSize(9).fillColor(C.red)
+    .text("\u00c9QUIPE ET COMMANDITAIRE", ML + 16, CY + 14, { lineBreak: false });
+  line(ML + 4, CY + 30, ML + CW, CY + 30, C.border);
+
+  const team = [
+    { label: "R\u00e9dacteur",   name: "Riad BELMAHI",       role: "CTO — Chief Technology Officer" },
+    { label: "Direction",        name: "Iliass MEGAIZ",       role: "CEO — Chief Executive Officer"  },
+    { label: "Commanditaire",    name: "Paf Invest Limited",  role: "Groupe investisseur"            },
+    { label: "Pr\u00e9sident",   name: "Naime BELAMIRI",      role: "Pr\u00e9sident — Paf Invest Limited" },
+  ];
+
+  let ry = CY + 38;
+  team.forEach((t, i) => {
+    if (i % 2 === 0) rect(ML + 4, ry - 3, CW - 8, 34, "#F9FAFB");
+    doc.font("Regular").fontSize(8).fillColor(C.midGray)
+      .text(t.label, ML + 16, ry + 2, { lineBreak: false });
+    doc.font("SemiBold").fontSize(11).fillColor(C.text)
+      .text(t.name, ML + 120, ry, { lineBreak: false });
+    doc.font("Regular").fontSize(9).fillColor(C.midGray)
+      .text(t.role, ML + 300, ry + 2, { lineBreak: false });
+    ry += 40;
+  });
+
+  // ── Badges statut ─────────────────────────────────────────────────────────
+  const BY = CY + CH + 24;
+  const badges = [
+    { label: "Statut",       value: "CONFIDENTIEL",  color: C.red       },
+    { label: "expo-doctor",  value: "17/17  \u2713", color: "#16A34A"   },
+    { label: "EAS Build",    value: "Configur\u00e9", color: "#2563EB"  },
+    { label: "Plateformes",  value: "iOS + Android", color: C.dark      },
+  ];
+  const BW = (CW - 15) / 4;
+  let bx = ML;
+  badges.forEach((b) => {
+    rect(bx, BY,      BW, 56,  C.bg,    C.border);
+    rect(bx, BY,      BW, 4,   b.color);
+    doc.font("Regular").fontSize(7).fillColor(C.midGray)
+      .text(b.label.toUpperCase(), bx + 8, BY + 12, { width: BW - 16, lineBreak: false });
+    doc.font("Bold").fontSize(12).fillColor(b.color)
+      .text(b.value, bx + 8, BY + 24, { width: BW - 16, lineBreak: false });
+    bx += BW + 5;
+  });
+
+  // ── Pied couverture ───────────────────────────────────────────────────────
+  rect(0, PH - 44, PW, 44, C.dark);
+  doc.font("Regular").fontSize(7.5).fillColor("#6B7280")
+    .text(
+      "Document confidentiel \u2014 Usage interne uniquement \u2014 \u00a9 2026 MyTools Group / Paf Invest Limited",
+      ML, PH - 24, { width: CW, align: "center", lineBreak: false }
+    );
+}
+
+// ─── Parseur Markdown simplifié ───────────────────────────────────────────────
+
+function parseMd(text) {
+  const lines  = text.split("\n");
   const blocks = [];
+  let inCode   = false;
+  let codeBuf  = [];
+  let inTable  = false;
+  let tableBuf = [];
 
-  let inTable = false;
-  let tableRows = [];
-  let inCode = false;
-  let codeLines = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Code block
-    if (line.startsWith("```")) {
-      if (!inCode) {
-        inCode = true;
-        codeLines = [];
-      } else {
-        blocks.push({ type: "code", content: codeLines.join("\n") });
-        inCode = false;
-        codeLines = [];
+  for (const raw of lines) {
+    // Code fence
+    if (raw.startsWith("```")) {
+      if (!inCode) { inCode = true; codeBuf = []; }
+      else {
+        blocks.push({ type: "code", lines: codeBuf });
+        inCode = false; codeBuf = [];
       }
       continue;
     }
-    if (inCode) { codeLines.push(line); continue; }
+    if (inCode) { codeBuf.push(raw); continue; }
 
-    // Table
-    if (line.startsWith("|")) {
-      if (!inTable) { inTable = true; tableRows = []; }
-      const cells = line.split("|").slice(1, -1).map(c => c.trim());
-      if (cells.every(c => /^[-:]+$/.test(c))) continue; // separator row
-      tableRows.push(cells);
+    // Table rows
+    if (raw.trim().startsWith("|")) {
+      if (!inTable) { inTable = true; tableBuf = []; }
+      const cells = raw.split("|").slice(1, -1).map(c => c.trim());
+      if (!cells.every(c => /^[-: ]+$/.test(c))) tableBuf.push(cells);
       continue;
-    } else if (inTable) {
-      blocks.push({ type: "table", rows: tableRows });
-      inTable = false;
-      tableRows = [];
+    }
+    if (inTable) {
+      blocks.push({ type: "table", rows: tableBuf });
+      inTable = false; tableBuf = [];
     }
 
-    // Headings
-    if (line.startsWith("#### ")) { blocks.push({ type: "h4", content: line.slice(5) }); continue; }
-    if (line.startsWith("### "))  { blocks.push({ type: "h3", content: line.slice(4) }); continue; }
-    if (line.startsWith("## "))   { blocks.push({ type: "h2", content: line.slice(3) }); continue; }
-    if (line.startsWith("# "))    { blocks.push({ type: "h1", content: line.slice(2) }); continue; }
-
-    // HR
-    if (/^---+$/.test(line.trim())) { blocks.push({ type: "hr" }); continue; }
-
-    // List
-    if (/^[-*]\s/.test(line)) { blocks.push({ type: "li", content: line.replace(/^[-*]\s/, "") }); continue; }
-    if (/^\d+\.\s/.test(line)) { blocks.push({ type: "li", content: line.replace(/^\d+\.\s/, "") }); continue; }
-
-    // Blank
-    if (line.trim() === "") { blocks.push({ type: "blank" }); continue; }
-
-    // Paragraph
-    blocks.push({ type: "p", content: line });
+    const t = raw.trim();
+    if (!t)              { blocks.push({ type: "blank" });             continue; }
+    if (/^#{4}\s/.test(t)) { blocks.push({ type:"h4", text: t.replace(/^#{4}\s/, "") }); continue; }
+    if (/^#{3}\s/.test(t)) { blocks.push({ type:"h3", text: t.replace(/^#{3}\s/, "") }); continue; }
+    if (/^#{2}\s/.test(t)) { blocks.push({ type:"h2", text: t.replace(/^#{2}\s/, "") }); continue; }
+    if (/^#\s/.test(t))    { blocks.push({ type:"h1", text: t.replace(/^#\s/,  "") }); continue; }
+    if (/^(-{3,}|={3,})$/.test(t)) { blocks.push({ type: "hr" }); continue; }
+    if (/^[-*+]\s/.test(t)) { blocks.push({ type: "li", text: t.replace(/^[-*+]\s/, "") }); continue; }
+    if (/^\d+\.\s/.test(t)) { blocks.push({ type: "li", text: t.replace(/^\d+\.\s/, "") }); continue; }
+    blocks.push({ type: "p", text: t });
   }
-
-  if (inTable) blocks.push({ type: "table", rows: tableRows });
-  if (inCode) blocks.push({ type: "code", content: codeLines.join("\n") });
-
+  if (inTable) blocks.push({ type: "table", rows: tableBuf });
+  if (inCode)  blocks.push({ type: "code", lines: codeBuf });
   return blocks;
 }
 
-function stripMdInline(text) {
-  return text
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/^#+\s/, "");
+// ─── Moteur de rendu ──────────────────────────────────────────────────────────
+
+let curSection = "";
+let curY       = TOP;
+let pageNum    = 1;   // couverture = 1
+
+function newContentPage() {
+  doc.addPage({ size: "A4", margins: { top: 0, bottom: 0, left: 0, right: 0 } });
+  pageNum++;
+  drawPageHeader(curSection);
+  curY = TOP;
 }
 
-// ─── Rendu du contenu ────────────────────────────────────────────────────────
+function ensureSpace(needed) {
+  if (curY + needed > BOT) newContentPage();
+}
+
+// Mesurer la hauteur d'un bloc de texte
+function textHeight(text, opts) {
+  return doc.heightOfString(text, opts);
+}
 
 function renderBlocks(blocks) {
-  let currentSection = "";
-  let lastType = "";
-  let blankCount = 0;
+  let prevType = "";
 
-  const BODY_TOP = 55;
-  const BODY_BOTTOM = PAGE_H - 45;
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
 
-  function checkPageBreak(needed = 20) {
-    if (doc.y + needed > BODY_BOTTOM) {
-      newPage();
-      drawHeader(currentSection);
-      doc.y = BODY_TOP;
-    }
-  }
-
-  doc.y = BODY_TOP;
-
-  for (let bi = 0; bi < blocks.length; bi++) {
-    const b = blocks[bi];
-
+    // Absorber les blanks consécutifs
     if (b.type === "blank") {
-      blankCount++;
-      if (blankCount <= 1 && lastType !== "blank") doc.y += 4;
+      if (prevType !== "blank" && prevType !== "h1" && prevType !== "h2")
+        curY += 5;
+      prevType = "blank";
       continue;
     }
-    blankCount = 0;
 
     switch (b.type) {
 
+      // ── H1 : nouvelle page, bloc sombre complet ──────────────────────────
       case "h1": {
-        // Nouvelle page pour chaque section principale (sauf la première)
-        if (lastType !== "" && lastType !== "hr") {
-          newPage();
-          drawHeader(stripMdInline(b.content));
-          doc.y = BODY_TOP;
-        }
-        currentSection = stripMdInline(b.content);
+        const title = clean(b.text);
+        curSection  = title;
+        newContentPage();
 
-        checkPageBreak(60);
-        fillRect(MARGIN, doc.y, CONTENT_W, 44, C.dark);
-        fillRect(MARGIN, doc.y + 42, CONTENT_W, 2, C.red);
+        rect(ML - 2, curY, CW + 4, 46, C.dark);
+        rect(ML - 2, curY + 44, CW + 4, 3, C.red);
 
-        doc.fontSize(18).font("Helvetica-Bold").fillColor(C.white)
-          .text(stripMdInline(b.content), MARGIN + 14, doc.y + 12, { width: CONTENT_W - 28 });
-        doc.y += 58;
+        doc.font("Bold").fontSize(18).fillColor(C.white)
+          .text(title, ML + 10, curY + 12, { width: CW - 20, lineBreak: false });
+
+        curY += 58;
         break;
       }
 
+      // ── H2 : bloc rouge clair + barre gauche ────────────────────────────
       case "h2": {
-        checkPageBreak(50);
-        doc.y += 10;
-        fillRect(MARGIN, doc.y, CONTENT_W, 32, C.redLight);
-        fillRect(MARGIN, doc.y, 4, 32, C.red);
-        doc.fontSize(13).font("Helvetica-Bold").fillColor(C.redDark)
-          .text(stripMdInline(b.content), MARGIN + 14, doc.y + 8, { width: CONTENT_W - 28 });
-        doc.y += 44;
+        const title = clean(b.text);
+        const th    = Math.max(34, textHeight(title, { font:"Bold", size:13, width: CW - 28 }) + 16);
+        ensureSpace(th + 16);
+        curY += 10;
+        rect(ML, curY, CW, th, C.redLight);
+        rect(ML, curY, 4,  th, C.red);
+        doc.font("Bold").fontSize(13).fillColor(C.redDark)
+          .text(title, ML + 14, curY + (th - 13) / 2, { width: CW - 20, lineBreak: false });
+        curY += th + 10;
         break;
       }
 
+      // ── H3 ───────────────────────────────────────────────────────────────
       case "h3": {
-        checkPageBreak(35);
-        doc.y += 8;
-        doc.fontSize(11).font("Helvetica-Bold").fillColor(C.text)
-          .text(stripMdInline(b.content), MARGIN, doc.y, { width: CONTENT_W });
-        doc.y += 4;
-        hRule(doc.y, C.red, 60);
-        doc.y += 10;
+        const title = clean(b.text);
+        ensureSpace(32);
+        curY += 8;
+        doc.font("Bold").fontSize(11).fillColor(C.text)
+          .text(title, ML, curY, { width: CW });
+        curY = doc.y + 2;
+        line(ML, curY, ML + 50, curY, C.red, 1.5);
+        curY += 8;
         break;
       }
 
+      // ── H4 ───────────────────────────────────────────────────────────────
       case "h4": {
-        checkPageBreak(25);
-        doc.y += 5;
-        doc.fontSize(10).font("Helvetica-Bold").fillColor(C.red)
-          .text(stripMdInline(b.content).toUpperCase(), MARGIN, doc.y, { width: CONTENT_W });
-        doc.y += 8;
+        const title = clean(b.text);
+        ensureSpace(22);
+        curY += 4;
+        doc.font("SemiBold").fontSize(10).fillColor(C.red)
+          .text(title.toUpperCase(), ML, curY, { width: CW });
+        curY = doc.y + 4;
         break;
       }
 
+      // ── Paragraphe ────────────────────────────────────────────────────────
       case "p": {
-        const txt = stripMdInline(b.content);
-        if (!txt.trim()) break;
-        checkPageBreak(18);
-        doc.fontSize(9).font("Helvetica").fillColor(C.text)
-          .text(txt, MARGIN, doc.y, { width: CONTENT_W, lineGap: 2 });
-        doc.y += 6;
+        const txt = clean(b.text);
+        if (!txt) break;
+        const h = textHeight(txt, { font:"Regular", size:9.5, width: CW });
+        ensureSpace(h + 6);
+        doc.font("Regular").fontSize(9.5).fillColor(C.text)
+          .text(txt, ML, curY, { width: CW, lineGap: 2.5 });
+        curY = doc.y + 5;
         break;
       }
 
+      // ── Liste ─────────────────────────────────────────────────────────────
       case "li": {
-        const txt = stripMdInline(b.content);
-        checkPageBreak(16);
-        // Bullet rouge
-        doc.save().circle(MARGIN + 5, doc.y + 5, 2.5).fill(C.red).restore();
-        doc.fontSize(9).font("Helvetica").fillColor(C.text)
-          .text(txt, MARGIN + 14, doc.y, { width: CONTENT_W - 14, lineGap: 2 });
-        doc.y += 5;
+        const txt = clean(b.text);
+        const h   = textHeight(txt, { font:"Regular", size:9.5, width: CW - 18 }) + 4;
+        ensureSpace(h + 4);
+
+        // Puce rouge
+        doc.save().circle(ML + 5, curY + 6, 2.8).fill(C.red).restore();
+
+        doc.font("Regular").fontSize(9.5).fillColor(C.text)
+          .text(txt, ML + 15, curY, { width: CW - 15, lineGap: 2.5 });
+        curY = doc.y + 3;
         break;
       }
 
+      // ── Bloc de code ──────────────────────────────────────────────────────
       case "code": {
-        const codeText = b.content;
-        const lines = codeText.split("\n");
-        const blockH = lines.length * 11 + 16;
-        checkPageBreak(blockH + 10);
+        const codeStr = b.lines.join("\n");
+        const lineH   = 12;
+        const blockH  = b.lines.length * lineH + 20;
 
-        doc.y += 4;
-        fillRect(MARGIN, doc.y, CONTENT_W, blockH, "#F3F4F6");
-        doc.save().rect(MARGIN, doc.y, CONTENT_W, blockH).stroke(C.borderGray).restore();
-        fillRect(MARGIN, doc.y, 3, blockH, C.red);
+        // Si trop grand, paginer
+        let remaining = [...b.lines];
+        while (remaining.length > 0) {
+          const available = BOT - curY - 20;
+          const canFit    = Math.max(1, Math.floor(available / lineH));
+          const chunk     = remaining.splice(0, canFit);
+          const chunkH    = chunk.length * lineH + 20;
 
-        doc.fontSize(7.5).font("Courier").fillColor("#374151");
-        let cy = doc.y + 8;
-        lines.forEach((line) => {
-          if (cy + 11 > BODY_BOTTOM) {
-            newPage();
-            drawHeader(currentSection);
-            cy = BODY_TOP;
-            fillRect(MARGIN, cy, CONTENT_W, 11 * (lines.length - lines.indexOf(line)) + 16, "#F3F4F6");
-          }
-          doc.text(line, MARGIN + 10, cy, { width: CONTENT_W - 20, lineBreak: false });
-          cy += 11;
-        });
-        doc.y = cy + 8;
+          ensureSpace(chunkH);
+          rect(ML,     curY, CW,  chunkH, "#F3F4F6", C.border);
+          rect(ML,     curY, 3,   chunkH, C.red);
+
+          let cy = curY + 10;
+          chunk.forEach((l) => {
+            doc.font("Regular").fontSize(8).fillColor("#374151")
+              .text(l || " ", ML + 10, cy, { width: CW - 18, lineBreak: false });
+            cy += lineH;
+          });
+          curY = cy + 10;
+          if (remaining.length > 0) newContentPage();
+        }
         break;
       }
 
+      // ── Tableau ───────────────────────────────────────────────────────────
       case "table": {
-        if (!b.rows || b.rows.length === 0) break;
+        if (!b.rows || b.rows.length < 2) break;
 
-        const header = b.rows[0];
+        const header   = b.rows[0];
         const dataRows = b.rows.slice(1);
-        const colCount = header.length;
-        const colW = CONTENT_W / colCount;
-        const rowH = 22;
-        const tableH = (b.rows.length) * rowH + 4;
+        const cols     = header.length;
+        const colW     = CW / cols;
+        const rowH     = 22;
+        const totalH   = (b.rows.length) * rowH;
 
-        checkPageBreak(tableH);
-        doc.y += 6;
+        ensureSpace(totalH + 10);
+        curY += 6;
 
-        let ty = doc.y;
+        let ty = curY;
 
-        // Header row
-        fillRect(MARGIN, ty, CONTENT_W, rowH, C.dark);
+        // En-tête tableau
+        rect(ML, ty, CW, rowH, C.dark);
         header.forEach((cell, ci) => {
-          doc.fontSize(8).font("Helvetica-Bold").fillColor(C.white)
-            .text(cell, MARGIN + ci * colW + 6, ty + 6, { width: colW - 12, lineBreak: false });
+          doc.font("Bold").fontSize(8.5).fillColor(C.white)
+            .text(clean(cell), ML + ci * colW + 6, ty + 6,
+              { width: colW - 12, lineBreak: false });
         });
         ty += rowH;
 
-        // Data rows
+        // Lignes de données
         dataRows.forEach((row, ri) => {
-          const bg = ri % 2 === 0 ? C.white : C.lightGray;
-          fillRect(MARGIN, ty, CONTENT_W, rowH, bg);
+          if (ty + rowH > BOT) { newContentPage(); ty = curY; }
 
-          // Border
-          doc.save().rect(MARGIN, ty, CONTENT_W, rowH).stroke(C.borderGray).restore();
+          const bg = ri % 2 === 0 ? C.white : C.bg;
+          rect(ML, ty, CW, rowH, bg, C.border);
 
           row.forEach((cell, ci) => {
-            const txt = stripMdInline(cell);
-            // Highlight premier col en gras
-            const font = ci === 0 ? "Helvetica-Bold" : "Helvetica";
-            const color = ci === 0 ? C.text : C.textLight;
-            doc.fontSize(8).font(font).fillColor(color)
-              .text(txt, MARGIN + ci * colW + 6, ty + 6, { width: colW - 12, lineBreak: false });
+            const isFirst = ci === 0;
+            const font    = isFirst ? "SemiBold" : "Regular";
+            const color   = isFirst ? C.text     : C.midGray;
+            doc.font(font).fontSize(8.5).fillColor(color)
+              .text(clean(cell), ML + ci * colW + 6, ty + 6,
+                { width: colW - 12, lineBreak: false });
           });
           ty += rowH;
         });
 
-        // Border globale
-        doc.save().rect(MARGIN, doc.y, CONTENT_W, ty - doc.y).stroke(C.midGray).restore();
-
-        doc.y = ty + 10;
+        // Bordure globale tableau
+        doc.save().rect(ML, curY, CW, ty - curY).stroke(C.midGray).restore();
+        curY = ty + 10;
         break;
       }
 
+      // ── Séparateur ────────────────────────────────────────────────────────
       case "hr": {
-        doc.y += 8;
-        hRule(doc.y, C.borderGray);
-        doc.y += 12;
+        ensureSpace(16);
+        curY += 6;
+        line(ML, curY, ML + CW, curY, C.border, 0.5);
+        curY += 10;
         break;
       }
     }
 
-    lastType = b.type;
+    prevType = b.type;
   }
 }
 
-// ─── Génération principale ───────────────────────────────────────────────────
+// ─── Pipeline principal ───────────────────────────────────────────────────────
 
-console.log("📄 Génération du PDF...");
+console.log("  Lecture AUDIT.md...");
+const mdRaw    = fs.readFileSync(MD, "utf8");
 
-// 1. Page de couverture
-drawCover();
+// Supprimer le bloc titre de couverture (5 premières lignes avec les méta)
+const mdClean  = mdRaw.replace(/^#[^\n]+\n[\s\S]{0,300}?(?=\n##)/m, "");
+const blocks   = parseMd(mdClean);
 
-// 2. Contenu AUDIT.md
-const mdText = fs.readFileSync(AUDIT_MD, "utf8");
-// Sauter le titre principal (premier H1 = déjà en couverture)
-const mdWithoutTitle = mdText.replace(/^#\s.+\n.+\n.+\n.+\n.+\n.+\n/, "");
-const blocks = parseMd(mdWithoutTitle);
+console.log("  Génération de la couverture...");
+buildCover();
 
-newPage();
-drawHeader("Table des matières & Contenu");
-doc.y = 55;
-
+console.log("  Rendu des sections (" + blocks.filter(b => b.type === "h1").length + " sections)...");
+newContentPage();
 renderBlocks(blocks);
 
-// 3. Ajouter numéros de page + en-têtes/pieds sur toutes les pages (sauf couverture)
-const totalPages = doc.bufferedPageRange().count;
-for (let i = 1; i < totalPages; i++) {
+// ─── Injection numéros de page + en-têtes/pieds ───────────────────────────────
+const range = doc.bufferedPageRange();
+const total = range.count;
+
+console.log("  Pagination (" + total + " pages)...");
+
+for (let i = 0; i < total; i++) {
   doc.switchToPage(i);
-  drawFooter(i + 1);
+  if (i === 0) continue; // couverture : pas de pied standard
+  drawPageFooter(i + 1, total);
 }
 
 doc.end();
 
-doc.on("end", () => {
-  const size = (fs.statSync(OUTPUT).size / 1024).toFixed(1);
-  console.log(`✅ PDF généré : ${OUTPUT}`);
-  console.log(`   Taille : ${size} KB — ${totalPages} pages`);
+doc.once("end", () => {
+  const kb = (fs.statSync(OUTPUT).size / 1024).toFixed(0);
+  console.log("\n  PDF genere : " + OUTPUT);
+  console.log("  " + total + " pages  |  " + kb + " Ko");
 });
