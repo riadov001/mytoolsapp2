@@ -7,7 +7,7 @@
     "icon": "./assets/images/logo_new.png",
     "scheme": "mytools",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/logo_new.png",
       "resizeMode": "contain",
