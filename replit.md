@@ -59,7 +59,7 @@ PDF files are downloaded directly from the API (binary response, `Content-Type: 
 - Admin share: `sharePdfDirect()` in `lib/admin-api.ts` shares the direct API URL
 
 ## System Architecture
-The application is built using Expo React Native with file-based routing via Expo Router for the frontend. It consumes an external API hosted on `saas3.mytoolsgroup.eu`. Authentication is handled via a dual system: Bearer tokens for admin API calls and cookie sessions for client-side interactions. State management utilizes React Query for server data and React Context for authentication.
+The application is built using Expo React Native with file-based routing via Expo Router for the frontend. It consumes an external API hosted on `saas2.mytoolsgroup.eu`. Authentication is handled via a dual system: Bearer tokens for admin API calls and cookie sessions for client-side interactions. State management utilizes React Query for server data and React Context for authentication.
 
 Key features include:
 - Role-based routing, directing `admin`/`employe` users to the `(admin)` interface and `client` users to the `(main)` interface.
@@ -72,7 +72,7 @@ Key features include:
 - Quote status flows from `pending` to `sent`, `approved`, and `accepted`, with appropriate UI actions.
 - Invoice creation is integrated with quotes via a "Générer facture" button in quote detail, requiring photo upload for quotes.
 - Numeric conversion and sanitization of items array for API payloads.
-- PDF sharing via PWA URLs (saas3.mytoolsgroup.eu/quotes/view/{viewToken} or /invoices/view/{viewToken}).
+- PDF sharing via PWA URLs (saas2.mytoolsgroup.eu/quotes/view/{viewToken} or /invoices/view/{viewToken}).
 - Client creation is re-enabled with a "+" button in the Clients tab header. Only client (particulier/professionnel) roles can be created from this screen.
 
 ## Tab Navigation
@@ -135,7 +135,7 @@ All Expo packages must be compatible with the installed SDK version. Use `npx ex
 Always run `npx expo install <package> --fix` or `npx expo install --fix` to auto-resolve version mismatches.
 
 ## External Dependencies
-- **Backend API**: `saas3.mytoolsgroup.eu` (configurable via `EXTERNAL_API_URL`)
+- **Backend API**: `saas2.mytoolsgroup.eu` (configurable via `EXTERNAL_API_URL`)
 - **Authentication**: Bearer tokens and cookie sessions managed by the external API.
 - **Data Storage**: AsyncStorage for GDPR consent, SecureStore for authentication tokens and session cookies.
 - **OCR**: Gemini Vision via `@google/genai` SDK (Replit AI Integrations) at `/api/ocr/analyze` endpoint for document scanning.

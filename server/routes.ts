@@ -6,7 +6,7 @@ import fs from "node:fs";
 import Busboy from "busboy";
 import { registerSocialAuthRoutes } from "./social-auth";
 
-const EXTERNAL_API = "https://saas3.mytoolsgroup.eu/api";
+const EXTERNAL_API = "https://saas2.mytoolsgroup.eu/api";
 console.log(`[CONFIG] External API: ${EXTERNAL_API}`);
 
 const pool = new pg.Pool({

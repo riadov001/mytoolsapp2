@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 
-const EXTERNAL_API = "https://saas3.mytoolsgroup.eu/api";
+const EXTERNAL_API = "https://saas2.mytoolsgroup.eu/api";
 
 let adminApp: any = null;
 

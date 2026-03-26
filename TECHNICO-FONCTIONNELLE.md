@@ -4,7 +4,7 @@
 **Date** : 25/03/2026  
 **Bundle ID** : `app.mytoolsmobile.mytoolsgroup.eu`  
 **Expo SDK** : 54 | **React Native** : 0.76.x  
-**Backend externe** : `https://saas3.mytoolsgroup.eu/api`  
+**Backend externe** : `https://saas2.mytoolsgroup.eu/api`  
 **Serveur proxy** : Express (port 5000)  
 **Frontend** : Expo Router (port 8081)
 
@@ -43,7 +43,7 @@
               └────────────┼────────────┘
                            │ HTTPS
               ┌────────────▼────────────┐
-              │  saas3.mytoolsgroup.eu  │
+              │  saas2.mytoolsgroup.eu  │
               │  API REST backend       │
               │  (MongoDB, auth, CRUD)  │
               └─────────────────────────┘

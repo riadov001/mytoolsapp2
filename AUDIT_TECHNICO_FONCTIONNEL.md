@@ -4,7 +4,7 @@
 **Date** : 24/03/2026
 **Bundle ID** : `app.mytoolsmobile.mytoolsgroup.eu`
 **Plateforme** : iOS / Android / Web (Expo SDK 54, React Native)
-**Backend externe** : `https://saas3.mytoolsgroup.eu`
+**Backend externe** : `https://saas2.mytoolsgroup.eu`
 
 ---
 
@@ -14,7 +14,7 @@
 2. [Architecture technique](#2-architecture-technique)
 3. [Rôles utilisateurs et routage](#3-rôles-utilisateurs-et-routage)
 4. [Authentification](#4-authentification)
-5. [API consommées (externe → saas3.mytoolsgroup.eu)](#5-api-consommées-externe)
+5. [API consommées (externe → saas2.mytoolsgroup.eu)](#5-api-consommées-externe)
 6. [API fournies (serveur Express local)](#6-api-fournies-serveur-express-local)
 7. [Base de données locale (PostgreSQL)](#7-base-de-données-locale-postgresql)
 8. [Modèles de données](#8-modèles-de-données)
@@ -38,7 +38,7 @@ L'application sert deux populations :
 - **Administrateurs / Employés** : gestion complète (devis, factures, réservations, clients, services, analytics, OCR)
 - **Clients** : consultation de devis/factures, prise de rendez-vous, messagerie, notifications
 
-L'app ne stocke aucune donnée métier de manière autonome. Elle consomme intégralement l'API REST externe hébergée sur `saas3.mytoolsgroup.eu`. Le serveur Express local sert de **proxy intelligent** : il intercepte, enrichit et normalise les requêtes/réponses entre le frontend mobile et l'API externe.
+L'app ne stocke aucune donnée métier de manière autonome. Elle consomme intégralement l'API REST externe hébergée sur `saas2.mytoolsgroup.eu`. Le serveur Express local sert de **proxy intelligent** : il intercepte, enrichit et normalise les requêtes/réponses entre le frontend mobile et l'API externe.
 
 ---
 
@@ -68,7 +68,7 @@ L'app ne stocke aucune donnée métier de manière autonome. Elle consomme inté
            ▼
 ┌──────────────────────────────────┐
 │  API Externe                     │
-│  saas3.mytoolsgroup.eu/api       │
+│  saas2.mytoolsgroup.eu/api       │
 │  (Laravel / PHP)                 │
 └──────────────────────────────────┘
 ```
@@ -184,7 +184,7 @@ Au démarrage de l'app (`checkAuth` dans `auth-context.tsx`) :
 
 ## 5. API consommées (externe)
 
-Toutes les routes ci-dessous sont consommées sur `https://saas3.mytoolsgroup.eu/api`.
+Toutes les routes ci-dessous sont consommées sur `https://saas2.mytoolsgroup.eu/api`.
 
 ### 5.1 Authentification
 
@@ -402,8 +402,8 @@ Le serveur Express écoute sur le port 5000 et fournit les routes suivantes.
 ### 6.2 Proxy générique admin `/api/admin/*`
 
 Toute requête non capturée par une route spécifique sous `/api/admin/*` est proxiée :
-1. D'abord vers `saas3.mytoolsgroup.eu/api/mobile/admin/*`
-2. En fallback vers `saas3.mytoolsgroup.eu/api/admin/*`
+1. D'abord vers `saas2.mytoolsgroup.eu/api/mobile/admin/*`
+2. En fallback vers `saas2.mytoolsgroup.eu/api/admin/*`
 
 Avec :
 - Normalisation des montants (camelCase ↔ snake_case) sur les mutations devis/factures
@@ -419,7 +419,7 @@ Pour les méthodes non-GET, proxy séquentiel :
 
 ### 6.4 Proxy catch-all `/api/*`
 
-Toute route non matchée est proxiée directement vers `saas3.mytoolsgroup.eu/api/*` avec transfert complet des headers (auth, cookies, content-type).
+Toute route non matchée est proxiée directement vers `saas2.mytoolsgroup.eu/api/*` avec transfert complet des headers (auth, cookies, content-type).
 
 ### 6.5 Pages statiques
 
@@ -775,7 +775,7 @@ Le listener de réponse aux notifications redirige vers :
 
 | Variable | Description | Obligatoire |
 |----------|-------------|-------------|
-| `EXPO_PUBLIC_DOMAIN` | Domaine de l'API (ex: `saas3.mytoolsgroup.eu`) | Oui (prod) |
+| `EXPO_PUBLIC_DOMAIN` | Domaine de l'API (ex: `saas2.mytoolsgroup.eu`) | Oui (prod) |
 | `EXPO_PUBLIC_API_URL` | URL complète API (override) | Non |
 | `EXPO_PUBLIC_FIREBASE_API_KEY` | Clé API Firebase | Oui |
 | `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` | Domaine auth Firebase | Oui |
@@ -797,7 +797,7 @@ Le listener de réponse aux notifications redirige vers :
 
 | Variable | Profil | Valeur |
 |----------|--------|--------|
-| `EXPO_PUBLIC_DOMAIN` | development, preview, production | `saas3.mytoolsgroup.eu` |
+| `EXPO_PUBLIC_DOMAIN` | development, preview, production | `saas2.mytoolsgroup.eu` |
 | `EXPO_PUBLIC_FIREBASE_*` | Tous | Valeurs Firebase |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | Tous | Client ID OAuth |
 

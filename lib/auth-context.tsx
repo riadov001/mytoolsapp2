@@ -296,7 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return origin;
       }
       if (process.env.EXPO_PUBLIC_DOMAIN) return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
-      return "https://saas3.mytoolsgroup.eu";
+      return "https://saas2.mytoolsgroup.eu";
     })();
 
     const res = await fetch(`${apiBase}/api/auth/social`, {
