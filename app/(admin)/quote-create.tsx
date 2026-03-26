@@ -350,7 +350,7 @@ export default function QuoteCreateScreen() {
       Alert.alert("Attention", "Veuillez sélectionner un client.");
       return;
     }
-    if (!isEditMode && selectedServices.length === 0) {
+    if (!isEditMode && selectedServices.length === 0 && servicesArr.length > 0) {
       Alert.alert("Attention", "Veuillez sélectionner au moins un service.");
       return;
     }

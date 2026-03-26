@@ -316,11 +316,6 @@ export default function InvoiceCreateScreen() {
       return;
     }
 
-    if (!isEditMode && photos.length === 0) {
-      showAlert({ type: "warning", title: "Attention", message: "Au moins une photo est obligatoire.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
-
     const validItems = lineItems.filter(it => it.description.trim() && it.unitPrice?.trim() && parseFloat(it.unitPrice) > 0);
     if (validItems.length === 0) {
       showAlert({ type: "warning", title: "Attention", message: "Veuillez remplir toutes les prestations avec une description et un prix.", buttons: [{ text: "OK", style: "primary" }] });
@@ -552,9 +547,9 @@ export default function InvoiceCreateScreen() {
           </View>
         )}
 
-        {/* Photos (obligatoire) */}
+        {/* Photos (optionnel) */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photos * (1 minimum)</Text>
+          <Text style={styles.sectionTitle}>Photos (optionnel, maximum 3)</Text>
           {photos.length > 0 ? (
             <FlatList
               scrollEnabled={false}
@@ -566,11 +561,9 @@ export default function InvoiceCreateScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.photoName} numberOfLines={1}>{item.name}</Text>
                   </View>
-                  {photos.length > 1 && (
-                    <Pressable onPress={() => setPhotos(prev => prev.filter((_, i) => i !== index))}>
-                      <Ionicons name="close-circle" size={20} color="#EF4444" />
-                    </Pressable>
-                  )}
+                  <Pressable onPress={() => setPhotos(prev => prev.filter((_, i) => i !== index))}>
+                    <Ionicons name="close-circle" size={20} color="#EF4444" />
+                  </Pressable>
                 </View>
               )}
             />
