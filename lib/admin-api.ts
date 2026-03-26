@@ -8,6 +8,11 @@ import * as Clipboard from "expo-clipboard";
 const REQUEST_TIMEOUT_MS = 15000;
 const RETRY_DELAY_MS = 1000;
 
+const NATIVE_BACKEND_URLS = [
+  "https://saas2.mytoolsgroup.eu",
+  "https://saas3.mytoolsgroup.eu",
+];
+
 const getApiBase = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
@@ -22,7 +27,7 @@ const getApiBase = () => {
   if (process.env.EXPO_PUBLIC_DOMAIN) {
     return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
   }
-  return "https://saas2.mytoolsgroup.eu";
+  return NATIVE_BACKEND_URLS[0];
 };
 
 const API_BASE = getApiBase();
@@ -92,6 +97,27 @@ async function fetchWithRetry(url: string, options: any, useGlobal = false, retr
   }
 }
 
+async function fetchWithNativeFallback(endpoint: string, options: any, useGlobal = false): Promise<Response> {
+  if (Platform.OS === "web" || NATIVE_BACKEND_URLS.length <= 1) {
+    return fetchWithRetry(`${API_BASE}${endpoint}`, options, useGlobal);
+  }
+  let lastErr: any;
+  for (const base of NATIVE_BACKEND_URLS) {
+    try {
+      const res = await fetchWithTimeout(`${base}${endpoint}`, options, useGlobal);
+      return res;
+    } catch (err: any) {
+      lastErr = err;
+      if (isNetworkError(err) && !(err instanceof TimeoutError)) {
+        console.warn(`[AdminAPI] Backend ${base} unreachable, trying fallback...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 interface AdminApiOptions {
   method?: string;
   body?: any;
@@ -122,8 +148,6 @@ export async function adminApiCall<T = any>(
     fetchHeaders["Cookie"] = cookie;
   }
 
-  const url = `${API_BASE}${endpoint}`;
-
   const fetchOptions: any = {
     method,
     headers: fetchHeaders,
@@ -133,7 +157,8 @@ export async function adminApiCall<T = any>(
     fetchOptions.body = isFormData ? body : JSON.stringify(body);
   }
 
-  const res = await fetchWithRetry(url, fetchOptions, isFormData);
+  const url = `${API_BASE}${endpoint}`;
+  const res = await fetchWithNativeFallback(endpoint, fetchOptions, isFormData);
 
   const xSessionCookie = res.headers.get("x-session-cookie");
   if (xSessionCookie) {

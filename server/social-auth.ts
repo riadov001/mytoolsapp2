@@ -1,6 +1,27 @@
 import type { Express, Request, Response } from "express";
 
-const EXTERNAL_API = "https://saas2.mytoolsgroup.eu/api";
+const EXTERNAL_APIS = [
+  "https://saas2.mytoolsgroup.eu/api",
+  "https://saas3.mytoolsgroup.eu/api",
+];
+const EXTERNAL_API = EXTERNAL_APIS[0];
+
+async function fetchExternalWithFallback(path: string, options: RequestInit): Promise<globalThis.Response> {
+  let lastErr: any;
+  for (const base of EXTERNAL_APIS) {
+    try {
+      const res = await fetch(`${base}${path}`, options);
+      return res;
+    } catch (err: any) {
+      lastErr = err;
+      const isNet = err?.code === "ECONNREFUSED" || err?.code === "ENOTFOUND" ||
+        err?.code === "ETIMEDOUT" || err?.message?.includes("fetch");
+      if (!isNet) throw err;
+      console.warn(`[SocialAuth] Backend ${base} unreachable, trying fallback...`);
+    }
+  }
+  throw lastErr;
+}
 
 let adminApp: any = null;
 
@@ -86,8 +107,8 @@ export function registerSocialAuthRoutes(app: Express) {
         });
       }
 
-      const externalRes = await fetch(
-        `${EXTERNAL_API}/mobile/auth/login-with-firebase`,
+      const externalRes = await fetchExternalWithFallback(
+        "/mobile/auth/login-with-firebase",
         {
           method: "POST",
           headers: {

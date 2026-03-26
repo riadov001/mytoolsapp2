@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Myt",
-    "slug": "myt",
+    "name": "MyToolsApp",
+    "slug": "mytoolsapp",
     "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/logo_new.png",
-    "scheme": "myt",
+    "scheme": "mytools",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "splash": {

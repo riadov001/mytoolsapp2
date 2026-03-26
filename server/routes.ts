@@ -7,7 +7,46 @@ import Busboy from "busboy";
 import { registerSocialAuthRoutes } from "./social-auth";
 
 const EXTERNAL_API = "https://saas2.mytoolsgroup.eu/api";
-console.log(`[CONFIG] External API: ${EXTERNAL_API}`);
+const EXTERNAL_API_FALLBACKS = [
+  "https://saas2.mytoolsgroup.eu/api",
+  "https://saas3.mytoolsgroup.eu/api",
+];
+console.log(`[CONFIG] External API: ${EXTERNAL_API} (fallbacks: ${EXTERNAL_API_FALLBACKS.slice(1).join(", ")})`);
+
+async function fetchWithBackendFallback(
+  path: string,
+  options: RequestInit,
+  primaryBase: string = EXTERNAL_API
+): Promise<globalThis.Response> {
+  const bases = EXTERNAL_API_FALLBACKS[0] === primaryBase
+    ? EXTERNAL_API_FALLBACKS
+    : [primaryBase, ...EXTERNAL_API_FALLBACKS.filter(b => b !== primaryBase)];
+
+  let lastErr: any;
+  for (const base of bases) {
+    try {
+      const url = `${base}${path}`;
+      const hostHeader = new URL(base).host;
+      const updatedOptions = {
+        ...options,
+        headers: { ...(options.headers as any), host: hostHeader },
+      };
+      const res = await fetch(url, updatedOptions);
+      if (base !== EXTERNAL_API_FALLBACKS[0]) {
+        console.log(`[PROXY] Fallback succeeded: ${base}`);
+      }
+      return res;
+    } catch (err: any) {
+      lastErr = err;
+      const isNetworkErr = err?.code === "ECONNREFUSED" || err?.code === "ENOTFOUND" ||
+        err?.code === "ETIMEDOUT" || err?.name === "AbortError" ||
+        err?.message?.includes("fetch") || err?.message?.includes("connect");
+      if (!isNetworkErr) throw err;
+      console.warn(`[PROXY] Backend ${base} unreachable, trying next...`);
+    }
+  }
+  throw lastErr;
+}
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
