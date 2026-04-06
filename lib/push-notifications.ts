@@ -15,7 +15,6 @@ if (Notifications) {
       shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
-      shouldShowInForeground: true,
     }),
   });
 }

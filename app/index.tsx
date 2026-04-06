@@ -36,9 +36,9 @@ export default function IndexScreen() {
     }
   }, [isLoading, isAuthenticated, isAdminOrEmployee]);
 
-  // Social/client users (uid present = social login) are allowed in /(main)
-  const isSocialUser = !!(user as any)?.uid;
-  if (!isLoading && isAuthenticated && !isAdminOrEmployee && !isSocialUser) {
+  // Client users are routed to /(main) by the useEffect above; only show denied screen for unknown roles
+  const isClientUser = user?.role === "client" || user?.role === "client_professionnel";
+  if (!isLoading && isAuthenticated && !isAdminOrEmployee && !isClientUser) {
     return (
       <View style={[styles.deniedContainer, { paddingTop: Platform.OS === "web" ? 67 : insets.top, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom }]}>
         <View style={styles.deniedCard}>

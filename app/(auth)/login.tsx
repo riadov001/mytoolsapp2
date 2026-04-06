@@ -29,7 +29,7 @@ if (Platform.OS !== "web") {
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login, biometricLogin, socialLogin } = useAuth();
+  const { login, logout, biometricLogin, socialLogin } = useAuth();
   const { showAlert, AlertComponent } = useCustomAlert();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
@@ -143,6 +143,7 @@ export default function LoginScreen() {
     try {
       const userData = await login({ email: email.trim().toLowerCase(), password });
       if (!isAuthorizedUser(userData)) {
+        await logout();
         showAlert({
           type: "error",
           title: "Accès refusé",
