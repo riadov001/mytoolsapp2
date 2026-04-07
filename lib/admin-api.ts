@@ -425,12 +425,19 @@ export async function downloadMobilePdf(
   return { blob, filename: match?.[1] || fallbackName };
 }
 
+export function getPublicPdfUrl(type: "quotes" | "invoices", id: string, viewToken: string): string {
+  return `${API_BASE}/api/public/pdf/${type}/${id}?token=${encodeURIComponent(viewToken)}`;
+}
+
 export async function sharePdfDirect(
   type: "quotes" | "invoices",
   id: string,
-  reference?: string
+  reference?: string,
+  viewToken?: string
 ): Promise<"shared" | "copied"> {
-  const url = getMobilePdfUrl(type, id);
+  const url = viewToken
+    ? getPublicPdfUrl(type, id, viewToken)
+    : getMobilePdfUrl(type, id);
   const title = type === "quotes"
     ? `Devis ${reference || ""}`
     : `Facture ${reference || ""}`;

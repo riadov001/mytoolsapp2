@@ -8,7 +8,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
-import { adminAnalytics, adminNotifications } from "@/lib/admin-api";
+import { adminAnalytics, adminNotifications, adminQuotes, adminInvoices, adminClients, adminReservations } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { FloatingSupport } from "@/components/FloatingSupport";
@@ -39,13 +39,155 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data: rawDashboard, isLoading: dashLoading, refetch, isRefetching } = useQuery({
     queryKey: ["admin-analytics"],
     queryFn: adminAnalytics.get,
     staleTime: 0,
     refetchOnWindowFocus: true,
     refetchOnMount: "always",
   });
+
+  const { data: quotesData } = useQuery({
+    queryKey: ["admin-quotes"],
+    queryFn: adminQuotes.getAll,
+    staleTime: 60000,
+  });
+
+  const { data: invoicesData } = useQuery({
+    queryKey: ["admin-invoices"],
+    queryFn: adminInvoices.getAll,
+    staleTime: 60000,
+  });
+
+  const { data: clientsData } = useQuery({
+    queryKey: ["admin-clients"],
+    queryFn: adminClients.getAll,
+    staleTime: 60000,
+  });
+
+  const { data: reservationsData } = useQuery({
+    queryKey: ["admin-reservations"],
+    queryFn: adminReservations.getAll,
+    staleTime: 60000,
+  });
+
+  const data = useMemo(() => {
+    const dash = rawDashboard as any;
+    if (dash && dash.currentMonth && (dash.currentMonth.revenue > 0 || dash.totalQuotes > 0 || dash.totalInvoices > 0)) {
+      return dash;
+    }
+    const allQuotes = Array.isArray(quotesData) ? quotesData : [];
+    const allInvoices = Array.isArray(invoicesData) ? invoicesData : [];
+    const allClients = Array.isArray(clientsData) ? clientsData : [];
+    const allReservations = Array.isArray(reservationsData) ? reservationsData : [];
+
+    const now = new Date();
+    const thisMonth = now.getMonth();
+    const thisYear = now.getFullYear();
+
+    let monthlyRevenue = 0;
+    let pendingRevenue = 0;
+    let globalRevenue = 0;
+    let paidCount = 0;
+    let pendingInvCount = 0;
+    let overdueCount = 0;
+    let cancelledInvCount = 0;
+
+    for (const inv of allInvoices) {
+      const status = (inv.status || "").toLowerCase();
+      const total = parseFloat(inv.totalTTC || inv.total_ttc || inv.totalAmount || inv.total || inv.amount || "0") || 0;
+      if (status === "paid" || status === "payée" || status === "payee") {
+        globalRevenue += total;
+        paidCount++;
+        const paidDate = inv.paidAt || inv.paid_at || inv.updatedAt || inv.updated_at;
+        if (paidDate) {
+          const d = new Date(paidDate);
+          if (d.getMonth() === thisMonth && d.getFullYear() === thisYear) monthlyRevenue += total;
+        }
+      } else if (status === "pending" || status === "en_attente") {
+        pendingRevenue += total;
+        pendingInvCount++;
+      } else if (status === "overdue" || status === "en_retard") {
+        pendingRevenue += total;
+        overdueCount++;
+      } else if (status === "cancelled" || status === "annulée" || status === "annulee") {
+        cancelledInvCount++;
+      }
+    }
+
+    let pendingQuotes = 0;
+    let approvedQuotes = 0;
+    let rejectedQuotes = 0;
+    let completedQuotes = 0;
+
+    for (const q of allQuotes) {
+      const status = (q.status || "").toLowerCase();
+      if (status === "pending" || status === "en_attente") pendingQuotes++;
+      else if (status === "approved" || status === "accepté" || status === "accepted") approvedQuotes++;
+      else if (status === "rejected" || status === "refusé" || status === "refused") rejectedQuotes++;
+      else if (status === "completed" || status === "converted" || status === "terminé") completedQuotes++;
+    }
+
+    const converted = allQuotes.filter((q: any) => {
+      const s = (q.status || "").toLowerCase();
+      return s === "completed" || s === "converted" || s === "terminé";
+    }).length;
+    const conversionRate = allQuotes.length > 0 ? (converted / allQuotes.length * 100) : 0;
+    const avgInvoiceAmount = allInvoices.length > 0 ? globalRevenue / Math.max(paidCount, 1) : 0;
+
+    const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+    const monthlyRevenueArr: any[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(thisYear, thisMonth - i, 1);
+      const mIdx = d.getMonth();
+      const mYear = d.getFullYear();
+      let total = 0;
+      for (const inv of allInvoices) {
+        const st = (inv.status || "").toLowerCase();
+        if (st !== "paid" && st !== "payée" && st !== "payee") continue;
+        const paidDate = inv.paidAt || inv.paid_at || inv.updatedAt || inv.updated_at || inv.createdAt || inv.created_at;
+        if (!paidDate) continue;
+        const pd = new Date(paidDate);
+        if (pd.getMonth() === mIdx && pd.getFullYear() === mYear) {
+          total += parseFloat(inv.totalTTC || inv.total_ttc || inv.totalAmount || inv.total || inv.amount || "0") || 0;
+        }
+      }
+      monthlyRevenueArr.push({ name: monthNames[mIdx], total });
+    }
+
+    return {
+      ...(dash || {}),
+      currentMonth: {
+        ...(dash?.currentMonth || {}),
+        revenue: dash?.currentMonth?.revenue || monthlyRevenue,
+        monthName: dash?.currentMonth?.monthName || monthNames[thisMonth],
+      },
+      pendingRevenue: dash?.pendingRevenue || pendingRevenue,
+      globalRevenue: dash?.globalRevenue || globalRevenue,
+      totalClients: dash?.totalClients || allClients.length,
+      clients: dash?.clients || allClients,
+      totalReservations: dash?.totalReservations || allReservations.length,
+      totalInvoices: dash?.totalInvoices || allInvoices.length,
+      totalQuotes: dash?.totalQuotes || allQuotes.length,
+      conversionRate: dash?.conversionRate || conversionRate,
+      avgInvoiceAmount: dash?.avgInvoiceAmount || avgInvoiceAmount,
+      quoteStatusStats: dash?.quoteStatusStats || {
+        pending: pendingQuotes,
+        approved: approvedQuotes,
+        rejected: rejectedQuotes,
+        completed: completedQuotes,
+      },
+      invoiceStatusStats: dash?.invoiceStatusStats || {
+        paid: paidCount,
+        pending: pendingInvCount,
+        overdue: overdueCount,
+        cancelled: cancelledInvCount,
+      },
+      monthlyRevenue: (dash?.monthlyRevenue && dash.monthlyRevenue.length > 0) ? dash.monthlyRevenue : monthlyRevenueArr,
+    };
+  }, [rawDashboard, quotesData, invoicesData, clientsData, reservationsData]);
+
+  const isLoading = dashLoading;
 
   const userRole = (user?.role || "").toLowerCase();
   const isRootAdmin = userRole === "root_admin" || userRole === "root";

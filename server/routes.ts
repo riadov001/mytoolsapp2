@@ -1986,10 +1986,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/public/pdf/:type/:id", async (req: Request, res: Response) => {
+    const { type, id } = req.params;
+    const token = req.query.token as string;
+    if (!type || !id || !["quotes", "invoices"].includes(type)) {
+      return res.status(400).json({ message: "Type invalide" });
+    }
+    if (!token) {
+      return res.status(400).json({ message: "Token requis" });
+    }
+    try {
+      const endpoint = `/mobile/${type}/${id}/pdf?viewToken=${encodeURIComponent(token)}`;
+      const headers: Record<string, string> = {
+        "accept": "application/pdf",
+      };
+      const response = await fetchWithBackendFallback(endpoint, { method: "GET", headers, redirect: "manual" });
+      const ct = response.headers.get("content-type") || "";
+      if (ct.includes("application/pdf") || ct.includes("octet-stream")) {
+        const body = await response.arrayBuffer();
+        res.status(response.status);
+        res.setHeader("content-type", ct);
+        const disposition = response.headers.get("content-disposition");
+        if (disposition) res.setHeader("content-disposition", disposition);
+        res.send(Buffer.from(body));
+      } else {
+        const body = await response.text();
+        if (body.includes("<!DOCTYPE") || body.includes("<html")) {
+          return res.status(404).json({ message: "PDF non trouvé" });
+        }
+        res.status(response.status);
+        res.setHeader("content-type", ct || "application/json");
+        res.send(body);
+      }
+    } catch (err: any) {
+      console.error("[PUBLIC-PDF] Error:", err.message);
+      res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+
   app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const clientAccept = (req.headers["accept"] as string) || "application/json";
+      const wantsPdf = clientAccept.includes("application/pdf");
       const headers: Record<string, string> = {
-        "accept": "application/json",
+        "accept": wantsPdf ? "application/pdf" : "application/json",
         "x-requested-with": "XMLHttpRequest",
       };
 
@@ -2050,7 +2090,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log(`[PROXY] ${req.method} /api${req.url} => ${response.status} ${response.statusText}`);
+
+      const upstreamContentType = response.headers.get("content-type") || "";
       const body = await response.arrayBuffer();
+
+      if (upstreamContentType.includes("application/pdf") || upstreamContentType.includes("octet-stream")) {
+        res.status(response.status);
+        res.setHeader("content-type", upstreamContentType);
+        const disposition = response.headers.get("content-disposition");
+        if (disposition) res.setHeader("content-disposition", disposition);
+        res.send(Buffer.from(body));
+        return;
+      }
+
       const text = Buffer.from(body).toString("utf-8");
       let isJson = false;
       try {

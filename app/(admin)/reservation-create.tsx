@@ -48,7 +48,7 @@ export default function ReservationCreateScreen() {
   const [showQuotePicker, setShowQuotePicker] = useState(false);
   const [quoteSearch, setQuoteSearch] = useState("");
 
-  const [selectedServiceId, setSelectedServiceId] = useState<string>("");
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [showServicePicker, setShowServicePicker] = useState(false);
   const [editLoaded, setEditLoaded] = useState(false);
 
@@ -66,8 +66,9 @@ export default function ReservationCreateScreen() {
       setPickedQuoteId(String(editReservation.quoteId));
       setPickedQuoteName(editReservation.quoteReference || editReservation.quoteNumber || "Devis associé");
     }
-    if (editReservation.serviceId) setSelectedServiceId(String(editReservation.serviceId));
-    else if (editReservation.service_id) setSelectedServiceId(String(editReservation.service_id));
+    if (editReservation.serviceId) setSelectedServiceIds([String(editReservation.serviceId)]);
+    else if (editReservation.service_id) setSelectedServiceIds([String(editReservation.service_id)]);
+    else if (Array.isArray(editReservation.serviceIds)) setSelectedServiceIds(editReservation.serviceIds.map(String));
     if (editReservation.serviceType) setServiceType(editReservation.serviceType);
     const schedDate = editReservation.scheduledDate || editReservation.reservationDate || editReservation.date;
     if (schedDate) {
@@ -89,10 +90,10 @@ export default function ReservationCreateScreen() {
   });
 
   const servicesArr = Array.isArray(services) ? services : [];
-  const selectedService = servicesArr.find((s: any) => String(s.id) === String(selectedServiceId));
-  const serviceLabel = selectedService
-    ? (selectedService.name || selectedService.title || `Service #${selectedService.id}`)
-    : "Sélectionner un service *";
+  const selectedServicesArr = servicesArr.filter((s: any) => selectedServiceIds.includes(String(s.id)));
+  const serviceLabel = selectedServicesArr.length > 0
+    ? selectedServicesArr.map((s: any) => s.name || s.title || `Service #${s.id}`).join(", ")
+    : "Sélectionner un ou plusieurs services *";
 
   const { data: quotes = [], isLoading: quotesLoading } = useQuery({
     queryKey: ["admin-quotes"],
@@ -120,7 +121,7 @@ export default function ReservationCreateScreen() {
     if (!notes) setNotes(`Devis: ${ref}`);
     // Auto-select service from quote
     const qServiceId = q.serviceId || (Array.isArray(q.services) && q.services[0]?.id) || "";
-    if (qServiceId) setSelectedServiceId(String(qServiceId));
+    if (qServiceId) setSelectedServiceIds(prev => prev.includes(String(qServiceId)) ? prev : [...prev, String(qServiceId)]);
   };
 
   useFocusEffect(
@@ -160,7 +161,8 @@ export default function ReservationCreateScreen() {
       if (!selectedClientId) throw new Error("Veuillez sélectionner un client.");
       const payload: any = {
         clientId: selectedClientId,
-        serviceId: selectedServiceId || "",
+        serviceId: selectedServiceIds[0] || "",
+        serviceIds: selectedServiceIds,
         scheduledDate: startDate,
         date: startDate,
         estimatedEndDate: endDate,
@@ -196,7 +198,7 @@ export default function ReservationCreateScreen() {
     },
   });
 
-  const canSubmit = !!selectedClientId && (isEditMode || !!selectedServiceId) && !!startDate && !mutation.isPending;
+  const canSubmit = !!selectedClientId && (isEditMode || selectedServiceIds.length > 0) && !!startDate && !mutation.isPending;
 
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
@@ -229,7 +231,7 @@ export default function ReservationCreateScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <Text style={styles.sectionTitle}>Devis lié</Text>
             {pickedQuoteId && !paramClientId && (
-              <Pressable onPress={() => { setPickedQuoteId(""); setPickedQuoteName(""); setSelectedClientId(""); setSelectedServiceId(""); }}>
+              <Pressable onPress={() => { setPickedQuoteId(""); setPickedQuoteName(""); setSelectedClientId(""); setSelectedServiceIds([]); }}>
                 <Text style={{ fontSize: 11, color: theme.textTertiary, fontFamily: "Inter_400Regular" }}>Effacer</Text>
               </Pressable>
             )}
@@ -349,26 +351,31 @@ export default function ReservationCreateScreen() {
           )}
         </View>
 
-        {/* Service Picker */}
+        {/* Service Picker (Multi-Select) */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Service *</Text>
-          {selectedService ? (
-            <View style={styles.quoteSelected}>
-              <View style={styles.quoteSelectedIcon}>
-                <Ionicons name="construct" size={18} color={theme.primary} />
-              </View>
-              <Text style={[styles.quoteSelectedRef, { flex: 1 }]}>{serviceLabel}</Text>
-              <Pressable onPress={() => setSelectedServiceId("")}>
-                <Ionicons name="close-circle" size={18} color={theme.textTertiary} />
-              </Pressable>
+          <Text style={styles.sectionTitle}>Services *</Text>
+          {selectedServicesArr.length > 0 && (
+            <View style={{ gap: 6 }}>
+              {selectedServicesArr.map((s: any) => (
+                <View key={s.id} style={styles.quoteSelected}>
+                  <View style={styles.quoteSelectedIcon}>
+                    <Ionicons name="construct" size={18} color={theme.primary} />
+                  </View>
+                  <Text style={[styles.quoteSelectedRef, { flex: 1 }]}>{s.name || s.title || `Service #${s.id}`}</Text>
+                  <Pressable onPress={() => setSelectedServiceIds(prev => prev.filter(sid => sid !== String(s.id)))}>
+                    <Ionicons name="close-circle" size={18} color={theme.textTertiary} />
+                  </Pressable>
+                </View>
+              ))}
             </View>
-          ) : (
-            <Pressable style={styles.pickerBtn} onPress={() => setShowServicePicker(!showServicePicker)}>
-              <Text style={[styles.pickerText, { color: theme.textTertiary }]}>{serviceLabel}</Text>
-              <Ionicons name={showServicePicker ? "chevron-up" : "chevron-down"} size={18} color={theme.textTertiary} />
-            </Pressable>
           )}
-          {showServicePicker && !selectedService && (
+          <Pressable style={styles.pickerBtn} onPress={() => setShowServicePicker(!showServicePicker)}>
+            <Text style={[styles.pickerText, { color: selectedServicesArr.length > 0 ? theme.text : theme.textTertiary }]}>
+              {selectedServicesArr.length > 0 ? "Ajouter un service" : serviceLabel}
+            </Text>
+            <Ionicons name={showServicePicker ? "chevron-up" : "chevron-down"} size={18} color={theme.textTertiary} />
+          </Pressable>
+          {showServicePicker && (
             <View style={[styles.clientDropdown, { marginTop: 4 }]}>
               <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
                 {servicesLoading ? (
@@ -376,18 +383,36 @@ export default function ReservationCreateScreen() {
                 ) : servicesArr.length === 0 ? (
                   <Text style={styles.noClient}>Aucun service disponible</Text>
                 ) : (
-                  servicesArr.map((s: any) => (
-                    <Pressable
-                      key={s.id}
-                      style={[styles.clientOption, String(selectedServiceId) === String(s.id) && { backgroundColor: theme.primary + "20" }]}
-                      onPress={() => { setSelectedServiceId(String(s.id)); setShowServicePicker(false); }}
-                    >
-                      <Text style={[styles.clientOptionName, String(selectedServiceId) === String(s.id) && { color: theme.primary }]}>
-                        {s.name || s.title || `Service #${s.id}`}
-                      </Text>
-                      {s.description ? <Text style={styles.clientOptionEmail} numberOfLines={1}>{s.description}</Text> : null}
-                    </Pressable>
-                  ))
+                  servicesArr.map((s: any) => {
+                    const isSelected = selectedServiceIds.includes(String(s.id));
+                    return (
+                      <Pressable
+                        key={s.id}
+                        style={[styles.clientOption, isSelected && { backgroundColor: theme.primary + "20" }]}
+                        onPress={() => {
+                          if (isSelected) {
+                            setSelectedServiceIds(prev => prev.filter(sid => sid !== String(s.id)));
+                          } else {
+                            setSelectedServiceIds(prev => [...prev, String(s.id)]);
+                          }
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <Ionicons
+                            name={isSelected ? "checkmark-circle" : "ellipse-outline"}
+                            size={20}
+                            color={isSelected ? theme.primary : theme.textTertiary}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.clientOptionName, isSelected && { color: theme.primary }]}>
+                              {s.name || s.title || `Service #${s.id}`}
+                            </Text>
+                            {s.description ? <Text style={styles.clientOptionEmail} numberOfLines={1}>{s.description}</Text> : null}
+                          </View>
+                        </View>
+                      </Pressable>
+                    );
+                  })
                 )}
               </ScrollView>
             </View>

@@ -325,7 +325,8 @@ export default function InvoiceDetailScreen() {
               setPdfLoading(true);
               try {
                 const ref = inv?.invoiceNumber || inv?.reference || id;
-                const result = await sharePdfDirect("invoices", id, ref);
+                const vt = inv?.viewToken || inv?.pdfToken || inv?.token || inv?.publicToken || inv?.shareToken || inv?.publicId;
+                const result = await sharePdfDirect("invoices", id, ref, vt);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 if (result === "copied") {
                   showAlert({

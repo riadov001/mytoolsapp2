@@ -437,7 +437,8 @@ export default function QuoteDetailScreen() {
                 setPdfLoading(true);
                 try {
                   const ref = q?.quoteNumber || q?.reference || id;
-                  const result = await sharePdfDirect("quotes", id, ref);
+                  const vt = q?.viewToken || q?.pdfToken || q?.token || q?.publicToken || q?.shareToken || q?.publicId;
+                  const result = await sharePdfDirect("quotes", id, ref, vt);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                   if (result === "copied") {
                     showAlert({

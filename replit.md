@@ -45,18 +45,28 @@ Social login with Google and Apple. Uses Firebase Auth JS SDK on the frontend. B
 **Backend:**
 - `FIREBASE_SERVICE_ACCOUNT_JSON` (Firebase Admin SDK service account JSON)
 
-## PDF Download
+## PDF Download & Share
 
 PDF files are downloaded directly from the API (binary response, `Content-Type: application/pdf`). No redirect to PWA.
 
 ### Endpoints
 - **Devis**: `GET /api/mobile/quotes/:id/pdf` (auth JWT required)
 - **Facture**: `GET /api/mobile/invoices/:id/pdf` (auth JWT required)
+- **Public PDF**: `GET /api/public/pdf/:type/:id?token=viewToken` (no auth, token-based access for sharing)
 
 ### Implementation
 - Web: `fetch` with `Authorization: Bearer` header → blob → `URL.createObjectURL` → download link
 - Native: `FileSystem.downloadAsync` with auth headers → `Sharing.shareAsync`
-- Admin share: `sharePdfDirect()` in `lib/admin-api.ts` shares the direct API URL
+- Share: `sharePdfDirect()` in `lib/admin-api.ts` builds public URL with viewToken when available, falls back to direct API URL
+- Catch-all proxy: passes through `Accept: application/pdf` header and binary responses correctly (content-type preserved)
+
+## Reservation Multi-Service
+
+The reservation creation screen (`app/(admin)/reservation-create.tsx`) supports selecting multiple services using `selectedServiceIds: string[]`. The payload sends both `serviceId` (first selected, for backward compat) and `serviceIds` (array).
+
+## Dashboard Data
+
+The admin dashboard (`app/(admin)/(tabs)/index.tsx`) fetches from `/api/admin/dashboard` and also loads quotes, invoices, clients, and reservations data. If the dashboard endpoint returns empty/partial data, it computes KPIs locally from the individual API responses (revenue, status counts, conversion rate, monthly chart).
 
 ## System Architecture
 **App name**: MyToolsApp | **Slug**: mytoolsapp | **Scheme**: mytools

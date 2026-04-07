@@ -18,7 +18,7 @@ import * as Linking from "expo-linking";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { quotesApi, reservationsApi, getBackendUrl, getSessionCookie, Quote } from "@/lib/api";
-import { getAdminAccessToken } from "@/lib/admin-api";
+import { getAdminAccessToken, sharePdfDirect } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -591,17 +591,35 @@ export default function QuoteDetailScreen() {
 
         <View style={styles.footerActions}>
           {pdfUrl && (
-            <Pressable
-              style={({ pressed }) => [styles.btnSecondary, pressed && styles.btnSecondaryPressed, downloading && { opacity: 0.6 }]}
-              onPress={handleDownloadPdf}
-              disabled={downloading}
-            >
-              {downloading
-                ? <ActivityIndicator size="small" color={theme.primary} />
-                : <Ionicons name="download-outline" size={18} color={theme.primary} />
-              }
-              <Text style={styles.btnSecondaryText}>{downloading ? "Téléchargement…" : "Télécharger le devis"}</Text>
-            </Pressable>
+            <>
+              <Pressable
+                style={({ pressed }) => [styles.btnSecondary, pressed && styles.btnSecondaryPressed, downloading && { opacity: 0.6 }]}
+                onPress={handleDownloadPdf}
+                disabled={downloading}
+              >
+                {downloading
+                  ? <ActivityIndicator size="small" color={theme.primary} />
+                  : <Ionicons name="download-outline" size={18} color={theme.primary} />
+                }
+                <Text style={styles.btnSecondaryText}>{downloading ? "Téléchargement…" : "Télécharger le devis"}</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.btnSecondary, pressed && styles.btnSecondaryPressed]}
+                onPress={async () => {
+                  try {
+                    const result = await sharePdfDirect("quotes", String(id), displayRef, viewToken);
+                    if (result === "copied") {
+                      showAlert({ type: "success", title: "Lien copié", message: "Le lien du devis a été copié dans le presse-papier.", buttons: [{ text: "OK", style: "primary" }] });
+                    }
+                  } catch (err: any) {
+                    showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible de partager.", buttons: [{ text: "OK", style: "primary" }] });
+                  }
+                }}
+              >
+                <Ionicons name="share-outline" size={18} color={theme.primary} />
+                <Text style={styles.btnSecondaryText}>Partager</Text>
+              </Pressable>
+            </>
           )}
 
           {canRespond && (
