@@ -6,10 +6,10 @@ import fs from "node:fs";
 import Busboy from "busboy";
 import { registerSocialAuthRoutes } from "./social-auth";
 
-const EXTERNAL_API = "https://saas2.mytoolsgroup.eu/api";
+const EXTERNAL_API = "https://saas.mytoolsgroup.eu/api";
 const EXTERNAL_API_FALLBACKS = [
-  "https://saas2.mytoolsgroup.eu/api",
-  "https://saas3.mytoolsgroup.eu/api",
+  "https://saas.mytoolsgroup.eu/api",
+  "https://pwa.mytoolsgroup.eu/api",
 ];
 console.log(`[CONFIG] External API: ${EXTERNAL_API} (fallbacks: ${EXTERNAL_API_FALLBACKS.slice(1).join(", ")})`);
 
@@ -641,16 +641,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const targetUrl = `${EXTERNAL_API}/mobile/auth/login`;
       const headers: Record<string, string> = {
-        "host": new URL(EXTERNAL_API).host,
         "content-type": "application/json",
       };
       if (req.headers["cookie"]) {
         headers["cookie"] = req.headers["cookie"] as string;
       }
 
-      const response = await fetch(targetUrl, {
+      const response = await fetchWithBackendFallback("/mobile/auth/login", {
         method: "POST",
         headers,
         body: JSON.stringify(req.body),

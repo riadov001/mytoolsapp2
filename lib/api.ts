@@ -6,8 +6,8 @@ const REQUEST_TIMEOUT_MS = 15000;
 const RETRY_DELAY_MS = 1000;
 
 const NATIVE_BACKEND_URLS = [
-  "https://saas2.mytoolsgroup.eu",
-  "https://saas3.mytoolsgroup.eu",
+  "https://saas.mytoolsgroup.eu",
+  "https://pwa.mytoolsgroup.eu",
 ];
 
 const getApiBase = () => {

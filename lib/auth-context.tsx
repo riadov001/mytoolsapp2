@@ -300,8 +300,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const webBase = getWebBase();
     const nativeBases = [
-      "https://saas2.mytoolsgroup.eu",
-      "https://saas3.mytoolsgroup.eu",
+      "https://saas.mytoolsgroup.eu",
+      "https://pwa.mytoolsgroup.eu",
     ];
 
     const bases = webBase

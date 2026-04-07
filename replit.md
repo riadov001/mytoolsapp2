@@ -61,7 +61,7 @@ PDF files are downloaded directly from the API (binary response, `Content-Type: 
 ## System Architecture
 **App name**: MyToolsApp | **Slug**: mytoolsapp | **Scheme**: mytools
 
-The application is built using Expo React Native with file-based routing via Expo Router for the frontend. It consumes an external API with fallback priority: `saas2.mytoolsgroup.eu` (primary) → `saas3.mytoolsgroup.eu` (fallback) → Replit proxy URL. Authentication is handled via a dual system: Bearer tokens for admin API calls and cookie sessions for client-side interactions. State management utilizes React Query for server data and React Context for authentication.
+The application is built using Expo React Native with file-based routing via Expo Router for the frontend. It consumes an external API with fallback priority: `saas.mytoolsgroup.eu` (primary) → `pwa.mytoolsgroup.eu` (fallback) → Replit proxy URL. Authentication is handled via a dual system: Bearer tokens for admin API calls and cookie sessions for client-side interactions. State management utilizes React Query for server data and React Context for authentication.
 
 Key features include:
 - Role-based routing, directing `admin`/`employe` users to the `(admin)` interface and `client` users to the `(main)` interface.
@@ -74,7 +74,7 @@ Key features include:
 - Quote status flows from `pending` to `sent`, `approved`, and `accepted`, with appropriate UI actions.
 - Invoice creation is integrated with quotes via a "Générer facture" button in quote detail, requiring photo upload for quotes.
 - Numeric conversion and sanitization of items array for API payloads.
-- PDF sharing via PWA URLs (saas2.mytoolsgroup.eu/quotes/view/{viewToken} or /invoices/view/{viewToken}).
+- PDF sharing via PWA URLs (saas.mytoolsgroup.eu/quotes/view/{viewToken} or /invoices/view/{viewToken}).
 - Client creation is re-enabled with a "+" button in the Clients tab header. Only client (particulier/professionnel) roles can be created from this screen.
 
 ## Tab Navigation
