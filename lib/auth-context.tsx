@@ -307,7 +307,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const bases = webBase
       ? [webBase]
       : process.env.EXPO_PUBLIC_DOMAIN
-        ? [`https://${process.env.EXPO_PUBLIC_DOMAIN}`]
+        ? [`https://${process.env.EXPO_PUBLIC_DOMAIN}`, ...nativeBases.filter(b => b !== `https://${process.env.EXPO_PUBLIC_DOMAIN}`)]
         : nativeBases;
 
     let res: globalThis.Response | null = null;

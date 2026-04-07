@@ -23,6 +23,7 @@ async function fetchWithBackendFallback(
     : [primaryBase, ...EXTERNAL_API_FALLBACKS.filter(b => b !== primaryBase)];
 
   let lastErr: any;
+  let lastResponse: globalThis.Response | null = null;
   for (const base of bases) {
     try {
       const url = `${base}${path}`;
@@ -32,6 +33,11 @@ async function fetchWithBackendFallback(
         headers: { ...(options.headers as any), host: hostHeader },
       };
       const res = await fetch(url, updatedOptions);
+      if (res.status >= 500) {
+        console.warn(`[PROXY] ${base} returned ${res.status}, trying next...`);
+        lastResponse = res;
+        continue;
+      }
       if (base !== EXTERNAL_API_FALLBACKS[0]) {
         console.log(`[PROXY] Fallback succeeded: ${base}`);
       }
@@ -45,6 +51,7 @@ async function fetchWithBackendFallback(
       console.warn(`[PROXY] Backend ${base} unreachable, trying next...`);
     }
   }
+  if (lastResponse) return lastResponse;
   throw lastErr;
 }
 
@@ -641,53 +648,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const headers: Record<string, string> = {
-        "content-type": "application/json",
-      };
-      if (req.headers["cookie"]) {
-        headers["cookie"] = req.headers["cookie"] as string;
-      }
+      const reqBody = JSON.stringify(req.body);
+      let response: globalThis.Response | null = null;
 
-      const response = await fetchWithBackendFallback("/mobile/auth/login", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(req.body),
-        redirect: "manual",
-      });
-
-      const allCookieParts: string[] = [];
-      response.headers.forEach((value, key) => {
-        const lk = key.toLowerCase();
-        if (lk === "transfer-encoding" || lk === "content-encoding" || lk === "content-length") return;
-        if (lk === "set-cookie") {
-          res.appendHeader("set-cookie", value);
-          const cookiePart = value.split(";")[0].trim();
-          if (cookiePart && !cookiePart.startsWith("XSRF-TOKEN") && !cookiePart.startsWith("csrf")) {
-            allCookieParts.push(cookiePart);
-          }
-          return;
-        }
-        res.setHeader(key, value);
-      });
-
-      if (allCookieParts.length > 0) {
-        const allCookies = allCookieParts.join("; ");
-        console.log(`[LOGIN] Captured session cookies: ${allCookies.substring(0, 80)}...`);
-        res.setHeader("X-Session-Cookie", allCookies);
-      }
-
-      res.status(response.status);
-
-      if (response.ok) {
-        let responseData: any;
-        const text = await response.text();
+      for (const base of EXTERNAL_API_FALLBACKS) {
         try {
-          responseData = JSON.parse(text);
-        } catch (e) {
-          console.error("Failed to parse login response:", e);
-          return res.status(502).json({ message: "Réponse invalide du serveur d'authentification." });
+          const hostHeader = new URL(base).host;
+          const headers: Record<string, string> = {
+            "content-type": "application/json",
+            "accept": "application/json",
+            "host": hostHeader,
+          };
+          if (req.headers["cookie"]) {
+            headers["cookie"] = req.headers["cookie"] as string;
+          }
+
+          const attempt = await fetch(`${base}/mobile/auth/login`, {
+            method: "POST",
+            headers,
+            body: reqBody,
+            redirect: "manual",
+            signal: AbortSignal.timeout(15000),
+          });
+
+          console.log(`[LOGIN] ${base} responded: status=${attempt.status} type=${attempt.type}`);
+
+          if (attempt.status >= 500) {
+            console.warn(`[LOGIN] ${base} returned ${attempt.status}, trying next...`);
+            response = attempt;
+            continue;
+          }
+
+          response = attempt;
+          break;
+        } catch (err: any) {
+          console.warn(`[LOGIN] ${base} error: ${err.message}, trying next...`);
         }
-        
+      }
+
+      if (!response) {
+        return res.status(502).json({ message: "Serveurs d'authentification indisponibles" });
+      }
+
+      forwardSetCookie(response, res);
+
+      const xSessionCookie = res.getHeader("X-Session-Cookie") as string | undefined;
+      if (xSessionCookie) {
+        console.log(`[LOGIN] Captured session cookie: ${xSessionCookie.substring(0, 80)}...`);
+      }
+
+      const isRedirect = response.status >= 300 && response.status < 400;
+
+      if (response.ok || isRedirect) {
+        let responseData: any = null;
+
+        if (response.ok) {
+          const text = await response.text();
+          try {
+            responseData = JSON.parse(text);
+          } catch (e) {
+            console.error("[LOGIN] Failed to parse response body:", text?.substring(0, 200));
+          }
+        }
+
+        if (isRedirect && !responseData && xSessionCookie) {
+          console.log("[LOGIN] Redirect with cookies - fetching user profile via /me...");
+          try {
+            const cookieStr = xSessionCookie;
+            const meRes = await fetchWithBackendFallback("/mobile/auth/me", {
+              method: "GET",
+              headers: {
+                "accept": "application/json",
+                "cookie": cookieStr,
+              },
+            });
+            if (meRes.ok) {
+              const meText = await meRes.text();
+              try { responseData = JSON.parse(meText); } catch {}
+            }
+          } catch (meErr: any) {
+            console.warn("[LOGIN] /me fetch failed:", meErr.message);
+          }
+        }
+
+        if (!responseData) {
+          responseData = {};
+        }
+
         const loggedInUserId = responseData?.id || responseData?.user?.id || responseData?._id;
         const loggedInEmail = responseData?.email || responseData?.user?.email;
 
@@ -717,11 +764,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        return res.json(responseData);
+        return res.status(200).json(responseData);
       }
 
-      const body = await response.arrayBuffer();
-      res.send(Buffer.from(body));
+      console.log(`[LOGIN] External API returned error status ${response.status}`);
+      const errorBody = await response.text().catch(() => "");
+      let errorJson: any = null;
+      try { errorJson = JSON.parse(errorBody); } catch {}
+      res.status(response.status).json(
+        errorJson || { message: "Identifiants incorrects ou compte introuvable" }
+      );
     } catch (err: any) {
       console.error("Login proxy error:", err.message);
       res.status(502).json({ message: "Erreur de connexion au serveur API" });
@@ -1693,14 +1745,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/auth/me", async (req: Request, res: Response) => {
     const headers: Record<string, string> = {
-      "host": new URL(EXTERNAL_API).host,
       "accept": "application/json",
       "x-requested-with": "XMLHttpRequest",
     };
     if (req.headers["authorization"]) headers["authorization"] = req.headers["authorization"] as string;
     if (req.headers["cookie"]) headers["cookie"] = req.headers["cookie"] as string;
     try {
-      const r = await fetch(`${EXTERNAL_API}/mobile/auth/me`, { headers, redirect: "manual" });
+      const r = await fetchWithBackendFallback("/mobile/auth/me", { headers, redirect: "manual" });
       const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(401).json({ message: "Non authentifié" });
@@ -1714,14 +1765,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/refresh", async (req: Request, res: Response) => {
     const headers: Record<string, string> = {
-      "host": new URL(EXTERNAL_API).host,
       "content-type": "application/json",
       "accept": "application/json",
     };
     if (req.headers["authorization"]) headers["authorization"] = req.headers["authorization"] as string;
     if (req.headers["cookie"]) headers["cookie"] = req.headers["cookie"] as string;
     try {
-      const r = await fetch(`${EXTERNAL_API}/mobile/refresh-token`, {
+      const r = await fetchWithBackendFallback("/mobile/refresh-token", {
         method: "POST",
         headers,
         body: JSON.stringify(req.body),
@@ -1743,7 +1793,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/register", async (req: Request, res: Response) => {
     const headers = getAuthHeaders(req);
     try {
-      const r = await fetch(`${EXTERNAL_API}/mobile/auth/register`, {
+      const r = await fetchWithBackendFallback("/mobile/auth/register", {
         method: "POST", headers, body: JSON.stringify(req.body), redirect: "manual",
       });
       forwardSetCookie(r, res);
@@ -1938,10 +1988,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const targetUrl = `${EXTERNAL_API}${req.url}`;
-
       const headers: Record<string, string> = {
-        "host": new URL(EXTERNAL_API).host,
         "accept": "application/json",
         "x-requested-with": "XMLHttpRequest",
       };
@@ -1980,7 +2027,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const response = await fetch(targetUrl, fetchOptions);
+      const response = await fetchWithBackendFallback(req.url, fetchOptions);
 
       const proxyCookieParts: string[] = [];
       response.headers.forEach((value, key) => {

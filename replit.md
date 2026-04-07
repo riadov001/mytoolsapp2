@@ -137,9 +137,11 @@ All Expo packages must be compatible with the installed SDK version. Use `npx ex
 Always run `npx expo install <package> --fix` or `npx expo install --fix` to auto-resolve version mismatches.
 
 ## External Dependencies
-- **Backend API**: `saas2.mytoolsgroup.eu` (configurable via `EXTERNAL_API_URL`)
-- **Authentication**: Bearer tokens and cookie sessions managed by the external API.
+- **Backend API**: `saas.mytoolsgroup.eu` (primary), `pwa.mytoolsgroup.eu` (fallback). All backend routes use automatic fallback with retry on 5xx errors.
+- **Authentication**: Bearer tokens and cookie sessions managed by the external API. Apple Sign-In uses nonce-based verification via `expo-crypto`.
+- **Social Auth**: Firebase Admin SDK verifies Google/Apple tokens, then forwards to external API `/mobile/auth/login-with-firebase`.
 - **Data Storage**: AsyncStorage for GDPR consent, SecureStore for authentication tokens and session cookies.
 - **OCR**: Gemini Vision via `@google/genai` SDK (Replit AI Integrations) at `/api/ocr/analyze` endpoint for document scanning.
 - **AI Analytics**: Via `/api/admin/advanced-analytics` endpoint.
 - **Push Notifications**: Integrated for user notifications.
+- **Company Search**: SIRET lookup via `/api/mobile/public/siret-lookup` (proxied to external API).

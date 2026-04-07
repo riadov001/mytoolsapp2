@@ -8,9 +8,17 @@ const EXTERNAL_API = EXTERNAL_APIS[0];
 
 async function fetchExternalWithFallback(path: string, options: RequestInit): Promise<globalThis.Response> {
   let lastErr: any;
+  let lastResponse: globalThis.Response | null = null;
   for (const base of EXTERNAL_APIS) {
     try {
-      const res = await fetch(`${base}${path}`, options);
+      const hostHeader = new URL(base).host;
+      const updatedHeaders = { ...(options.headers as any), host: hostHeader };
+      const res = await fetch(`${base}${path}`, { ...options, headers: updatedHeaders });
+      if (res.status >= 500) {
+        console.warn(`[SocialAuth] ${base} returned ${res.status}, trying next...`);
+        lastResponse = res;
+        continue;
+      }
       return res;
     } catch (err: any) {
       lastErr = err;
@@ -20,6 +28,7 @@ async function fetchExternalWithFallback(path: string, options: RequestInit): Pr
       console.warn(`[SocialAuth] Backend ${base} unreachable, trying fallback...`);
     }
   }
+  if (lastResponse) return lastResponse;
   throw lastErr;
 }
 
