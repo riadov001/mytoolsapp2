@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
+import * as Crypto from "expo-crypto";
 import { Ionicons } from "@expo/vector-icons";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { useTheme } from "@/lib/theme";
@@ -151,16 +152,26 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
       const fbAuth = getFirebaseAuth();
       if (!fbAuth) throw new Error("Firebase non configuré");
 
+      const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce
+      );
+
       const appleCredential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
+        nonce: hashedNonce,
       });
       if (!appleCredential.identityToken) throw new Error("Aucun token Apple reçu");
 
       const provider = new OAuthProvider("apple.com");
-      const firebaseCredential = provider.credential({ idToken: appleCredential.identityToken });
+      const firebaseCredential = provider.credential({
+        idToken: appleCredential.identityToken,
+        rawNonce,
+      });
       const result = await signInWithCredential(fbAuth, firebaseCredential);
       await onIdToken(await result.user.getIdToken(), "apple");
     } catch (err: any) {
