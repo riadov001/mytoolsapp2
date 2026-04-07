@@ -24,3 +24,9 @@ id = "Ej-bA4PwEOEKeytQVA1MJ"
 uri = "file://AUDIT_MyToolsApp_v2.pdf"
 type = "pdf"
 title = "Audit interne MyToolsApp mobile v2 — Version corrigée"
+
+[[outputs]]
+id = "ENOWCmKDXRsAi-V-7wSUm"
+uri = "file://MyToolsApp_QA_Checklist.md"
+type = "text"
+title = "MyToolsApp v2.0.3 – Apple Review QA Checklist"
