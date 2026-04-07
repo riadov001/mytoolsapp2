@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Platform,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,44 +32,44 @@ interface HistoryItem {
 
 function getQuoteStatusInfo(status: string) {
   const s = status?.toLowerCase() || "";
-  if (s === "pending" || s === "en_attente") return { label: "En attente", color: "#6B7280", bg: "#F3F4F6" };
-  if (s === "approved" || s === "approuvé" || s === "approuve") return { label: "Approuvé", color: "#16A34A", bg: "#DCFCE7" };
-  if (s === "accepted" || s === "accepté" || s === "accepte") return { label: "Accepté", color: "#2563EB", bg: "#DBEAFE" };
-  if (s === "rejected" || s === "refusé" || s === "refuse") return { label: "Refusé", color: "#DC2626", bg: "#FEE2E2" };
-  if (s === "completed" || s === "terminé" || s === "termine") return { label: "Terminé", color: "#7C3AED", bg: "#EDE9FE" };
-  if (s === "sent" || s === "envoyé" || s === "envoye") return { label: "Envoyé", color: "#0891B2", bg: "#CFFAFE" };
-  return { label: status || "Inconnu", color: "#888", bg: "#F0F0F0" };
+  if (s === "pending" || s === "en_attente") return { label: "En attente", color: "#9CA3AF", bg: "#9CA3AF20" };
+  if (s === "approved" || s === "approuvé" || s === "approuve") return { label: "Approuvé", color: "#4ADE80", bg: "#4ADE8020" };
+  if (s === "accepted" || s === "accepté" || s === "accepte") return { label: "Accepté", color: "#60A5FA", bg: "#60A5FA20" };
+  if (s === "rejected" || s === "refusé" || s === "refuse") return { label: "Refusé", color: "#F87171", bg: "#F8717120" };
+  if (s === "completed" || s === "terminé" || s === "termine") return { label: "Terminé", color: "#C084FC", bg: "#C084FC20" };
+  if (s === "sent" || s === "envoyé" || s === "envoye") return { label: "Envoyé", color: "#22D3EE", bg: "#22D3EE20" };
+  return { label: status || "Inconnu", color: "#9CA3AF", bg: "#9CA3AF18" };
 }
 
 function getInvoiceStatusInfo(status: string) {
   const s = status?.toLowerCase() || "";
-  if (s === "pending" || s === "en_attente") return { label: "En attente", color: "#D97706", bg: "#FEF3C7" };
-  if (s === "paid" || s === "payée" || s === "payé") return { label: "Payée", color: "#16A34A", bg: "#DCFCE7" };
-  if (s === "overdue" || s === "en_retard") return { label: "En retard", color: "#DC2626", bg: "#FEE2E2" };
-  if (s === "cancelled" || s === "annulée") return { label: "Annulée", color: "#6B7280", bg: "#F3F4F6" };
-  return { label: status || "Inconnu", color: "#888", bg: "#F0F0F0" };
+  if (s === "pending" || s === "en_attente") return { label: "En attente", color: "#FCD34D", bg: "#FCD34D20" };
+  if (s === "paid" || s === "payée" || s === "payé") return { label: "Payée", color: "#4ADE80", bg: "#4ADE8020" };
+  if (s === "overdue" || s === "en_retard") return { label: "En retard", color: "#F87171", bg: "#F8717120" };
+  if (s === "cancelled" || s === "annulée") return { label: "Annulée", color: "#9CA3AF", bg: "#9CA3AF20" };
+  return { label: status || "Inconnu", color: "#9CA3AF", bg: "#9CA3AF18" };
 }
 
 function getReservationStatusInfo(status: string) {
   const s = status?.toLowerCase() || "";
-  if (s === "pending" || s === "en_attente") return { label: "En attente", color: "#6B7280", bg: "#F3F4F6" };
-  if (s === "confirmed" || s === "confirmée" || s === "confirmé") return { label: "Confirmé", color: "#2563EB", bg: "#DBEAFE" };
-  if (s === "completed" || s === "terminée" || s === "terminé") return { label: "Terminé", color: "#16A34A", bg: "#DCFCE7" };
-  if (s === "cancelled" || s === "annulée" || s === "annulé") return { label: "Annulé", color: "#DC2626", bg: "#FEE2E2" };
-  return { label: status || "Inconnu", color: "#888", bg: "#F0F0F0" };
+  if (s === "pending" || s === "en_attente") return { label: "En attente", color: "#9CA3AF", bg: "#9CA3AF20" };
+  if (s === "confirmed" || s === "confirmée" || s === "confirmé") return { label: "Confirmé", color: "#60A5FA", bg: "#60A5FA20" };
+  if (s === "completed" || s === "terminée" || s === "terminé") return { label: "Terminé", color: "#4ADE80", bg: "#4ADE8020" };
+  if (s === "cancelled" || s === "annulée" || s === "annulé") return { label: "Annulé", color: "#F87171", bg: "#F8717120" };
+  return { label: status || "Inconnu", color: "#9CA3AF", bg: "#9CA3AF18" };
 }
 
 function getTypeBadge(type: "quote" | "invoice" | "reservation") {
-  if (type === "quote") return { label: "Devis", color: "#7C3AED", bg: "#EDE9FE", icon: "document-text-outline" as const };
-  if (type === "invoice") return { label: "Facture", color: "#0891B2", bg: "#CFFAFE", icon: "receipt-outline" as const };
-  return { label: "Réservation", color: "#D97706", bg: "#FEF3C7", icon: "calendar-outline" as const };
+  if (type === "quote") return { label: "Devis", color: "#C084FC", bg: "#C084FC20", icon: "document-text-outline" as const };
+  if (type === "invoice") return { label: "Facture", color: "#22D3EE", bg: "#22D3EE20", icon: "receipt-outline" as const };
+  return { label: "Réservation", color: "#FCD34D", bg: "#FCD34D20", icon: "calendar-outline" as const };
 }
 
-const FILTERS: { id: FilterType; label: string }[] = [
-  { id: "all", label: "Tout" },
-  { id: "quotes", label: "Devis" },
-  { id: "invoices", label: "Factures" },
-  { id: "reservations", label: "Réservations" },
+const FILTERS: { id: FilterType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { id: "all", label: "Tout", icon: "layers-outline" },
+  { id: "quotes", label: "Devis", icon: "document-text-outline" },
+  { id: "invoices", label: "Factures", icon: "receipt-outline" },
+  { id: "reservations", label: "RDV", icon: "calendar-outline" },
 ];
 
 export default function HistoryScreen() {
@@ -76,6 +77,7 @@ export default function HistoryScreen() {
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
   const [filter, setFilter] = useState<FilterType>("all");
+  const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: quotes = [], refetch: refetchQuotes, isLoading: loadingQuotes } = useQuery({
@@ -101,7 +103,7 @@ export default function HistoryScreen() {
     setRefreshing(false);
   }, [refetchQuotes, refetchInvoices, refetchReservations]);
 
-  const allItems: HistoryItem[] = [
+  const allItems: HistoryItem[] = useMemo(() => [
     ...(Array.isArray(quotes) ? quotes : []).map((q: any) => ({
       id: q.id,
       type: "quote" as const,
@@ -128,20 +130,27 @@ export default function HistoryScreen() {
       status: r.status || "",
       raw: r,
     })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [quotes, invoices, reservations]);
 
-  const filtered = allItems.filter(item => {
-    if (filter === "all") return true;
-    if (filter === "quotes") return item.type === "quote";
-    if (filter === "invoices") return item.type === "invoice";
-    if (filter === "reservations") return item.type === "reservation";
-    return true;
-  });
+  const filtered = useMemo(() => {
+    return allItems.filter(item => {
+      const matchType = filter === "all"
+        || (filter === "quotes" && item.type === "quote")
+        || (filter === "invoices" && item.type === "invoice")
+        || (filter === "reservations" && item.type === "reservation");
+      if (!matchType) return false;
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return item.reference.toLowerCase().includes(q)
+        || item.status.toLowerCase().includes(q)
+        || (item.raw?.clientName || item.raw?.client?.name || "").toLowerCase().includes(q);
+    });
+  }, [allItems, filter, search]);
 
   const handlePress = (item: HistoryItem) => {
-    if (item.type === "quote") router.push(`/(main)/quote-detail?id=${item.id}`);
-    else if (item.type === "invoice") router.push(`/(main)/invoice-detail?id=${item.id}`);
-    else router.push(`/(main)/reservation-detail?id=${item.id}`);
+    if (item.type === "quote") router.push({ pathname: "/(main)/quote-detail", params: { id: item.id } });
+    else if (item.type === "invoice") router.push({ pathname: "/(main)/invoice-detail", params: { id: item.id } });
+    else router.push({ pathname: "/(main)/reservation-detail", params: { id: item.id } });
   };
 
   const renderItem = ({ item }: { item: HistoryItem }) => {
@@ -156,8 +165,8 @@ export default function HistoryScreen() {
       ? new Date(item.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
       : "—";
 
-    const shortRef = item.reference.length > 16
-      ? `${item.reference.substring(0, 8)}…`
+    const shortRef = item.reference?.length > 18
+      ? `${item.reference.substring(0, 15)}…`
       : item.reference;
 
     return (
@@ -177,7 +186,7 @@ export default function HistoryScreen() {
             <Text style={styles.cardDate}>{formattedDate}</Text>
           </View>
 
-          <Text style={styles.cardRef}>{shortRef}</Text>
+          <Text style={styles.cardRef} numberOfLines={1}>{shortRef}</Text>
 
           <View style={styles.cardBottomRow}>
             <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
@@ -189,9 +198,16 @@ export default function HistoryScreen() {
           </View>
         </View>
 
-        <Ionicons name="chevron-forward" size={18} color={theme.textTertiary} />
+        <Ionicons name="chevron-forward" size={16} color={theme.textTertiary} />
       </Pressable>
     );
+  };
+
+  const counts = {
+    all: allItems.length,
+    quotes: allItems.filter(i => i.type === "quote").length,
+    invoices: allItems.filter(i => i.type === "invoice").length,
+    reservations: allItems.filter(i => i.type === "reservation").length,
   };
 
   return (
@@ -200,22 +216,51 @@ export default function HistoryScreen() {
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Historique</Text>
-        <View style={styles.headerBtn} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Mes demandes</Text>
+          <Text style={styles.headerSub}>{allItems.length} document{allItems.length !== 1 ? "s" : ""} au total</Text>
+        </View>
+      </View>
+
+      <View style={styles.searchRow}>
+        <Ionicons name="search-outline" size={18} color={theme.textTertiary} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Rechercher par référence, statut…"
+          placeholderTextColor={theme.textTertiary}
+          value={search}
+          onChangeText={setSearch}
+          returnKeyType="search"
+        />
+        {!!search && (
+          <Pressable onPress={() => setSearch("")}>
+            <Ionicons name="close-circle" size={18} color={theme.textTertiary} />
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.filterRow}>
-        {FILTERS.map(f => (
-          <Pressable
-            key={f.id}
-            style={[styles.filterChip, filter === f.id && styles.filterChipActive]}
-            onPress={() => setFilter(f.id)}
-          >
-            <Text style={[styles.filterChipText, filter === f.id && styles.filterChipTextActive]}>
-              {f.label}
-            </Text>
-          </Pressable>
-        ))}
+        {FILTERS.map(f => {
+          const count = counts[f.id];
+          const active = filter === f.id;
+          return (
+            <Pressable
+              key={f.id}
+              style={[styles.filterChip, active && styles.filterChipActive]}
+              onPress={() => setFilter(f.id)}
+            >
+              <Ionicons name={f.icon} size={13} color={active ? "#fff" : theme.textSecondary} />
+              <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                {f.label}
+              </Text>
+              {count > 0 && (
+                <View style={[styles.filterCount, active && styles.filterCountActive]}>
+                  <Text style={[styles.filterCountText, active && styles.filterCountTextActive]}>{count}</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
       </View>
 
       {isLoading ? (
@@ -243,9 +288,13 @@ export default function HistoryScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="time-outline" size={56} color={theme.textTertiary} />
-              <Text style={styles.emptyTitle}>Aucune activité</Text>
-              <Text style={styles.emptySubtitle}>Votre historique apparaîtra ici</Text>
+              <Ionicons name="time-outline" size={52} color={theme.textTertiary} />
+              <Text style={styles.emptyTitle}>
+                {search ? "Aucun résultat" : "Aucune activité"}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {search ? `Aucun document ne correspond à "${search}"` : "Votre historique apparaîtra ici"}
+              </Text>
             </View>
           }
           showsVerticalScrollIndicator={false}
@@ -256,151 +305,116 @@ export default function HistoryScreen() {
 }
 
 const getStyles = (theme: ThemeColors) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
+  container: { flex: 1, backgroundColor: theme.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 10,
+    gap: 8,
     backgroundColor: theme.background,
   },
-  headerBtn: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
+  headerBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
+  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: theme.text },
+  headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textTertiary, marginTop: 1 },
+  searchRow: {
+    flexDirection: "row",
     alignItems: "center",
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: theme.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
     color: theme.text,
+    padding: 0,
   },
   filterRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingBottom: 10,
     gap: 8,
     borderBottomWidth: 1,
     borderBottomColor: theme.border,
   },
   filterChip: {
-    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 20,
     backgroundColor: theme.surface,
     borderWidth: 1,
     borderColor: theme.border,
+    gap: 4,
   },
   filterChipActive: {
     backgroundColor: theme.primary,
     borderColor: theme.primary,
   },
   filterChipText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Inter_500Medium",
     color: theme.textSecondary,
   },
-  filterChipTextActive: {
-    color: "#fff",
+  filterChipTextActive: { color: "#fff" },
+  filterCount: {
+    backgroundColor: theme.border,
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    minWidth: 18,
+    alignItems: "center",
   },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  listContentEmpty: {
-    flex: 1,
-    justifyContent: "center",
-  },
+  filterCountActive: { backgroundColor: "#ffffff30" },
+  filterCountText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: theme.textSecondary },
+  filterCountTextActive: { color: "#fff" },
+  listContent: { paddingHorizontal: 16, paddingTop: 12 },
+  listContentEmpty: { flex: 1, justifyContent: "center" },
   card: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 14,
-    marginBottom: 10,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: theme.border,
     gap: 12,
   },
-  cardPressed: {
-    backgroundColor: theme.surfaceSecondary,
-  },
+  cardPressed: { opacity: 0.75 },
   typeIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
+    width: 44, height: 44, borderRadius: 12,
+    justifyContent: "center", alignItems: "center",
+    flexShrink: 0,
   },
-  cardContent: {
-    flex: 1,
-    gap: 5,
-  },
+  cardContent: { flex: 1, gap: 5 },
   cardTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
-  typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  typeBadgeText: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-  },
-  cardDate: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: theme.textTertiary,
-  },
-  cardRef: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: theme.text,
-  },
+  typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  typeBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  cardDate: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textTertiary },
+  cardRef: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text },
   cardBottomRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  statusText: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-  },
-  cardAmount: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    color: theme.text,
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emptyState: {
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_600SemiBold",
-    color: theme.textSecondary,
-  },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  statusText: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  cardAmount: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: theme.text },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  emptyState: { alignItems: "center", gap: 10, paddingVertical: 60 },
+  emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", color: theme.textSecondary },
   emptySubtitle: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: theme.textTertiary,
+    fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textTertiary,
+    textAlign: "center", paddingHorizontal: 40,
   },
 });

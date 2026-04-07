@@ -16,27 +16,43 @@ interface GuideSection {
 
 const GUIDE_SECTIONS: GuideSection[] = [
   {
+    id: "navigation",
+    icon: "compass-outline",
+    iconColor: "#DC2626",
+    title: "Navigation générale",
+    items: [
+      "L'application comporte 5 onglets principaux en bas de l'écran : Tableau de bord, Devis, Factures, Rendez-vous et Paramètres.",
+      "Le bouton flottant « + » (rouge) en bas au centre permet de créer rapidement un devis, une facture ou un rendez-vous.",
+      "L'onglet « Plus » (en haut à droite de l'écran d'accueil) donne accès aux outils avancés : scanner OCR, gestion des services, utilisateurs et analyses IA.",
+      "Swipez vers le bas sur n'importe quel écran à liste pour rafraîchir les données.",
+    ],
+  },
+  {
     id: "dashboard",
     icon: "grid-outline",
-    iconColor: "#DC2626",
+    iconColor: "#3B82F6",
     title: "Tableau de bord",
     items: [
-      "Consultez les indicateurs clés : chiffre d'affaires, devis actifs, factures impayées, nombre de clients et rendez-vous.",
-      "Le graphique affiche l'évolution du CA sur les 6 derniers mois.",
-      "Les statuts des devis et factures sont résumés en bas de page.",
-      "Tirez vers le bas pour rafraîchir les données.",
+      "Affiche vos indicateurs clés en temps réel : chiffre d'affaires mensuel, nombre de devis actifs, factures impayées, clients enregistrés et rendez-vous à venir.",
+      "Le graphique en bas montre l'évolution du chiffre d'affaires sur les 6 derniers mois.",
+      "Les cartes de statut résument rapidement l'état de vos devis et factures (en attente, approuvés, payés, etc.).",
+      "Appuyez sur n'importe quelle carte statistique pour accéder directement à la liste correspondante.",
+      "Tirez vers le bas pour actualiser toutes les données du tableau de bord.",
     ],
   },
   {
     id: "quotes",
     icon: "document-text-outline",
-    iconColor: "#3B82F6",
+    iconColor: "#8B5CF6",
     title: "Devis",
     items: [
-      "Consultez tous les devis avec leur statut, montant et client associé.",
-      "Changez le statut d'un devis : en attente, approuvé, rejeté ou annulé.",
-      "Appuyez sur un devis pour voir le détail : lignes, totaux HT/TTC et PDF.",
-      "Filtrez par statut ou recherchez par nom de client ou numéro.",
+      "Créez un nouveau devis via le bouton « + » ou depuis l'onglet Devis. Remplissez le client, les lignes de prestation et les prix HT.",
+      "Chaque devis affiche son numéro, le client, le montant TTC et le statut (en attente, approuvé, rejeté, annulé).",
+      "Appuyez sur un devis pour voir le détail complet : lignes de prestation, totaux HT et TTC, et accéder au PDF.",
+      "Dans le détail, changez le statut directement avec les boutons d'action (Approuver, Rejeter, Annuler).",
+      "Utilisez la barre de recherche pour trouver un devis par nom de client ou numéro.",
+      "Filtrez par statut grâce aux chips de filtre en haut de la liste.",
+      "Pour les devis créés par les clients via l'app, vous recevez une notification push à la création.",
     ],
   },
   {
@@ -45,57 +61,104 @@ const GUIDE_SECTIONS: GuideSection[] = [
     iconColor: "#22C55E",
     title: "Factures",
     items: [
-      "Consultez toutes les factures avec le montant TTC, l'échéance et le statut (payée, en attente, annulée).",
+      "Créez une facture via le bouton « + » en sélectionnant un client, les prestations et les conditions de paiement.",
+      "Les statuts de facture sont : En attente, Payée, En retard et Annulée.",
+      "Appuyez sur une facture pour voir le détail : lignes, totaux, informations client et accès au PDF.",
+      "L'email et le téléphone du client s'affichent directement sur la carte pour un contact rapide.",
       "Filtrez par statut ou recherchez par nom de client ou numéro de facture.",
-      "Appuyez sur une facture pour voir le détail complet : lignes, totaux et informations client.",
-      "L'email et le téléphone du client s'affichent directement sur chaque carte.",
+      "Les factures en retard de paiement sont signalées en rouge pour une meilleure visibilité.",
     ],
   },
   {
     id: "reservations",
     icon: "calendar-outline",
-    iconColor: "#8B5CF6",
+    iconColor: "#F59E0B",
     title: "Rendez-vous",
     items: [
-      "Basculez entre la vue calendrier (agenda) et la vue liste.",
-      "En vue agenda, sélectionnez un jour pour voir les rendez-vous planifiés.",
-      "Confirmez un rendez-vous en attente avec le bouton vert, ou marquez-le comme terminé.",
-      "Filtrez par statut : en attente, confirmé, terminé ou annulé.",
-      "La recherche fonctionne par nom de client ou marque de véhicule.",
+      "Deux vues disponibles : vue calendrier (agenda mensuel) et vue liste. Basculez avec les icônes en haut à droite.",
+      "En vue agenda, appuyez sur un jour pour voir les rendez-vous planifiés ce jour-là.",
+      "Créez un rendez-vous via le bouton « + » : choisissez le client, le service, la date et l'heure.",
+      "Confirmez un rendez-vous en attente avec le bouton vert, ou marquez-le comme terminé après la prestation.",
+      "Annulez un rendez-vous depuis le détail avec le bouton rouge (annulation immédiate avec notification client).",
+      "Filtrez par statut (en attente, confirmé, terminé, annulé) ou recherchez par nom de client ou véhicule.",
     ],
   },
   {
     id: "clients",
     icon: "people-outline",
-    iconColor: "#F59E0B",
+    iconColor: "#06B6D4",
     title: "Clients",
     items: [
-      "Consultez la liste de tous les clients avec leurs coordonnées (email, téléphone).",
-      "Recherchez un client par nom ou email.",
-      "Appuyez sur un client pour voir sa fiche détaillée.",
+      "Accédez à la liste des clients depuis l'onglet « Clients » dans le menu principal.",
+      "Chaque fiche client affiche l'email, le téléphone, le nombre de devis et de factures associés.",
+      "Recherchez un client par nom, prénom ou adresse email.",
+      "Appuyez sur un client pour voir sa fiche complète avec l'historique de ses devis, factures et rendez-vous.",
+      "Créez ou modifiez une fiche client via le bouton « + » ou depuis le formulaire client.",
+    ],
+  },
+  {
+    id: "ocr",
+    icon: "scan-outline",
+    iconColor: "#EC4899",
+    title: "Scanner OCR (IA)",
+    items: [
+      "Accédez au scanner depuis l'onglet « Plus » > « Scanner un devis » ou « Scanner une facture ».",
+      "Prenez une photo d'un document papier (devis, facture, bon de commande) avec l'appareil photo.",
+      "L'intelligence artificielle extrait automatiquement les informations : client, articles, quantités, prix et totaux.",
+      "Vérifiez et corrigez les données extraites avant de créer le document définitif.",
+      "Fonctionne avec la majorité des formats de documents : factures fournisseurs, devis partenaires, bons de livraison.",
+      "Cette fonctionnalité nécessite une connexion internet et des droits d'accès à la caméra.",
+    ],
+  },
+  {
+    id: "services",
+    icon: "construct-outline",
+    iconColor: "#F97316",
+    title: "Gestion des services",
+    items: [
+      "Accédez à vos prestations depuis l'onglet « Plus » > « Services ».",
+      "Créez vos services avec un nom, une description et un prix de référence.",
+      "Les services servent de base lors de la création d'un devis ou d'une facture pour pré-remplir les lignes.",
+      "Modifiez ou désactivez un service sans affecter les documents déjà créés.",
     ],
   },
   {
     id: "notifications",
     icon: "notifications-outline",
-    iconColor: "#F59E0B",
+    iconColor: "#DC2626",
     title: "Notifications",
     items: [
-      "Recevez une alerte à chaque nouveau devis, facture ou rendez-vous.",
-      "Les notifications s'affichent en temps réel sur votre appareil.",
-      "Appuyez sur une notification pour accéder directement à l'élément concerné.",
-      "Gérez vos préférences dans Paramètres > Notifications.",
+      "Recevez une alerte push à chaque nouvelle action client : nouveau devis, demande de rendez-vous, paiement.",
+      "Les notifications s'affichent en temps réel même quand l'application est en arrière-plan.",
+      "Appuyez sur une notification pour accéder directement au document concerné.",
+      "Activez ou désactivez les notifications push depuis Paramètres > Notifications push.",
+      "Sur web, les notifications s'affichent via le système de notification du navigateur.",
+    ],
+  },
+  {
+    id: "ai",
+    icon: "analytics-outline",
+    iconColor: "#10B981",
+    title: "Analyses IA (Plan Pro)",
+    items: [
+      "Les analyses IA sont disponibles depuis l'onglet « Plus » pour les abonnements Pro et supérieur.",
+      "« Analyse globale IA » : résumé complet de votre activité avec recommandations personnalisées.",
+      "« Analyse commerciale » : évolution du chiffre d'affaires, taux de conversion des devis et performance client.",
+      "« Analyse croissance » : tendances, prévisions et pistes d'optimisation pour développer votre activité.",
+      "Pour activer l'accès IA, contactez notre équipe ou upgradeez votre plan depuis l'espace client.",
     ],
   },
   {
     id: "support",
     icon: "chatbubbles-outline",
     iconColor: "#06B6D4",
-    title: "Support",
+    title: "Support & Contact",
     items: [
-      "Contactez l'équipe MyTools depuis l'onglet Paramètres > Nous contacter.",
-      "Consultez l'historique de vos demandes dans Paramètres > Historique des demandes.",
-      "Vous pouvez également nous écrire à contact@mytoolsgroup.eu.",
+      "Contactez l'équipe MyTools depuis Paramètres > « Nous contacter » pour toute question ou problème.",
+      "Consultez l'historique de vos échanges depuis Paramètres > « Historique des demandes ».",
+      "Vous pouvez également nous écrire directement à contact@mytoolsgroup.eu.",
+      "Notre équipe répond sous 24h ouvrées du lundi au vendredi.",
+      "Pour une urgence, précisez « URGENT » dans l'objet de votre message.",
     ],
   },
 ];
@@ -104,7 +167,7 @@ export default function AdminGuideScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
-  const [expandedId, setExpandedId] = useState<string | null>("dashboard");
+  const [expandedId, setExpandedId] = useState<string | null>("navigation");
 
   const toggleSection = (id: string) => {
     setExpandedId(prev => (prev === id ? null : id));
@@ -128,30 +191,50 @@ export default function AdminGuideScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.introCard}>
-          <Ionicons name="book" size={32} color={theme.primary} />
-          <Text style={styles.introTitle}>Bienvenue dans MyTools Admin</Text>
-          <Text style={styles.introText}>
-            Ce guide vous présente toutes les fonctionnalités de l'application de gestion pour votre garage. Appuyez sur chaque section pour en savoir plus.
-          </Text>
+          <View style={styles.introIconWrap}>
+            <Ionicons name="book" size={28} color={theme.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.introTitle}>MyTools Admin — Guide complet</Text>
+            <Text style={styles.introText}>
+              Toutes les fonctionnalités de votre application de gestion de garage. Appuyez sur une section pour en savoir plus.
+            </Text>
+          </View>
         </View>
 
-        {GUIDE_SECTIONS.map(section => {
+        <View style={styles.countRow}>
+          <Text style={styles.countText}>{GUIDE_SECTIONS.length} sections</Text>
+          <Pressable onPress={() => setExpandedId(null)}>
+            <Text style={styles.collapseAll}>Tout réduire</Text>
+          </Pressable>
+        </View>
+
+        {GUIDE_SECTIONS.map((section, index) => {
           const isExpanded = expandedId === section.id;
           return (
             <View key={section.id} style={styles.sectionCard}>
               <Pressable style={styles.sectionHeader} onPress={() => toggleSection(section.id)}>
-                <View style={[styles.sectionIcon, { backgroundColor: section.iconColor + "20" }]}>
-                  <Ionicons name={section.icon} size={22} color={section.iconColor} />
+                <View style={styles.sectionLeft}>
+                  <View style={[styles.sectionIcon, { backgroundColor: section.iconColor + "18" }]}>
+                    <Ionicons name={section.icon} size={20} color={section.iconColor} />
+                  </View>
+                  <View>
+                    <Text style={styles.sectionIndex}>{String(index + 1).padStart(2, "0")}</Text>
+                    <Text style={styles.sectionTitle}>{section.title}</Text>
+                  </View>
                 </View>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-                <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={18} color={theme.textTertiary} />
+                <Ionicons
+                  name={isExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={theme.textTertiary}
+                />
               </Pressable>
               {isExpanded && (
                 <View style={styles.sectionBody}>
                   {section.items.map((item, i) => (
                     <View key={i} style={styles.guideItem}>
-                      <View style={styles.bullet}>
-                        <Text style={styles.bulletNumber}>{i + 1}</Text>
+                      <View style={[styles.bullet, { backgroundColor: section.iconColor + "20" }]}>
+                        <Text style={[styles.bulletNumber, { color: section.iconColor }]}>{i + 1}</Text>
                       </View>
                       <Text style={styles.guideText}>{item}</Text>
                     </View>
@@ -163,9 +246,9 @@ export default function AdminGuideScreen() {
         })}
 
         <View style={styles.footerCard}>
-          <Ionicons name="help-circle-outline" size={24} color={theme.textTertiary} />
+          <Ionicons name="help-circle-outline" size={22} color={theme.textTertiary} />
           <Text style={styles.footerText}>
-            Besoin d'aide supplémentaire ? Contactez notre support depuis l'onglet Paramètres.
+            Une question ? Contactez notre support depuis Paramètres ou à l'adresse contact@mytoolsgroup.eu
           </Text>
         </View>
       </ScrollView>
@@ -182,39 +265,56 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   },
   backBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
   headerTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", color: theme.text },
-  scroll: { paddingHorizontal: 16, paddingTop: 20, gap: 12 },
+  scroll: { paddingHorizontal: 16, paddingTop: 16, gap: 10 },
   introCard: {
+    flexDirection: "row",
     backgroundColor: theme.surface, borderRadius: 16, borderWidth: 1,
-    borderColor: theme.border, padding: 20, alignItems: "center", gap: 10,
+    borderColor: theme.primary + "30", padding: 16, gap: 14, alignItems: "center",
   },
-  introTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: theme.text, textAlign: "center" },
+  introIconWrap: {
+    width: 52, height: 52, borderRadius: 14,
+    backgroundColor: theme.primary + "15",
+    justifyContent: "center", alignItems: "center",
+  },
+  introTitle: { fontSize: 15, fontFamily: "Inter_700Bold", color: theme.text, marginBottom: 4 },
   introText: {
-    fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary,
-    textAlign: "center", lineHeight: 20,
+    fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textSecondary, lineHeight: 19,
   },
+  countRow: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 4, marginTop: 4,
+  },
+  countText: { fontSize: 12, fontFamily: "Inter_400Regular", color: theme.textTertiary },
+  collapseAll: { fontSize: 12, fontFamily: "Inter_500Medium", color: theme.primary },
   sectionCard: {
     backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1,
     borderColor: theme.border, overflow: "hidden",
   },
   sectionHeader: {
-    flexDirection: "row", alignItems: "center", padding: 14, gap: 12,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    padding: 14,
   },
+  sectionLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
   sectionIcon: {
-    width: 40, height: 40, borderRadius: 12, justifyContent: "center", alignItems: "center",
+    width: 42, height: 42, borderRadius: 12, justifyContent: "center", alignItems: "center",
   },
-  sectionTitle: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", color: theme.text },
+  sectionIndex: {
+    fontSize: 10, fontFamily: "Inter_500Medium", color: theme.textTertiary,
+    letterSpacing: 0.5, marginBottom: 1,
+  },
+  sectionTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.text },
   sectionBody: {
-    paddingHorizontal: 14, paddingBottom: 14, gap: 8,
+    paddingHorizontal: 14, paddingBottom: 14, gap: 10,
     borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 12,
   },
   guideItem: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   bullet: {
     width: 22, height: 22, borderRadius: 11,
-    backgroundColor: theme.primary + "15", justifyContent: "center", alignItems: "center",
-    marginTop: 1,
+    justifyContent: "center", alignItems: "center", marginTop: 1,
+    flexShrink: 0,
   },
-  bulletNumber: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: theme.primary },
-  guideText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textSecondary, lineHeight: 19 },
+  bulletNumber: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  guideText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textSecondary, lineHeight: 20 },
   footerCard: {
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: theme.surface, borderRadius: 14, borderWidth: 1,
