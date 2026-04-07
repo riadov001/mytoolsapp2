@@ -33,8 +33,9 @@ async function fetchExternalWithFallback(path: string, options: RequestInit): Pr
 }
 
 let adminApp: any = null;
+let firebaseAdminModule: any = null;
 
-function getAdminAuth() {
+async function getAdminAuth() {
   if (adminApp) return adminApp;
 
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -45,7 +46,10 @@ function getAdminAuth() {
   }
 
   try {
-    const admin = require("firebase-admin");
+    if (!firebaseAdminModule) {
+      firebaseAdminModule = await import("firebase-admin");
+    }
+    const admin = firebaseAdminModule.default || firebaseAdminModule;
     const serviceAccount = JSON.parse(serviceAccountJson);
 
     if (serviceAccount.private_key) {
@@ -73,7 +77,7 @@ async function verifyFirebaseIdToken(idToken: string): Promise<{
   displayName?: string;
   photoUrl?: string;
 }> {
-  const auth = getAdminAuth();
+  const auth = await getAdminAuth();
   const decoded = await auth.verifyIdToken(idToken);
 
   return {
