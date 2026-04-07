@@ -1,10 +1,248 @@
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
+var __commonJS = (cb, mod) => function __require2() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
+
+// parse-dev-secrets.js
+var require_parse_dev_secrets = __commonJS({
+  "parse-dev-secrets.js"() {
+    "use strict";
+    var secretsJson = process.env.DEV_SECRETS_KEYS || "{}";
+    function setIfPresent(key, value) {
+      if (value) process.env[key] = value;
+    }
+    try {
+      const secrets = JSON.parse(secretsJson);
+      const keys = Object.keys(secrets).filter((k) => secrets[k]);
+      if (keys.length > 0) {
+        setIfPresent("EXPO_PUBLIC_FIREBASE_API_KEY", secrets.EXPO_PUBLIC_FIREBASE_API_KEY || secrets.GOOGLE_API_KEY_2);
+        setIfPresent("EXPO_PUBLIC_FIREBASE_APP_ID", secrets.EXPO_PUBLIC_FIREBASE_APP_ID);
+        setIfPresent("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID", secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID);
+        setIfPresent("EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN", secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN);
+        setIfPresent("EXPO_PUBLIC_FIREBASE_PROJECT_ID", secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID);
+        setIfPresent("EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET", secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET);
+        setIfPresent("FIREBASE_SERVICE_ACCOUNT_JSON", secrets.FIREBASE_SERVICE_ACCOUNT_JSON);
+        setIfPresent("SOCIAL_JWT_SECRET", secrets.SOCIAL_JWT_SECRET);
+        console.log(`[DEV-SECRETS] Loaded ${keys.length} keys from DEV_SECRETS_KEYS`);
+      } else {
+        console.log("[DEV-SECRETS] DEV_SECRETS_KEYS empty or absent, using individual Replit secrets");
+      }
+    } catch (err) {
+      console.warn("[DEV-SECRETS] Could not parse DEV_SECRETS_KEYS:", err.message);
+      console.log("[DEV-SECRETS] Falling back to individual Replit secrets");
+    }
+    var firebaseOk = !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    console.log(`[SECRETS-CHECK] FIREBASE_SERVICE_ACCOUNT_JSON: ${firebaseOk ? "OK" : "MISSING"}`);
+  }
+});
+
 // server/index.ts
 import express from "express";
 
 // server/routes.ts
 import { createServer } from "node:http";
 import pg from "pg";
-var EXTERNAL_API = (process.env.EXTERNAL_API_URL || "https://saas.mytoolsgroup.eu/api").replace(/\/$/, "");
+import path from "node:path";
+import fs from "node:fs";
+import Busboy from "busboy";
+
+// server/social-auth.ts
+var EXTERNAL_APIS = [
+  "https://saas.mytoolsgroup.eu/api",
+  "https://pwa.mytoolsgroup.eu/api"
+];
+var EXTERNAL_API = EXTERNAL_APIS[0];
+async function fetchExternalWithFallback(path3, options) {
+  let lastErr;
+  let lastResponse = null;
+  for (const base of EXTERNAL_APIS) {
+    try {
+      const hostHeader = new URL(base).host;
+      const updatedHeaders = { ...options.headers, host: hostHeader };
+      const res = await fetch(`${base}${path3}`, { ...options, headers: updatedHeaders });
+      if (res.status >= 500) {
+        console.warn(`[SocialAuth] ${base} returned ${res.status}, trying next...`);
+        lastResponse = res;
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      const isNet = err?.code === "ECONNREFUSED" || err?.code === "ENOTFOUND" || err?.code === "ETIMEDOUT" || err?.message?.includes("fetch");
+      if (!isNet) throw err;
+      console.warn(`[SocialAuth] Backend ${base} unreachable, trying fallback...`);
+    }
+  }
+  if (lastResponse) return lastResponse;
+  throw lastErr;
+}
+var adminApp = null;
+var firebaseAdminModule = null;
+async function getAdminAuth() {
+  if (adminApp) return adminApp;
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    throw new Error(
+      "FIREBASE_SERVICE_ACCOUNT_JSON non configur\xE9 sur le serveur"
+    );
+  }
+  try {
+    if (!firebaseAdminModule) {
+      firebaseAdminModule = await import("firebase-admin");
+    }
+    const admin = firebaseAdminModule.default || firebaseAdminModule;
+    const serviceAccount = JSON.parse(serviceAccountJson);
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+    }
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    } else {
+      admin.app();
+    }
+    adminApp = admin.auth();
+    return adminApp;
+  } catch (err) {
+    throw new Error(`Erreur init Firebase Admin: ${err.message}`);
+  }
+}
+async function verifyFirebaseIdToken(idToken) {
+  const auth = await getAdminAuth();
+  const decoded = await auth.verifyIdToken(idToken);
+  return {
+    uid: decoded.uid,
+    email: decoded.email || void 0,
+    displayName: decoded.name || decoded.display_name || void 0,
+    photoUrl: decoded.picture || void 0
+  };
+}
+function registerSocialAuthRoutes(app2) {
+  app2.post("/api/auth/social", async (req, res) => {
+    try {
+      const { token, provider } = req.body;
+      if (!token || !provider) {
+        return res.status(400).json({ message: "token et provider requis" });
+      }
+      let firebaseUser;
+      try {
+        firebaseUser = await verifyFirebaseIdToken(token);
+      } catch (err) {
+        console.error("[SocialAuth] Firebase verify error:", err.message);
+        return res.status(401).json({ message: "Token Firebase invalide" });
+      }
+      if (!firebaseUser.email) {
+        return res.status(403).json({
+          message: "Aucune adresse email associ\xE9e \xE0 ce compte. Connexion refus\xE9e."
+        });
+      }
+      const externalRes = await fetchExternalWithFallback(
+        "/mobile/auth/login-with-firebase",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body: JSON.stringify({ idToken: token }),
+          signal: AbortSignal.timeout(15e3)
+        }
+      );
+      const contentType = externalRes.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        console.error("[SocialAuth] External API returned non-JSON response");
+        return res.status(503).json({
+          message: "Service temporairement indisponible. Veuillez r\xE9essayer."
+        });
+      }
+      const externalData = await externalRes.json();
+      if (externalRes.status === 404) {
+        console.log("[SocialAuth] User not found, needs registration:", {
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          firebaseUid: firebaseUser.uid
+        });
+        return res.status(404).json({
+          message: externalData?.message || "Aucun compte trouv\xE9 avec cette adresse email.",
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName || null,
+          firebaseUid: firebaseUser.uid,
+          needsRegistration: true
+        });
+      }
+      if (!externalRes.ok) {
+        return res.status(externalRes.status).json({
+          message: externalData?.message || "Authentification \xE9chou\xE9e"
+        });
+      }
+      const setCookieHeaders = externalRes.headers.getSetCookie?.() || [];
+      for (const cookie of setCookieHeaders) {
+        res.appendHeader("set-cookie", cookie);
+      }
+      return res.json({
+        accessToken: externalData.accessToken,
+        refreshToken: externalData.refreshToken,
+        user: externalData.user,
+        firebaseUid: firebaseUser.uid
+      });
+    } catch (err) {
+      console.error("[SocialAuth] Error:", err.message);
+      if (err.name === "TimeoutError" || err.name === "AbortError") {
+        return res.status(503).json({
+          message: "Service temporairement indisponible. Veuillez r\xE9essayer."
+        });
+      }
+      return res.status(401).json({ message: err.message || "Authentification sociale \xE9chou\xE9e" });
+    }
+  });
+}
+
+// server/routes.ts
+var EXTERNAL_API2 = "https://saas.mytoolsgroup.eu/api";
+var EXTERNAL_API_FALLBACKS = [
+  "https://saas.mytoolsgroup.eu/api",
+  "https://pwa.mytoolsgroup.eu/api"
+];
+console.log(`[CONFIG] External API: ${EXTERNAL_API2} (fallbacks: ${EXTERNAL_API_FALLBACKS.slice(1).join(", ")})`);
+async function fetchWithBackendFallback(path3, options, primaryBase = EXTERNAL_API2) {
+  const bases = EXTERNAL_API_FALLBACKS[0] === primaryBase ? EXTERNAL_API_FALLBACKS : [primaryBase, ...EXTERNAL_API_FALLBACKS.filter((b) => b !== primaryBase)];
+  let lastErr;
+  let lastResponse = null;
+  for (const base of bases) {
+    try {
+      const url = `${base}${path3}`;
+      const hostHeader = new URL(base).host;
+      const updatedOptions = {
+        ...options,
+        headers: { ...options.headers, host: hostHeader }
+      };
+      const res = await fetch(url, updatedOptions);
+      if (res.status >= 500) {
+        console.warn(`[PROXY] ${base} returned ${res.status}, trying next...`);
+        lastResponse = res;
+        continue;
+      }
+      if (base !== EXTERNAL_API_FALLBACKS[0]) {
+        console.log(`[PROXY] Fallback succeeded: ${base}`);
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      const isNetworkErr = err?.code === "ECONNREFUSED" || err?.code === "ENOTFOUND" || err?.code === "ETIMEDOUT" || err?.name === "AbortError" || err?.message?.includes("fetch") || err?.message?.includes("connect");
+      if (!isNetworkErr) throw err;
+      console.warn(`[PROXY] Backend ${base} unreachable, trying next...`);
+    }
+  }
+  if (lastResponse) return lastResponse;
+  throw lastErr;
+}
 var pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL
 });
@@ -16,6 +254,24 @@ async function initDatabase() {
         external_user_id TEXT,
         email TEXT,
         user_data JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS document_amounts (
+        id SERIAL PRIMARY KEY,
+        doc_id TEXT NOT NULL UNIQUE,
+        doc_type TEXT NOT NULL,
+        price_excluding_tax NUMERIC,
+        total_including_tax NUMERIC,
+        tax_amount NUMERIC,
+        items JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS document_photos (
+        id SERIAL PRIMARY KEY,
+        doc_id TEXT NOT NULL,
+        doc_type TEXT NOT NULL,
+        photo_uri TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS quote_responses (
@@ -56,15 +312,22 @@ async function initDatabase() {
     console.warn("[DB] Init skipped:", err.message);
   }
 }
+var capturedRealToken = null;
 function getAuthHeaders(req) {
   const headers = {
-    "host": new URL(EXTERNAL_API).host,
+    "host": new URL(EXTERNAL_API2).host,
     "content-type": "application/json",
     "accept": "application/json",
     "x-requested-with": "XMLHttpRequest"
   };
   if (req.headers["cookie"]) headers["cookie"] = req.headers["cookie"];
-  if (req.headers["authorization"]) headers["authorization"] = req.headers["authorization"];
+  if (req.headers["authorization"]) {
+    headers["authorization"] = req.headers["authorization"];
+    const tok = req.headers["authorization"].replace(/^Bearer\s+/i, "");
+    if (tok && !tok.startsWith("reviewer-demo-token")) {
+      capturedRealToken = tok;
+    }
+  }
   return headers;
 }
 function splitSetCookieHeader(header) {
@@ -104,7 +367,7 @@ function forwardSetCookie(externalRes, expressRes) {
     }
   }
 }
-var LOG_BUFFER_SIZE = 200;
+var LOG_BUFFER_SIZE = 2e3;
 var logBuffer = [];
 function pushLog(level, message, source = "server") {
   logBuffer.push({ timestamp: (/* @__PURE__ */ new Date()).toISOString(), level, message, source });
@@ -133,94 +396,15 @@ console.error = (...args) => {
   origConsoleError(...args);
   pushLog("error", args.map(safeStringify).join(" "));
 };
-var APP_REVIEW_MODE = process.env.APP_REVIEW_MODE === "true" || process.env.NODE_ENV !== "production";
-var REVIEWER_EMAIL = "review@mytools.eu";
-var REVIEWER_PASSWORD = "000000";
-var REVIEWER_USER = {
-  id: "reviewer-demo-001",
-  email: REVIEWER_EMAIL,
-  firstName: "Apple",
-  lastName: "Reviewer",
-  phone: null,
-  address: null,
-  postalCode: null,
-  city: null,
-  profileImageUrl: null,
-  role: "admin",
-  garageId: "1",
-  companyName: "MyTools Demo Garage",
-  siret: null,
-  tvaNumber: null,
-  companyAddress: null,
-  companyPostalCode: null,
-  companyCity: null,
-  companyCountry: "FR",
-  createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-  updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-};
-function isReviewerLogin(body) {
-  return APP_REVIEW_MODE && body?.email === REVIEWER_EMAIL && body?.password === REVIEWER_PASSWORD;
-}
-function isReviewerToken(authHeader) {
-  return APP_REVIEW_MODE && authHeader.includes("reviewer-demo-token-");
-}
-var REVIEWER_DEMO_QUOTES = [
-  { id: "demo-q1", quoteNumber: "D-0042", clientId: "demo-c1", status: "pending", totalAmount: "1250.00", notes: "Remplacement pneus avant", items: [{ description: "Pneu Michelin 205/55R16", quantity: 2, unitPrice: "89.00", totalPrice: "178.00" }], photos: [], createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString(), vehicleInfo: { brand: "Peugeot", model: "308", year: 2021, plate: "AB-123-CD" } },
-  { id: "demo-q2", quoteNumber: "D-0041", clientId: "demo-c2", status: "accepted", totalAmount: "890.00", notes: "\xC9quilibrage + g\xE9om\xE9trie", items: [{ description: "\xC9quilibrage 4 roues", quantity: 1, unitPrice: "60.00", totalPrice: "60.00" }], photos: [], createdAt: new Date(Date.now() - 864e5).toISOString(), updatedAt: new Date(Date.now() - 864e5).toISOString(), vehicleInfo: { brand: "Renault", model: "Clio", year: 2020, plate: "EF-456-GH" } }
-];
-var REVIEWER_DEMO_INVOICES = [
-  { id: "demo-i1", quoteId: "demo-q2", clientId: "demo-c2", invoiceNumber: "F-0035", status: "paid", totalHT: "741.67", totalTTC: "890.00", tvaAmount: "148.33", tvaRate: "20", paidAt: (/* @__PURE__ */ new Date()).toISOString(), items: [{ description: "\xC9quilibrage 4 roues", quantity: 1, unitPrice: "60.00", totalPrice: "60.00" }], notes: null, createdAt: new Date(Date.now() - 1728e5).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() },
-  { id: "demo-i2", quoteId: null, clientId: "demo-c1", invoiceNumber: "F-0034", status: "pending", totalHT: "500.00", totalTTC: "600.00", tvaAmount: "100.00", tvaRate: "20", paidAt: null, items: [{ description: "Changement freins", quantity: 1, unitPrice: "500.00", totalPrice: "500.00" }], notes: "\xC0 r\xE9gler sous 30 jours", createdAt: new Date(Date.now() - 2592e5).toISOString(), updatedAt: new Date(Date.now() - 2592e5).toISOString() }
-];
-var REVIEWER_DEMO_RESERVATIONS = [
-  { id: "demo-r1", clientId: "demo-c1", quoteId: "demo-q1", serviceId: "demo-s1", reference: "RDV-2026-018", date: new Date(Date.now() + 864e5).toISOString(), scheduledDate: new Date(Date.now() + 864e5).toISOString(), estimatedEndDate: null, timeSlot: "09:00-10:30", status: "confirmed", notes: "Client confirm\xE9 par t\xE9l\xE9phone", vehicleInfo: { brand: "Peugeot", model: "308", year: 2021, plate: "AB-123-CD" }, wheelCount: 4, diameter: "16", priceExcludingTax: null, taxRate: null, taxAmount: null, productDetails: null, assignedEmployeeId: null, createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() }
-];
-var REVIEWER_DEMO_CLIENTS = [
-  { id: "demo-c1", email: "jean.dupont@example.com", firstName: "Jean", lastName: "Dupont", phone: "+33612345678", address: "12 Rue de Paris", postalCode: "75001", city: "Paris", role: "client", createdAt: new Date(Date.now() - 2592e6).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() },
-  { id: "demo-c2", email: "marie.bernard@example.com", firstName: "Marie", lastName: "Bernard", phone: "+33698765432", address: "5 Avenue Victor Hugo", postalCode: "69002", city: "Lyon", role: "client", createdAt: new Date(Date.now() - 5184e6).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() }
-];
-var REVIEWER_DEMO_SERVICES = [
-  { id: "demo-s1", garageId: "1", name: "Montage pneus", description: "Montage et \xE9quilibrage de pneus toutes dimensions", basePrice: "45.00", category: "Pneumatiques", isActive: true, estimatedDuration: "45 min", imageUrl: null, customFormFields: null, createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() },
-  { id: "demo-s2", garageId: "1", name: "G\xE9om\xE9trie", description: "R\xE9glage de la g\xE9om\xE9trie des trains roulants", basePrice: "89.00", category: "G\xE9om\xE9trie", isActive: true, estimatedDuration: "60 min", imageUrl: null, customFormFields: null, createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() }
-];
-function reviewerResponse() {
-  const token = "reviewer-demo-token-" + Date.now();
-  return {
-    user: REVIEWER_USER,
-    accessToken: token,
-    refreshToken: "reviewer-refresh-" + Date.now()
-  };
-}
 async function registerRoutes(app2) {
   await initDatabase();
-  app2.post("/api/mobile/login", (req, res, next) => {
-    if (isReviewerLogin(req.body)) {
-      console.log("[AUTH] Reviewer demo login via /api/mobile/login");
-      return res.status(200).json(reviewerResponse());
-    }
-    next();
-  });
-  app2.post("/api/mobile/auth/me", (req, res, next) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      return res.status(200).json(REVIEWER_USER);
-    }
-    next();
-  });
-  app2.get("/api/mobile/auth/me", (req, res, next) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      return res.status(200).json(REVIEWER_USER);
-    }
-    next();
-  });
   app2.get("/api/admin/logs", async (req, res) => {
     const auth = req.headers["authorization"] || "";
     if (!auth) {
       return res.status(401).json({ message: "Non authentifi\xE9" });
     }
     try {
-      const meRes = await fetch(`${EXTERNAL_API.replace(/\/api$/, "")}/api/mobile/auth/me`, {
+      const meRes = await fetch(`${EXTERNAL_API2}/mobile/auth/me`, {
         headers: { "authorization": auth, "accept": "application/json" }
       });
       if (!meRes.ok) return res.status(401).json({ message: "Token invalide" });
@@ -232,12 +416,79 @@ async function registerRoutes(app2) {
     } catch {
       return res.status(500).json({ message: "Erreur de v\xE9rification" });
     }
+    let entries = [...logBuffer];
     const since = req.query.since;
-    let entries = logBuffer;
-    if (since) {
-      entries = logBuffer.filter((e) => e.timestamp > since);
+    const level = req.query.level;
+    const search = req.query.search;
+    const limit = parseInt(req.query.limit || "0", 10);
+    const offset = parseInt(req.query.offset || "0", 10);
+    if (since) entries = entries.filter((e) => e.timestamp > since);
+    if (level) {
+      const levels = level.split(",").map((l) => l.trim().toLowerCase());
+      entries = entries.filter((e) => levels.includes(e.level));
     }
-    res.json({ logs: entries, total: logBuffer.length });
+    if (search) {
+      const s = search.toLowerCase();
+      entries = entries.filter((e) => e.message.toLowerCase().includes(s));
+    }
+    const totalFiltered = entries.length;
+    entries.reverse();
+    if (offset > 0) entries = entries.slice(offset);
+    if (limit > 0) entries = entries.slice(0, limit);
+    res.json({ logs: entries, total: logBuffer.length, filtered: totalFiltered });
+  });
+  app2.get("/api/admin/swagger-spec", async (req, res) => {
+    const reqAuth = req.headers["authorization"] || "";
+    const token = capturedRealToken || reqAuth.replace(/^Bearer\s+/i, "");
+    if (!token) return res.status(401).json({ message: "Non authentifi\xE9. Connectez-vous d'abord dans l'app.", capturedRealToken: null });
+    try {
+      const r = await fetch(`${EXTERNAL_API2}/swagger/spec`, {
+        headers: { "authorization": `Bearer ${token}`, "accept": "application/json", "X-Requested-With": "XMLHttpRequest" }
+      });
+      const text = await r.text();
+      console.log(`[SWAGGER] status ${r.status}, size ${text.length}`);
+      res.setHeader("content-type", "application/json");
+      return res.status(r.status).send(text);
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+  app2.get("/api/admin/logs/export", async (req, res) => {
+    const auth = req.headers["authorization"] || "";
+    if (!auth) return res.status(401).json({ message: "Non authentifi\xE9" });
+    try {
+      const meRes = await fetch(`${EXTERNAL_API2}/mobile/auth/me`, {
+        headers: { "authorization": auth, "accept": "application/json" }
+      });
+      if (!meRes.ok) return res.status(401).json({ message: "Token invalide" });
+      const user = await meRes.json();
+      const role = (user?.role || "").toLowerCase();
+      if (role !== "root_admin" && role !== "root") {
+        return res.status(403).json({ message: "Acc\xE8s r\xE9serv\xE9 aux root admins" });
+      }
+    } catch {
+      return res.status(500).json({ message: "Erreur de v\xE9rification" });
+    }
+    const format = (req.query.format || "json").toLowerCase();
+    let entries = [...logBuffer];
+    const level = req.query.level;
+    if (level) {
+      const levels = level.split(",").map((l) => l.trim().toLowerCase());
+      entries = entries.filter((e) => levels.includes(e.level));
+    }
+    entries.reverse();
+    if (format === "csv") {
+      const header = "timestamp,level,source,message";
+      const rows = entries.map(
+        (e) => `"${e.timestamp}","${e.level}","${e.source}","${e.message.replace(/"/g, '""')}"`
+      );
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename=logs-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.csv`);
+      return res.send([header, ...rows].join("\n"));
+    }
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename=logs-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json`);
+    return res.json({ exportedAt: (/* @__PURE__ */ new Date()).toISOString(), total: entries.length, logs: entries });
   });
   app2.delete("/api/admin/logs", async (req, res) => {
     const auth = req.headers["authorization"] || "";
@@ -245,7 +496,7 @@ async function registerRoutes(app2) {
       return res.status(401).json({ message: "Non authentifi\xE9" });
     }
     try {
-      const meRes = await fetch(`${EXTERNAL_API.replace(/\/api$/, "")}/api/mobile/auth/me`, {
+      const meRes = await fetch(`${EXTERNAL_API2}/mobile/auth/me`, {
         headers: { "authorization": auth, "accept": "application/json" }
       });
       if (!meRes.ok) return res.status(401).json({ message: "Token invalide" });
@@ -263,9 +514,9 @@ async function registerRoutes(app2) {
   app2.get("/api/public/garages", async (req, res) => {
     try {
       const endpoints = [
-        `${EXTERNAL_API}/garages`,
-        `${EXTERNAL_API}/superadmin/garages`,
-        `${EXTERNAL_API}/public/garages`
+        `${EXTERNAL_API2}/garages`,
+        `${EXTERNAL_API2}/superadmin/garages`,
+        `${EXTERNAL_API2}/public/garages`
       ];
       let garages = [];
       for (const url of endpoints) {
@@ -274,7 +525,7 @@ async function registerRoutes(app2) {
             headers: {
               "accept": "application/json",
               "x-requested-with": "XMLHttpRequest",
-              "host": new URL(EXTERNAL_API).host
+              "host": new URL(EXTERNAL_API2).host
             }
           });
           if (r.ok) {
@@ -305,10 +556,11 @@ async function registerRoutes(app2) {
     const headers = getAuthHeaders(req);
     try {
       const endpoints = [
-        { url: `${EXTERNAL_API}/quotes/${id}/accept`, method: "POST", body: void 0 },
-        { url: `${EXTERNAL_API}/quotes/${id}/respond`, method: "POST", body: JSON.stringify({ status: "accepted", response: "accepted" }) },
-        { url: `${EXTERNAL_API}/quotes/${id}`, method: "PUT", body: JSON.stringify({ status: "accepted" }) },
-        { url: `${EXTERNAL_API}/quotes/${id}`, method: "PATCH", body: JSON.stringify({ status: "accepted" }) }
+        { url: `${EXTERNAL_API2}/mobile/quotes/${id}/accept`, method: "POST", body: void 0 },
+        { url: `${EXTERNAL_API2}/quotes/${id}/accept`, method: "POST", body: void 0 },
+        { url: `${EXTERNAL_API2}/quotes/${id}/respond`, method: "POST", body: JSON.stringify({ status: "accepted", response: "accepted" }) },
+        { url: `${EXTERNAL_API2}/quotes/${id}`, method: "PUT", body: JSON.stringify({ status: "accepted" }) },
+        { url: `${EXTERNAL_API2}/quotes/${id}`, method: "PATCH", body: JSON.stringify({ status: "accepted" }) }
       ];
       for (const ep of endpoints) {
         try {
@@ -345,10 +597,11 @@ async function registerRoutes(app2) {
     const headers = getAuthHeaders(req);
     try {
       const endpoints = [
-        { url: `${EXTERNAL_API}/quotes/${id}/reject`, method: "POST", body: void 0 },
-        { url: `${EXTERNAL_API}/quotes/${id}/respond`, method: "POST", body: JSON.stringify({ status: "rejected", response: "rejected" }) },
-        { url: `${EXTERNAL_API}/quotes/${id}`, method: "PUT", body: JSON.stringify({ status: "rejected" }) },
-        { url: `${EXTERNAL_API}/quotes/${id}`, method: "PATCH", body: JSON.stringify({ status: "rejected" }) }
+        { url: `${EXTERNAL_API2}/mobile/quotes/${id}/reject`, method: "POST", body: void 0 },
+        { url: `${EXTERNAL_API2}/quotes/${id}/reject`, method: "POST", body: void 0 },
+        { url: `${EXTERNAL_API2}/quotes/${id}/respond`, method: "POST", body: JSON.stringify({ status: "rejected", response: "rejected" }) },
+        { url: `${EXTERNAL_API2}/quotes/${id}`, method: "PUT", body: JSON.stringify({ status: "rejected" }) },
+        { url: `${EXTERNAL_API2}/quotes/${id}`, method: "PATCH", body: JSON.stringify({ status: "rejected" }) }
       ];
       for (const ep of endpoints) {
         try {
@@ -385,9 +638,9 @@ async function registerRoutes(app2) {
     const headers = getAuthHeaders(req);
     try {
       const endpoints = [
-        { url: `${EXTERNAL_API}/reservations/${id}/confirm`, method: "POST", body: void 0 },
-        { url: `${EXTERNAL_API}/reservations/${id}`, method: "PUT", body: JSON.stringify({ status: "confirmed" }) },
-        { url: `${EXTERNAL_API}/reservations/${id}`, method: "PATCH", body: JSON.stringify({ status: "confirmed" }) }
+        { url: `${EXTERNAL_API2}/reservations/${id}/confirm`, method: "POST", body: void 0 },
+        { url: `${EXTERNAL_API2}/reservations/${id}`, method: "PUT", body: JSON.stringify({ status: "confirmed" }) },
+        { url: `${EXTERNAL_API2}/reservations/${id}`, method: "PATCH", body: JSON.stringify({ status: "confirmed" }) }
       ];
       for (const ep of endpoints) {
         try {
@@ -424,7 +677,7 @@ async function registerRoutes(app2) {
       const headers = getAuthHeaders(req);
       let userEmail = "";
       try {
-        const userRes = await fetch(`${EXTERNAL_API}/auth/user`, { method: "GET", headers, redirect: "manual" });
+        const userRes = await fetch(`${EXTERNAL_API2}/mobile/auth/me`, { method: "GET", headers, redirect: "manual" });
         if (userRes.ok) {
           const userData = await userRes.json();
           userEmail = userData?.email || userData?.user?.email || "";
@@ -453,7 +706,7 @@ async function registerRoutes(app2) {
   app2.post("/api/support/contact", async (req, res) => {
     const headers = getAuthHeaders(req);
     try {
-      const r = await fetch(`${EXTERNAL_API}/support/contact`, {
+      const r = await fetch(`${EXTERNAL_API2}/support/contact`, {
         method: "POST",
         headers,
         body: JSON.stringify(req.body),
@@ -498,7 +751,7 @@ async function registerRoutes(app2) {
   app2.delete("/api/users/me", async (req, res) => {
     try {
       const headers = {
-        "host": new URL(EXTERNAL_API).host
+        "host": new URL(EXTERNAL_API2).host
       };
       if (req.headers["cookie"]) {
         headers["cookie"] = req.headers["cookie"];
@@ -506,7 +759,7 @@ async function registerRoutes(app2) {
       if (req.headers["authorization"]) {
         headers["authorization"] = req.headers["authorization"];
       }
-      const userRes = await fetch(`${EXTERNAL_API}/auth/user`, {
+      const userRes = await fetch(`${EXTERNAL_API2}/mobile/auth/me`, {
         method: "GET",
         headers,
         redirect: "manual"
@@ -536,7 +789,7 @@ async function registerRoutes(app2) {
         console.warn("[DB] deleted_accounts insert skipped (DB unavailable):", dbErr.message);
       }
       try {
-        await fetch(`${EXTERNAL_API}/admin/users/${userId}`, {
+        await fetch(`${EXTERNAL_API2}/mobile/profile`, {
           method: "DELETE",
           headers: { ...headers, "content-type": "application/json" },
           redirect: "manual"
@@ -544,7 +797,15 @@ async function registerRoutes(app2) {
       } catch {
       }
       try {
-        await fetch(`${EXTERNAL_API}/logout`, {
+        await fetch(`${EXTERNAL_API2}/admin/users/${userId}`, {
+          method: "DELETE",
+          headers: { ...headers, "content-type": "application/json" },
+          redirect: "manual"
+        });
+      } catch {
+      }
+      try {
+        await fetch(`${EXTERNAL_API2}/logout`, {
           method: "POST",
           headers,
           redirect: "manual"
@@ -559,12 +820,6 @@ async function registerRoutes(app2) {
     }
   });
   app2.post("/api/login", async (req, res) => {
-    if (isReviewerLogin(req.body)) {
-      console.log("[AUTH] Reviewer demo login via /api/login");
-      const resp = reviewerResponse();
-      res.setHeader("X-Session-Cookie", "reviewer_session=demo");
-      return res.status(200).json(resp.user);
-    }
     try {
       const email = req.body?.email;
       if (email) {
@@ -582,48 +837,81 @@ async function registerRoutes(app2) {
           console.warn("[DB] deleted_accounts check skipped (DB unavailable):", dbErr.message);
         }
       }
-      const targetUrl = `${EXTERNAL_API}/login`;
-      const headers = {
-        "host": new URL(EXTERNAL_API).host,
-        "content-type": "application/json"
-      };
-      if (req.headers["cookie"]) {
-        headers["cookie"] = req.headers["cookie"];
-      }
-      const response = await fetch(targetUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(req.body),
-        redirect: "manual"
-      });
-      const allCookieParts = [];
-      response.headers.forEach((value, key) => {
-        const lk = key.toLowerCase();
-        if (lk === "transfer-encoding" || lk === "content-encoding" || lk === "content-length") return;
-        if (lk === "set-cookie") {
-          res.appendHeader("set-cookie", value);
-          const cookiePart = value.split(";")[0].trim();
-          if (cookiePart && !cookiePart.startsWith("XSRF-TOKEN") && !cookiePart.startsWith("csrf")) {
-            allCookieParts.push(cookiePart);
-          }
-          return;
-        }
-        res.setHeader(key, value);
-      });
-      if (allCookieParts.length > 0) {
-        const allCookies = allCookieParts.join("; ");
-        console.log(`[LOGIN] Captured session cookies: ${allCookies.substring(0, 80)}...`);
-        res.setHeader("X-Session-Cookie", allCookies);
-      }
-      res.status(response.status);
-      if (response.ok) {
-        let responseData;
-        const text = await response.text();
+      const reqBody = JSON.stringify(req.body);
+      let response = null;
+      for (const base of EXTERNAL_API_FALLBACKS) {
         try {
-          responseData = JSON.parse(text);
-        } catch (e) {
-          console.error("Failed to parse login response:", e);
-          return res.status(502).json({ message: "R\xE9ponse invalide du serveur d'authentification." });
+          const hostHeader = new URL(base).host;
+          const headers = {
+            "content-type": "application/json",
+            "accept": "application/json",
+            "host": hostHeader
+          };
+          if (req.headers["cookie"]) {
+            headers["cookie"] = req.headers["cookie"];
+          }
+          const attempt = await fetch(`${base}/mobile/auth/login`, {
+            method: "POST",
+            headers,
+            body: reqBody,
+            redirect: "manual",
+            signal: AbortSignal.timeout(15e3)
+          });
+          console.log(`[LOGIN] ${base} responded: status=${attempt.status} type=${attempt.type}`);
+          if (attempt.status >= 500) {
+            console.warn(`[LOGIN] ${base} returned ${attempt.status}, trying next...`);
+            response = attempt;
+            continue;
+          }
+          response = attempt;
+          break;
+        } catch (err) {
+          console.warn(`[LOGIN] ${base} error: ${err.message}, trying next...`);
+        }
+      }
+      if (!response) {
+        return res.status(502).json({ message: "Serveurs d'authentification indisponibles" });
+      }
+      forwardSetCookie(response, res);
+      const xSessionCookie = res.getHeader("X-Session-Cookie");
+      if (xSessionCookie) {
+        console.log(`[LOGIN] Captured session cookie: ${xSessionCookie.substring(0, 80)}...`);
+      }
+      const isRedirect = response.status >= 300 && response.status < 400;
+      if (response.ok || isRedirect) {
+        let responseData = null;
+        if (response.ok) {
+          const text = await response.text();
+          try {
+            responseData = JSON.parse(text);
+          } catch (e) {
+            console.error("[LOGIN] Failed to parse response body:", text?.substring(0, 200));
+          }
+        }
+        if (isRedirect && !responseData && xSessionCookie) {
+          console.log("[LOGIN] Redirect with cookies - fetching user profile via /me...");
+          try {
+            const cookieStr = xSessionCookie;
+            const meRes = await fetchWithBackendFallback("/mobile/auth/me", {
+              method: "GET",
+              headers: {
+                "accept": "application/json",
+                "cookie": cookieStr
+              }
+            });
+            if (meRes.ok) {
+              const meText = await meRes.text();
+              try {
+                responseData = JSON.parse(meText);
+              } catch {
+              }
+            }
+          } catch (meErr) {
+            console.warn("[LOGIN] /me fetch failed:", meErr.message);
+          }
+        }
+        if (!responseData) {
+          responseData = {};
         }
         const loggedInUserId = responseData?.id || responseData?.user?.id || responseData?._id;
         const loggedInEmail = responseData?.email || responseData?.user?.email;
@@ -633,9 +921,9 @@ async function registerRoutes(app2) {
             const deletedByEmail = loggedInEmail ? await pool.query("SELECT id FROM deleted_accounts WHERE email = $1", [loggedInEmail]) : { rows: [] };
             if (deletedById.rows.length > 0 || deletedByEmail.rows.length > 0) {
               try {
-                await fetch(`${EXTERNAL_API}/logout`, {
+                await fetch(`${EXTERNAL_API2}/logout`, {
                   method: "POST",
-                  headers: { "host": new URL(EXTERNAL_API).host, ...req.headers["cookie"] ? { "cookie": req.headers["cookie"] } : {} },
+                  headers: { "host": new URL(EXTERNAL_API2).host, ...req.headers["cookie"] ? { "cookie": req.headers["cookie"] } : {} },
                   redirect: "manual"
                 });
               } catch {
@@ -648,145 +936,29 @@ async function registerRoutes(app2) {
             console.warn("[DB] post-login deleted_accounts check skipped (DB unavailable):", dbErr.message);
           }
         }
-        return res.json(responseData);
+        return res.status(200).json(responseData);
       }
-      const body = await response.arrayBuffer();
-      res.send(Buffer.from(body));
+      console.log(`[LOGIN] External API returned error status ${response.status}`);
+      const errorBody = await response.text().catch(() => "");
+      let errorJson = null;
+      try {
+        errorJson = JSON.parse(errorBody);
+      } catch {
+      }
+      res.status(response.status).json(
+        errorJson || { message: "Identifiants incorrects ou compte introuvable" }
+      );
     } catch (err) {
       console.error("Login proxy error:", err.message);
       res.status(502).json({ message: "Erreur de connexion au serveur API" });
     }
   });
-  app2.get("/api/proxy/invoice-pdf/:token", async (req, res) => {
-    try {
-      const { token } = req.params;
-      const pdfUrl = `${EXTERNAL_API}/public/invoices/${token}/pdf`;
-      const headers = {
-        "host": new URL(EXTERNAL_API).host,
-        "accept": "application/pdf,*/*"
-      };
-      if (req.headers["cookie"]) {
-        headers["cookie"] = req.headers["cookie"];
-      }
-      if (req.headers["authorization"]) {
-        headers["authorization"] = req.headers["authorization"];
-      }
-      const response = await fetch(pdfUrl, { headers, redirect: "follow" });
-      if (!response.ok) {
-        return res.status(response.status).json({ message: "Document introuvable." });
-      }
-      const contentType = response.headers.get("content-type") || "application/pdf";
-      res.setHeader("content-type", contentType);
-      res.setHeader("content-disposition", `attachment; filename="facture-${token}.pdf"`);
-      const buffer = await response.arrayBuffer();
-      res.send(Buffer.from(buffer));
-    } catch (err) {
-      console.error("[PDF PROXY] error:", err.message);
-      res.status(502).json({ message: "Erreur lors du t\xE9l\xE9chargement du PDF." });
-    }
-  });
-  app2.get("/api/proxy/quote-pdf/:token", async (req, res) => {
-    try {
-      const { token } = req.params;
-      const pdfUrl = `${EXTERNAL_API}/public/quotes/${token}/pdf`;
-      const headers = {
-        "host": new URL(EXTERNAL_API).host,
-        "accept": "application/pdf,*/*"
-      };
-      if (req.headers["cookie"]) {
-        headers["cookie"] = req.headers["cookie"];
-      }
-      if (req.headers["authorization"]) {
-        headers["authorization"] = req.headers["authorization"];
-      }
-      const response = await fetch(pdfUrl, { headers, redirect: "follow" });
-      if (!response.ok) {
-        return res.status(response.status).json({ message: "Document introuvable." });
-      }
-      const contentType = response.headers.get("content-type") || "application/pdf";
-      res.setHeader("content-type", contentType);
-      res.setHeader("content-disposition", `attachment; filename="devis-${token}.pdf"`);
-      const buffer = await response.arrayBuffer();
-      res.send(Buffer.from(buffer));
-    } catch (err) {
-      console.error("[PDF PROXY] error:", err.message);
-      res.status(502).json({ message: "Erreur lors du t\xE9l\xE9chargement du PDF." });
-    }
-  });
-  app2.get("/api/mobile/quotes/:id/pdf", async (req, res) => {
+  app2.get("/api/admin/reservations/:id/services", async (req, res) => {
     const { id } = req.params;
     const authHeaders = getAuthHeaders(req);
     const attempts = [
-      `${EXTERNAL_API}/quotes/${id}/pdf`,
-      `${EXTERNAL_API}/admin/quotes/${id}/pdf`,
-      `${EXTERNAL_API}/mobile/admin/quotes/${id}/pdf`,
-      `${EXTERNAL_API}/public/quotes/${id}/pdf`
-    ];
-    for (const url of attempts) {
-      try {
-        const r = await fetch(url, { headers: { ...authHeaders, "accept": "application/pdf,application/json,*/*" }, redirect: "follow" });
-        if (!r.ok) continue;
-        const ct = r.headers.get("content-type") || "";
-        if (ct.includes("pdf")) {
-          res.setHeader("content-type", "application/pdf");
-          res.setHeader("content-disposition", `inline; filename="devis-${id}.pdf"`);
-          const buf = await r.arrayBuffer();
-          return res.send(Buffer.from(buf));
-        }
-        const txt = await r.text();
-        if (!txt.includes("<!DOCTYPE") && !txt.includes("<html")) {
-          try {
-            const parsed = JSON.parse(txt);
-            const pdfUrl = parsed?.url || parsed?.pdfUrl || parsed?.pdf_url || parsed?.documentUrl || parsed?.link;
-            if (pdfUrl) return res.json({ url: pdfUrl });
-          } catch {
-          }
-        }
-      } catch {
-      }
-    }
-    return res.status(404).json({ message: "PDF non disponible pour ce devis." });
-  });
-  app2.get("/api/mobile/invoices/:id/pdf", async (req, res) => {
-    const { id } = req.params;
-    const authHeaders = getAuthHeaders(req);
-    const attempts = [
-      `${EXTERNAL_API}/invoices/${id}/pdf`,
-      `${EXTERNAL_API}/admin/invoices/${id}/pdf`,
-      `${EXTERNAL_API}/mobile/admin/invoices/${id}/pdf`,
-      `${EXTERNAL_API}/public/invoices/${id}/pdf`
-    ];
-    for (const url of attempts) {
-      try {
-        const r = await fetch(url, { headers: { ...authHeaders, "accept": "application/pdf,application/json,*/*" }, redirect: "follow" });
-        if (!r.ok) continue;
-        const ct = r.headers.get("content-type") || "";
-        if (ct.includes("pdf")) {
-          res.setHeader("content-type", "application/pdf");
-          res.setHeader("content-disposition", `inline; filename="facture-${id}.pdf"`);
-          const buf = await r.arrayBuffer();
-          return res.send(Buffer.from(buf));
-        }
-        const txt = await r.text();
-        if (!txt.includes("<!DOCTYPE") && !txt.includes("<html")) {
-          try {
-            const parsed = JSON.parse(txt);
-            const pdfUrl = parsed?.url || parsed?.pdfUrl || parsed?.pdf_url || parsed?.documentUrl || parsed?.link;
-            if (pdfUrl) return res.json({ url: pdfUrl });
-          } catch {
-          }
-        }
-      } catch {
-      }
-    }
-    return res.status(404).json({ message: "PDF non disponible pour cette facture." });
-  });
-  app2.get("/api/mobile/admin/reservations/:id/services", async (req, res) => {
-    const { id } = req.params;
-    const authHeaders = getAuthHeaders(req);
-    const attempts = [
-      `${EXTERNAL_API}/admin/reservations/${id}/services`,
-      `${EXTERNAL_API}/mobile/admin/reservations/${id}/services`
+      `${EXTERNAL_API2}/admin/reservations/${id}/services`,
+      `${EXTERNAL_API2}/mobile/admin/reservations/${id}/services`
     ];
     for (const url of attempts) {
       try {
@@ -803,14 +975,15 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/invoices", async (req, res) => {
     const headers = getAuthHeaders(req);
+    const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
     try {
-      const r = await fetch(`${EXTERNAL_API}/invoices${req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : ""}`, {
-        method: "GET",
-        headers,
-        redirect: "manual"
-      });
+      let r = await fetch(`${EXTERNAL_API2}/mobile/invoices${qs}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API2}/invoices${qs}`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(r.status >= 400 ? r.status : 401).json({ message: "Non authentifi\xE9" });
       }
@@ -831,13 +1004,30 @@ async function registerRoutes(app2) {
     const { id } = req.params;
     const headers = getAuthHeaders(req);
     try {
-      const r = await fetch(`${EXTERNAL_API}/invoices`, {
-        method: "GET",
-        headers,
-        redirect: "manual"
-      });
+      let r = await fetch(`${EXTERNAL_API2}/mobile/invoices/${id}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      let usedDetailEndpoint = false;
+      if (!text.includes("<!DOCTYPE") && !text.includes("<html")) {
+        try {
+          const directItem = JSON.parse(text);
+          if (directItem && (directItem.id || directItem._id) && r.status < 400) {
+            usedDetailEndpoint = true;
+            forwardSetCookie(r, res);
+            console.log(`[PROXY] GET /api/invoices/${id} => found via /mobile/invoices/:id`);
+            return res.status(200).json(directItem);
+          }
+        } catch {
+        }
+      }
+      if (!usedDetailEndpoint) {
+        r = await fetch(`${EXTERNAL_API2}/mobile/invoices`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+        if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+          r = await fetch(`${EXTERNAL_API2}/invoices`, { method: "GET", headers, redirect: "manual" });
+          text = await r.text();
+        }
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(401).json({ message: "Non authentifi\xE9" });
       }
@@ -864,13 +1054,35 @@ async function registerRoutes(app2) {
     const { id } = req.params;
     const headers = getAuthHeaders(req);
     try {
-      const r = await fetch(`${EXTERNAL_API}/quotes`, {
-        method: "GET",
-        headers,
-        redirect: "manual"
-      });
+      let r = await fetch(`${EXTERNAL_API2}/mobile/quotes/${id}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      let usedDetailEndpoint = false;
+      if (!text.includes("<!DOCTYPE") && !text.includes("<html")) {
+        try {
+          const directItem = JSON.parse(text);
+          if (directItem && (directItem.id || directItem._id) && r.status < 400) {
+            usedDetailEndpoint = true;
+            forwardSetCookie(r, res);
+            try {
+              const localRes = await pool.query("SELECT action FROM quote_responses WHERE quote_id = $1 ORDER BY created_at DESC LIMIT 1", [id]);
+              if (localRes.rows.length > 0) directItem.status = localRes.rows[0].action;
+            } catch {
+            }
+            console.log(`[PROXY] GET /api/quotes/${id} => found via /mobile/quotes/:id`);
+            return res.status(200).json(directItem);
+          }
+        } catch {
+        }
+      }
+      if (!usedDetailEndpoint) {
+        r = await fetch(`${EXTERNAL_API2}/mobile/quotes`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+        if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+          r = await fetch(`${EXTERNAL_API2}/quotes`, { method: "GET", headers, redirect: "manual" });
+          text = await r.text();
+        }
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(401).json({ message: "Non authentifi\xE9" });
       }
@@ -907,13 +1119,35 @@ async function registerRoutes(app2) {
     const { id } = req.params;
     const headers = getAuthHeaders(req);
     try {
-      const r = await fetch(`${EXTERNAL_API}/reservations`, {
-        method: "GET",
-        headers,
-        redirect: "manual"
-      });
+      let r = await fetch(`${EXTERNAL_API2}/mobile/reservations/${id}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      let usedDetailEndpoint = false;
+      if (!text.includes("<!DOCTYPE") && !text.includes("<html")) {
+        try {
+          const directItem = JSON.parse(text);
+          if (directItem && (directItem.id || directItem._id) && r.status < 400) {
+            usedDetailEndpoint = true;
+            forwardSetCookie(r, res);
+            try {
+              const localRes = await pool.query("SELECT action FROM reservation_confirmations WHERE reservation_id = $1 ORDER BY created_at DESC LIMIT 1", [id]);
+              if (localRes.rows.length > 0) directItem.status = localRes.rows[0].action;
+            } catch {
+            }
+            console.log(`[PROXY] GET /api/reservations/${id} => found via /mobile/reservations/:id`);
+            return res.status(200).json(directItem);
+          }
+        } catch {
+        }
+      }
+      if (!usedDetailEndpoint) {
+        r = await fetch(`${EXTERNAL_API2}/mobile/reservations`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+        if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+          r = await fetch(`${EXTERNAL_API2}/reservations`, { method: "GET", headers, redirect: "manual" });
+          text = await r.text();
+        }
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(401).json({ message: "Non authentifi\xE9" });
       }
@@ -949,14 +1183,15 @@ async function registerRoutes(app2) {
   app2.get("/api/quotes", async (req, res) => {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
+    const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
     try {
-      const r = await fetch(`${EXTERNAL_API}/quotes${req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : ""}`, {
-        method: "GET",
-        headers,
-        redirect: "manual"
-      });
+      let r = await fetch(`${EXTERNAL_API2}/mobile/quotes${qs}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API2}/quotes${qs}`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(r.status >= 400 ? r.status : 401).json({ message: "Non authentifi\xE9" });
       }
@@ -1003,12 +1238,12 @@ async function registerRoutes(app2) {
     const body = JSON.stringify(req.body);
     console.log("[RESERVATION CREATE] payload:", body.substring(0, 500));
     const endpoints = [
-      { url: `${EXTERNAL_API}/mobile/reservations`, method: "POST" },
-      { url: `${EXTERNAL_API}/mobile/reservation`, method: "POST" },
-      { url: `${EXTERNAL_API}/reservations/store`, method: "POST" },
-      { url: `${EXTERNAL_API}/reservation`, method: "POST" },
-      { url: `${EXTERNAL_API}/bookings`, method: "POST" },
-      { url: `${EXTERNAL_API}/appointments`, method: "POST" }
+      { url: `${EXTERNAL_API2}/mobile/reservations`, method: "POST" },
+      { url: `${EXTERNAL_API2}/mobile/reservation`, method: "POST" },
+      { url: `${EXTERNAL_API2}/reservations/store`, method: "POST" },
+      { url: `${EXTERNAL_API2}/reservation`, method: "POST" },
+      { url: `${EXTERNAL_API2}/bookings`, method: "POST" },
+      { url: `${EXTERNAL_API2}/appointments`, method: "POST" }
     ];
     for (const ep of endpoints) {
       try {
@@ -1036,10 +1271,10 @@ async function registerRoutes(app2) {
     const body = JSON.stringify(req.body);
     console.log(`[RESERVATION UPDATE] id=${id}, payload:`, body.substring(0, 300));
     const endpoints = [
-      { url: `${EXTERNAL_API}/reservations/${id}`, method: "PUT" },
-      { url: `${EXTERNAL_API}/reservations/${id}`, method: "PATCH" },
-      { url: `${EXTERNAL_API}/mobile/reservations/${id}`, method: "PUT" },
-      { url: `${EXTERNAL_API}/mobile/reservations/${id}`, method: "PATCH" }
+      { url: `${EXTERNAL_API2}/reservations/${id}`, method: "PUT" },
+      { url: `${EXTERNAL_API2}/reservations/${id}`, method: "PATCH" },
+      { url: `${EXTERNAL_API2}/mobile/reservations/${id}`, method: "PUT" },
+      { url: `${EXTERNAL_API2}/mobile/reservations/${id}`, method: "PATCH" }
     ];
     for (const ep of endpoints) {
       try {
@@ -1066,9 +1301,9 @@ async function registerRoutes(app2) {
     const headers = getAuthHeaders(req);
     try {
       const endpoints = [
-        { url: `${EXTERNAL_API}/reservations/${id}/cancel`, method: "POST", body: void 0 },
-        { url: `${EXTERNAL_API}/reservations/${id}`, method: "PUT", body: JSON.stringify({ status: "cancelled" }) },
-        { url: `${EXTERNAL_API}/reservations/${id}`, method: "PATCH", body: JSON.stringify({ status: "cancelled" }) }
+        { url: `${EXTERNAL_API2}/reservations/${id}/cancel`, method: "POST", body: void 0 },
+        { url: `${EXTERNAL_API2}/reservations/${id}`, method: "PUT", body: JSON.stringify({ status: "cancelled" }) },
+        { url: `${EXTERNAL_API2}/reservations/${id}`, method: "PATCH", body: JSON.stringify({ status: "cancelled" }) }
       ];
       for (const ep of endpoints) {
         try {
@@ -1103,14 +1338,20 @@ async function registerRoutes(app2) {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
     try {
-      await fetch(`${EXTERNAL_API}/notifications/read-all`, { method: "POST", headers, redirect: "manual" }).catch(() => {
+      await fetch(`${EXTERNAL_API2}/mobile/notifications/mark-all-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {
       });
-      await fetch(`${EXTERNAL_API}/notifications/mark-all-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {
+      await fetch(`${EXTERNAL_API2}/notifications/read-all`, { method: "POST", headers, redirect: "manual" }).catch(() => {
+      });
+      await fetch(`${EXTERNAL_API2}/notifications/mark-all-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {
       });
     } catch {
     }
     try {
-      const notifRes = await fetch(`${EXTERNAL_API}/notifications`, { method: "GET", headers, redirect: "manual" });
+      let notifRes = await fetch(`${EXTERNAL_API2}/mobile/notifications`, { method: "GET", headers, redirect: "manual" });
+      let notifCheck = await notifRes.clone().text();
+      if (notifCheck.includes("<!DOCTYPE") || notifCheck.includes("<html")) {
+        notifRes = await fetch(`${EXTERNAL_API2}/notifications`, { method: "GET", headers, redirect: "manual" });
+      }
       const notifText = await notifRes.text();
       if (!notifText.includes("<!DOCTYPE") && !notifText.includes("<html")) {
         const notifData = JSON.parse(notifText);
@@ -1137,9 +1378,11 @@ async function registerRoutes(app2) {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
     try {
-      await fetch(`${EXTERNAL_API}/notifications/${id}/read`, { method: "POST", headers, redirect: "manual" }).catch(() => {
+      await fetch(`${EXTERNAL_API2}/mobile/notifications/${id}/read`, { method: "PATCH", headers, redirect: "manual" }).catch(() => {
       });
-      await fetch(`${EXTERNAL_API}/notifications/${id}/mark-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {
+      await fetch(`${EXTERNAL_API2}/notifications/${id}/read`, { method: "POST", headers, redirect: "manual" }).catch(() => {
+      });
+      await fetch(`${EXTERNAL_API2}/notifications/${id}/mark-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {
       });
     } catch {
     }
@@ -1156,8 +1399,12 @@ async function registerRoutes(app2) {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
     try {
-      const r = await fetch(`${EXTERNAL_API}/notifications`, { method: "GET", headers, redirect: "manual" });
-      const text = await r.text();
+      let r = await fetch(`${EXTERNAL_API2}/mobile/notifications`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API2}/notifications`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
       if (text.includes("<!DOCTYPE") || text.includes("<html")) return res.json([]);
       let data;
       try {
@@ -1191,14 +1438,15 @@ async function registerRoutes(app2) {
   app2.get("/api/reservations", async (req, res) => {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
+    const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
     try {
-      const r = await fetch(`${EXTERNAL_API}/reservations${req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : ""}`, {
-        method: "GET",
-        headers,
-        redirect: "manual"
-      });
+      let r = await fetch(`${EXTERNAL_API2}/mobile/reservations${qs}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API2}/reservations${qs}`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
       forwardSetCookie(r, res);
-      const text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return res.status(r.status >= 400 ? r.status : 401).json({ message: "Non authentifi\xE9" });
       }
@@ -1240,103 +1488,91 @@ async function registerRoutes(app2) {
       return res.status(502).json({ message: "Erreur de connexion" });
     }
   });
-  app2.use("/api/mobile/admin", async (req, res, next) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      const path2 = req.url.replace(/\?.*$/, "");
-      const method = req.method;
-      if (path2 === "/analytics" || path2 === "/analytics/") {
-        return res.json({
-          totalRevenue: 12840,
-          pendingRevenue: 3200,
-          totalClients: 247,
-          totalReservations: 18,
-          totalQuotes: 42,
-          totalInvoices: 35,
-          revenueChart: [
-            { month: "Jan", amount: 8200 },
-            { month: "F\xE9v", amount: 9500 },
-            { month: "Mar", amount: 7800 },
-            { month: "Avr", amount: 11200 },
-            { month: "Mai", amount: 10100 },
-            { month: "Juin", amount: 12840 }
-          ],
-          recentActivity: [
-            { type: "quote", message: "Nouveau devis #0042 cr\xE9\xE9", createdAt: (/* @__PURE__ */ new Date()).toISOString() },
-            { type: "reservation", message: "RDV confirm\xE9 \u2014 M. Bernard", createdAt: (/* @__PURE__ */ new Date()).toISOString() },
-            { type: "invoice", message: "Facture #F-0035 pay\xE9e", createdAt: (/* @__PURE__ */ new Date()).toISOString() }
-          ]
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  app2.use("/uploads", (await import("express")).default.static(uploadsDir));
+  function parseMultipartFiles(rawBody, contentType) {
+    return new Promise((resolve2, reject) => {
+      const savedFiles = [];
+      const bb = Busboy({ headers: { "content-type": contentType } });
+      bb.on("file", (_fieldname, fileStream, info) => {
+        const origName = info.filename || "photo.jpg";
+        const unique = Date.now() + "-" + Math.random().toString(36).substring(2, 9);
+        const ext = path.extname(origName) || ".jpg";
+        const diskName = `${unique}${ext}`;
+        const diskPath = path.join(uploadsDir, diskName);
+        const writeStream = fs.createWriteStream(diskPath);
+        fileStream.pipe(writeStream);
+        writeStream.on("finish", () => {
+          savedFiles.push({ filename: diskName, savedPath: diskPath });
         });
+      });
+      bb.on("finish", () => {
+        setTimeout(() => resolve2(savedFiles), 100);
+      });
+      bb.on("error", reject);
+      bb.end(rawBody);
+    });
+  }
+  app2.post("/api/admin/quotes/:docId/media", handleMediaUpload("quotes"));
+  app2.post("/api/admin/invoices/:docId/media", handleMediaUpload("invoices"));
+  function handleMediaUpload(docType) {
+    return async (req, res) => {
+      const docId = req.params.docId;
+      const type = docType === "quotes" ? "quote" : "invoice";
+      const rawBody = req.rawBody;
+      const ct = req.headers["content-type"] || "";
+      if (!rawBody || !ct.includes("multipart")) {
+        return res.status(400).json({ message: "Aucun fichier re\xE7u" });
       }
-      if (path2 === "/advanced-analytics" || path2 === "/advanced-analytics/") {
-        return res.json({ data: {} });
+      let savedFiles = [];
+      try {
+        savedFiles = await parseMultipartFiles(rawBody, ct);
+      } catch (e) {
+        console.warn("[PHOTOS] Parse error:", e.message);
       }
-      if (path2 === "/quotes" && method === "GET") return res.json(REVIEWER_DEMO_QUOTES);
-      if (path2.match(/^\/quotes\/[^/]+$/) && method === "GET") {
-        const id = path2.split("/")[2];
-        return res.json(REVIEWER_DEMO_QUOTES.find((q) => q.id === id) || REVIEWER_DEMO_QUOTES[0]);
+      const protocol = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers["host"] || "localhost:5000";
+      const baseUrl = `${protocol}://${host}`;
+      const savedUrls = [];
+      for (const file of savedFiles) {
+        const publicUrl = `${baseUrl}/uploads/${file.filename}`;
+        savedUrls.push(publicUrl);
+        try {
+          await pool.query(
+            "INSERT INTO document_photos (doc_id, doc_type, photo_uri) VALUES ($1, $2, $3)",
+            [docId, type, publicUrl]
+          );
+        } catch (e) {
+          console.warn("[PHOTOS] DB save failed:", e.message);
+        }
       }
-      if (path2 === "/quotes" && method === "POST") {
-        const newQuote = {
-          ...req.body,
-          id: "demo-q-new-" + Date.now(),
-          quoteNumber: "D-0043",
-          totalAmount: req.body.totalTTC || req.body.totalAmount,
-          photos: req.body.photos || [],
-          createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-          updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-        };
-        REVIEWER_DEMO_QUOTES = [newQuote, ...REVIEWER_DEMO_QUOTES];
-        return res.status(201).json(newQuote);
+      console.log(`[PHOTOS] Saved ${savedUrls.length} photos for ${type} ${docId}: ${savedUrls.join(", ")}`);
+      const authHeaders = {
+        "host": new URL(EXTERNAL_API2).host,
+        "accept": "application/json",
+        "x-requested-with": "XMLHttpRequest"
+      };
+      if (req.headers["authorization"]) authHeaders["authorization"] = req.headers["authorization"];
+      if (req.headers["cookie"]) authHeaders["cookie"] = req.headers["cookie"];
+      authHeaders["content-type"] = ct;
+      try {
+        const mobileUrl = `${EXTERNAL_API2}/mobile/admin/${docType}/${docId}/media`;
+        const r = await fetch(mobileUrl, { method: "POST", headers: authHeaders, body: rawBody, redirect: "manual" });
+        const txt = await r.text();
+        if (!txt.includes("<!DOCTYPE")) {
+          console.log(`[PHOTOS] External API response: ${r.status} ${txt.substring(0, 200)}`);
+        }
+      } catch (e) {
+        console.log(`[PHOTOS] External API forward failed (non-blocking): ${e.message}`);
       }
-      if (path2.match(/^\/quotes\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Devis mis \xE0 jour" });
-      if (path2.match(/^\/quotes\/[^/]+\/status$/) && method === "PATCH") return res.json({ success: true, message: "Statut mis \xE0 jour" });
-      if (path2.match(/^\/quotes\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Devis supprim\xE9" });
-      if (path2 === "/invoices" && method === "GET") return res.json(REVIEWER_DEMO_INVOICES);
-      if (path2.match(/^\/invoices\/[^/]+$/) && method === "GET") {
-        const id = path2.split("/")[2];
-        return res.json(REVIEWER_DEMO_INVOICES.find((i) => i.id === id) || REVIEWER_DEMO_INVOICES[0]);
-      }
-      if (path2 === "/invoices" && method === "POST") {
-        const newInvoice = { ...req.body, id: "demo-i-new-" + Date.now(), invoiceNumber: "F-0036", createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
-        REVIEWER_DEMO_INVOICES = [newInvoice, ...REVIEWER_DEMO_INVOICES];
-        return res.status(201).json(newInvoice);
-      }
-      if (path2.match(/^\/invoices\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Facture mise \xE0 jour" });
-      if (path2.match(/^\/invoices\/[^/]+\/status$/) && method === "PATCH") return res.json({ success: true, message: "Statut mis \xE0 jour" });
-      if (path2.match(/^\/invoices\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Facture supprim\xE9e" });
-      if (path2 === "/reservations" && method === "GET") return res.json(REVIEWER_DEMO_RESERVATIONS);
-      if (path2.match(/^\/reservations\/[^/]+$/) && method === "GET") {
-        const id = path2.split("/")[2];
-        return res.json(REVIEWER_DEMO_RESERVATIONS.find((r) => r.id === id) || REVIEWER_DEMO_RESERVATIONS[0]);
-      }
-      if (path2 === "/reservations" && method === "POST") return res.status(201).json({ ...req.body, id: "demo-r-new-" + Date.now(), reference: "RDV-2026-019", createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
-      if (path2.match(/^\/reservations\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "R\xE9servation mise \xE0 jour" });
-      if (path2.match(/^\/reservations\/[^/]+\/status$/) && method === "PATCH") return res.json({ success: true, message: "Statut mis \xE0 jour" });
-      if (path2.match(/^\/reservations\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "R\xE9servation supprim\xE9e" });
-      if (path2 === "/users" && method === "GET") return res.json(REVIEWER_DEMO_CLIENTS);
-      if (path2.match(/^\/users\/[^/]+$/) && method === "GET") {
-        const id = path2.split("/")[2];
-        return res.json(REVIEWER_DEMO_CLIENTS.find((c) => c.id === id) || REVIEWER_DEMO_CLIENTS[0]);
-      }
-      if (path2 === "/users" && method === "POST") return res.status(201).json({ ...req.body, id: "demo-c-new-" + Date.now(), createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
-      if (path2.match(/^\/users\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Client mis \xE0 jour" });
-      if (path2.match(/^\/users\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Client supprim\xE9" });
-      if (path2 === "/services" && method === "GET") return res.json(REVIEWER_DEMO_SERVICES);
-      if (path2.match(/^\/services\/[^/]+$/) && method === "GET") {
-        const id = path2.split("/")[2];
-        return res.json(REVIEWER_DEMO_SERVICES.find((s) => s.id === id) || REVIEWER_DEMO_SERVICES[0]);
-      }
-      if (path2 === "/services" && method === "POST") return res.status(201).json({ ...req.body, id: "demo-s-new-" + Date.now(), createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
-      if (path2.match(/^\/services\/[^/]+$/) && (method === "PATCH" || method === "PUT")) return res.json({ success: true, message: "Service mis \xE0 jour" });
-      if (path2.match(/^\/services\/[^/]+$/) && method === "DELETE") return res.json({ success: true, message: "Service supprim\xE9" });
-      if (path2 === "/settings" && method === "GET") return res.json(REVIEWER_USER);
-      if (path2 === "/settings" && method === "PATCH") return res.json({ success: true, message: "Param\xE8tres mis \xE0 jour" });
-      return res.json({ success: true, message: "OK" });
-    }
+      return res.json({ success: true, photos: savedUrls });
+    };
+  }
+  app2.use("/api/admin", async (req, res, next) => {
     try {
       const authHeaders = {
-        "host": new URL(EXTERNAL_API).host,
+        "host": new URL(EXTERNAL_API2).host,
         "accept": "application/json",
         "x-requested-with": "XMLHttpRequest"
       };
@@ -1348,52 +1584,57 @@ async function registerRoutes(app2) {
         if (ct.includes("multipart/form-data")) return { body: req.rawBody, contentType: ct };
         return { body: JSON.stringify(req.body), contentType: "application/json" };
       };
-      const path2 = req.url.replace(/\?.*$/, "");
-      if ((path2.replace(/\/$/, "") === "/invoices" || path2.replace(/\/$/, "") === "/quotes") && req.method === "POST" && req.body) {
-        const fieldMap = {
-          "priceExcludingTax": "unit_price_excluding_tax",
-          "unitPrice": "unit_price",
-          "taxRate": "tax_rate",
-          "tvaRate": "tax_rate",
-          "quantity": "quantity",
-          "description": "description"
+      const path3 = req.url.replace(/\?.*$/, "");
+      const cleanPath = path3.replace(/\/$/, "");
+      const isDocMutation = (cleanPath === "/invoices" || cleanPath === "/quotes" || /^\/(invoices|quotes)\/[^/]+$/.test(cleanPath)) && (req.method === "POST" || req.method === "PATCH" || req.method === "PUT") && req.body;
+      if (isDocMutation) {
+        const htVal = req.body.totalHT || req.body.priceExcludingTax || req.body.total_excluding_tax;
+        const ttcVal = req.body.totalTTC || req.body.quoteAmount || req.body.amount || req.body.total || req.body.total_including_tax;
+        const taxVal = req.body.tvaRate || req.body.taxRate || req.body.tax_rate;
+        if (htVal) {
+          req.body.priceExcludingTax = htVal;
+          req.body.total_excluding_tax = htVal;
+        }
+        if (ttcVal) {
+          req.body.quoteAmount = ttcVal;
+          req.body.total = ttcVal;
+          req.body.total_including_tax = ttcVal;
+          req.body.amount = ttcVal;
+        }
+        if (taxVal) {
+          req.body.taxRate = taxVal;
+          req.body.tax_rate = taxVal;
+        }
+        const normalizeItem = (it) => {
+          const clean = { ...it };
+          if (it.unitPrice !== void 0 && !clean.unit_price) clean.unit_price = String(it.unitPrice);
+          if (it.unitPriceExcludingTax !== void 0 && !clean.unit_price_excluding_tax) clean.unit_price_excluding_tax = String(it.unitPriceExcludingTax);
+          if (it.priceExcludingTax !== void 0 && !clean.unit_price_excluding_tax) clean.unit_price_excluding_tax = String(it.priceExcludingTax);
+          if (it.taxRate !== void 0 && !clean.tax_rate) clean.tax_rate = String(it.taxRate);
+          if (it.tvaRate !== void 0 && !clean.tax_rate) clean.tax_rate = String(it.tvaRate);
+          if (it.totalExcludingTax !== void 0 && !clean.total_excluding_tax) clean.total_excluding_tax = String(it.totalExcludingTax);
+          if (it.totalIncludingTax !== void 0 && !clean.total_including_tax) clean.total_including_tax = String(it.totalIncludingTax);
+          const price = clean.unit_price || clean.unit_price_excluding_tax;
+          if (price) {
+            clean.unit_price = String(price);
+            clean.unit_price_excluding_tax = String(price);
+          }
+          if (clean.quantity !== void 0) clean.quantity = typeof clean.quantity === "string" ? parseFloat(clean.quantity) : clean.quantity;
+          return clean;
         };
         if (Array.isArray(req.body.items)) {
-          req.body.items = req.body.items.map((it) => {
-            const clean = {};
-            for (const originalKey of Object.keys(fieldMap)) {
-              if (it[originalKey] !== void 0) {
-                const apiKey = fieldMap[originalKey];
-                if (originalKey === "quantity") {
-                  clean[apiKey] = typeof it[originalKey] === "string" ? parseFloat(it[originalKey]) : it[originalKey];
-                } else {
-                  clean[apiKey] = String(it[originalKey]);
-                }
-              }
-            }
-            return clean;
-          });
+          req.body.items = req.body.items.map(normalizeItem);
         }
         if (Array.isArray(req.body.lineItems)) {
-          req.body.lineItems = req.body.lineItems.map((it) => {
-            const clean = {};
-            for (const originalKey of Object.keys(fieldMap)) {
-              if (it[originalKey] !== void 0) {
-                const apiKey = fieldMap[originalKey];
-                if (originalKey === "quantity") {
-                  clean[apiKey] = typeof it[originalKey] === "string" ? parseFloat(it[originalKey]) : it[originalKey];
-                } else {
-                  clean[apiKey] = String(it[originalKey]);
-                }
-              }
-            }
-            return clean;
-          });
+          req.body.lineItems = req.body.lineItems.map(normalizeItem);
         }
-        if (path2.replace(/\/$/, "") === "/quotes" && !req.body.serviceId) {
-          req.body.serviceId = "demo-s1";
+        if (Array.isArray(req.body.items) && !Array.isArray(req.body.lineItems)) {
+          req.body.lineItems = req.body.items;
         }
-        console.log(`[SANITIZE] ${path2} Cleaned body:`, JSON.stringify(req.body).substring(0, 500));
+        if (Array.isArray(req.body.lineItems) && !Array.isArray(req.body.items)) {
+          req.body.items = req.body.lineItems;
+        }
+        console.log(`[SANITIZE] ${path3} Full body:`, JSON.stringify(req.body).substring(0, 800));
       }
       const { body, contentType } = buildBody();
       if (contentType) authHeaders["content-type"] = contentType;
@@ -1405,14 +1646,21 @@ async function registerRoutes(app2) {
         if (txt.includes("<!DOCTYPE") || txt.includes("<html")) return null;
         return { status: r.status, text: txt, headers: r.headers };
       };
-      const mobileUrl = `${EXTERNAL_API}/mobile/admin${req.url}`;
+      const adminUrl = `${EXTERNAL_API2}/admin${req.url}`;
+      const mobileUrl = `${EXTERNAL_API2}/mobile/admin${req.url}`;
       let result = await tryUrl(mobileUrl);
       if (!result) {
-        const legacyUrl = `${EXTERNAL_API}/admin${req.url}`;
-        result = await tryUrl(legacyUrl);
+        result = await tryUrl(adminUrl);
         if (result) console.log(`[MOBILE-ADMIN] ${req.method} /admin${req.url} => ${result.status} (legacy fallback)`);
       } else {
         console.log(`[MOBILE-ADMIN] ${req.method} /mobile/admin${req.url} => ${result.status}`);
+        if (result.status >= 400) {
+          const fallback = await tryUrl(adminUrl);
+          if (fallback && fallback.status < result.status) {
+            console.log(`[MOBILE-ADMIN] ${req.method} /admin${req.url} => ${fallback.status} (legacy fallback, better than ${result.status})`);
+            result = fallback;
+          }
+        }
       }
       if (!result) {
         const isMutation = !["GET", "HEAD"].includes(req.method);
@@ -1428,7 +1676,156 @@ async function registerRoutes(app2) {
       });
       try {
         const data = JSON.parse(result.text);
-        return res.status(result.status).json(data);
+        const routePath = path3.replace(/\/$/, "");
+        const isQuoteRoute = routePath === "/quotes" || routePath.startsWith("/quotes/");
+        const isInvoiceRoute = routePath === "/invoices" || routePath.startsWith("/invoices/");
+        const docType = isQuoteRoute ? "quote" : isInvoiceRoute ? "invoice" : null;
+        let bodyHT = parseFloat(String(req.body?.priceExcludingTax || req.body?.totalHT || req.body?.total_excluding_tax || 0)) || 0;
+        let bodyTTC = parseFloat(String(req.body?.quoteAmount || req.body?.amount || req.body?.total || req.body?.total_including_tax || 0)) || 0;
+        const bodyItems = req.body?.items || req.body?.lineItems;
+        if ((bodyHT <= 0 || bodyTTC <= 0) && Array.isArray(bodyItems) && bodyItems.length > 0) {
+          let calcHT = 0, calcTTC = 0;
+          for (const it of bodyItems) {
+            const price = parseFloat(String(it.unitPriceExcludingTax || it.unit_price_excluding_tax || it.unitPrice || it.unit_price || it.price || 0)) || 0;
+            const qty = parseFloat(String(it.quantity || 1)) || 1;
+            const tax = parseFloat(String(it.taxRate || it.tax_rate || it.tvaRate || 0)) || 0;
+            const lineHT = parseFloat(String(it.totalExcludingTax || it.total_excluding_tax || 0)) || qty * price;
+            const lineTTC = parseFloat(String(it.totalIncludingTax || it.total_including_tax || 0)) || lineHT * (1 + tax / 100);
+            calcHT += lineHT;
+            calcTTC += lineTTC;
+          }
+          if (bodyHT <= 0) bodyHT = calcHT;
+          if (bodyTTC <= 0) bodyTTC = calcTTC;
+          console.log(`[AMOUNTS] Computed from ${bodyItems.length} items: HT=${bodyHT} TTC=${bodyTTC}`);
+        }
+        const isMutationSuccess = (req.method === "POST" || req.method === "PATCH" || req.method === "PUT") && result.status < 300;
+        if (isMutationSuccess && docType && (data?.id || req.method !== "POST" && routePath.match(/\/(quotes|invoices)\/([^/]+)$/)) && (bodyTTC > 0 || Array.isArray(bodyItems))) {
+          const docId = data?.id || routePath.match(/\/(quotes|invoices)\/([^/]+)$/)?.[2] || "";
+          const taxAmt = bodyTTC - bodyHT;
+          try {
+            await pool.query(
+              `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, items=$6, updated_at=NOW()`,
+              [docId, docType, bodyHT, bodyTTC, taxAmt, JSON.stringify(bodyItems || [])]
+            );
+            console.log(`[AMOUNTS] Saved ${docType} ${docId}: HT=${bodyHT} TTC=${bodyTTC} items=${Array.isArray(bodyItems) ? bodyItems.length : 0}`);
+          } catch (e) {
+            console.warn("[AMOUNTS] save failed:", e.message);
+          }
+        }
+        const enrichItem = async (item) => {
+          if (!item?.id) return item;
+          const apiHT = parseFloat(String(item.priceExcludingTax || item.totalHT || item.total_excluding_tax || 0)) || 0;
+          const apiTTC = parseFloat(String(item.quoteAmount || item.amount || item.totalTTC || item.total || item.total_including_tax || 0)) || 0;
+          const existingItems = item.items || item.lineItems || item.lines || [];
+          const hasLocalItems = existingItems.length > 0;
+          try {
+            const row = await pool.query("SELECT * FROM document_amounts WHERE doc_id=$1", [item.id]);
+            if (row.rows.length > 0) {
+              const r = row.rows[0];
+              const ht = parseFloat(r.price_excluding_tax) || 0;
+              const ttc = parseFloat(r.total_including_tax) || 0;
+              let localItems = [];
+              try {
+                localItems = JSON.parse(r.items || "[]");
+              } catch {
+              }
+              const enriched2 = { ...item };
+              if (ht > 0 || ttc > 0) {
+                enriched2.priceExcludingTax = String(ht);
+                enriched2.quoteAmount = String(ttc);
+                enriched2.amount = String(ttc);
+                enriched2.total_excluding_tax = String(ht);
+                enriched2.total_including_tax = String(ttc);
+                enriched2.taxAmount = String(parseFloat(r.tax_amount) || ttc - ht);
+                enriched2._localAmounts = true;
+              }
+              if (localItems.length > 0) {
+                enriched2.items = localItems;
+                enriched2.lineItems = localItems;
+                enriched2._localItems = true;
+                if (!hasLocalItems || localItems.length !== existingItems.length) {
+                  console.log(`[ENRICH] Injected ${localItems.length} local items for ${item.id} (API had ${existingItems.length})`);
+                }
+              }
+              try {
+                const photoRows = await pool.query("SELECT photo_uri FROM document_photos WHERE doc_id=$1 ORDER BY created_at", [item.id]);
+                if (photoRows.rows.length > 0) {
+                  const photoUrls = photoRows.rows.map((r2) => r2.photo_uri);
+                  enriched2.photos = photoUrls;
+                  enriched2.mediaUrls = photoUrls;
+                }
+              } catch {
+              }
+              if (enriched2._localAmounts || enriched2._localItems) {
+                return enriched2;
+              }
+            }
+          } catch {
+          }
+          try {
+            const photoRows = await pool.query("SELECT photo_uri FROM document_photos WHERE doc_id=$1 ORDER BY created_at", [item.id]);
+            if (photoRows.rows.length > 0) {
+              const photoUrls = photoRows.rows.map((r) => r.photo_uri);
+              const existingPhotos = item.requestDetails?.mediaUrls || item.photos || item.mediaUrls || [];
+              if (existingPhotos.length === 0) {
+                item = { ...item, photos: photoUrls, mediaUrls: photoUrls };
+              }
+            }
+          } catch {
+          }
+          if (apiHT > 0 || apiTTC > 0) return item;
+          const apiItems = item.items || item.lineItems || item.lines || [];
+          if (apiItems.length > 0) {
+            let calcHT = 0, calcTTC = 0;
+            for (const it of apiItems) {
+              const price = parseFloat(String(it.unit_price || it.unit_price_excluding_tax || it.unitPrice || it.unitPriceExcludingTax || it.price || 0)) || 0;
+              const qty = parseFloat(String(it.quantity || 1)) || 1;
+              const tax = parseFloat(String(it.tax_rate || it.taxRate || it.tvaRate || 0)) || 0;
+              const lineHT = parseFloat(String(it.total_excluding_tax || it.totalExcludingTax || 0)) || qty * price;
+              const lineTTC = parseFloat(String(it.total_including_tax || it.totalIncludingTax || it.totalPrice || 0)) || qty * price * (1 + tax / 100);
+              calcHT += lineHT;
+              calcTTC += lineTTC;
+            }
+            if (calcTTC > 0) {
+              pool.query(
+                `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, updated_at=NOW()`,
+                [item.id, docType, calcHT, calcTTC, calcTTC - calcHT, JSON.stringify(apiItems)]
+              ).catch(() => {
+              });
+              return {
+                ...item,
+                priceExcludingTax: calcHT.toFixed(2),
+                quoteAmount: calcTTC.toFixed(2),
+                amount: calcTTC.toFixed(2),
+                total_excluding_tax: calcHT.toFixed(2),
+                total_including_tax: calcTTC.toFixed(2),
+                taxAmount: (calcTTC - calcHT).toFixed(2),
+                _computedAmounts: true
+              };
+            }
+          }
+          return item;
+        };
+        let enriched = data;
+        if (docType && (req.method === "GET" || isMutationSuccess)) {
+          if (Array.isArray(data)) {
+            enriched = await Promise.all(data.map(enrichItem));
+          } else if (data?.id) {
+            enriched = await enrichItem(data);
+          } else if (data?.data && Array.isArray(data.data)) {
+            enriched = { ...data, data: await Promise.all(data.data.map(enrichItem)) };
+          }
+        }
+        if (req.method === "POST" && result.status < 300) {
+          console.log(`[MOBILE-ADMIN-RESP] ${req.method} ${req.url} => keys: ${Object.keys(enriched).join(",")}, total: ${enriched.quoteAmount ?? enriched.amount ?? "?"}, totalHT: ${enriched.priceExcludingTax ?? "?"}`);
+        } else if (result.status >= 400) {
+          console.log(`[MOBILE-ADMIN-ERR] ${req.method} ${req.url} => ${result.status}: ${result.text.substring(0, 400)}`);
+        }
+        return res.status(result.status).json(enriched);
       } catch {
         return res.status(result.status).send(result.text);
       }
@@ -1440,7 +1837,7 @@ async function registerRoutes(app2) {
   async function mobileCrudProxy(req, res, primarySegment, fallbackSegments) {
     const urlSuffix = req.url === "/" ? "" : req.url;
     const authHeaders = {
-      "host": new URL(EXTERNAL_API).host,
+      "host": new URL(EXTERNAL_API2).host,
       "accept": "application/json",
       "x-requested-with": "XMLHttpRequest",
       "content-type": "application/json"
@@ -1477,7 +1874,7 @@ async function registerRoutes(app2) {
     let result = null;
     let usedSeg = primarySegment;
     for (const seg of segments) {
-      const url = `${EXTERNAL_API}/${seg}${urlSuffix}`;
+      const url = `${EXTERNAL_API2}/${seg}${urlSuffix}`;
       result = await tryUrl(url);
       if (result) {
         usedSeg = seg;
@@ -1511,222 +1908,326 @@ async function registerRoutes(app2) {
       return res.status(result.status).send(result.text);
     }
   }
-  app2.use("/api/mobile/invoices", async (req, res, next) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      const method = req.method;
-      const id = req.url.split("/").filter(Boolean)[0] || "";
-      if (method === "POST") return res.status(201).json({ ...req.body, id: "demo-i-new-" + Date.now(), invoiceNumber: "F-0036", status: req.body?.status || "pending", createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
-      if (method === "PATCH") return res.json({ ...REVIEWER_DEMO_INVOICES[0], ...req.body, id, updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
-      if (method === "DELETE") return res.json({ success: true, message: "Facture supprim\xE9e" });
-      return next();
-    }
+  app2.use("/api/invoices", async (req, res, next) => {
     return mobileCrudProxy(req, res, "mobile/invoices", ["mobile/admin/invoices", "admin/invoices"]);
   });
-  app2.use("/api/mobile/reservations", async (req, res, next) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      const method = req.method;
-      const id = req.url.split("/").filter(Boolean)[0] || "";
-      if (method === "POST") return res.status(201).json({ ...req.body, id: "demo-r-new-" + Date.now(), reference: "RDV-2026-019", status: req.body?.status || "pending", scheduledDate: req.body?.scheduledDate || (/* @__PURE__ */ new Date()).toISOString(), createdAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
-      if (method === "PATCH") return res.json({ ...REVIEWER_DEMO_RESERVATIONS[0], ...req.body, id, updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
-      if (method === "DELETE") return res.json({ success: true, message: "R\xE9servation supprim\xE9e" });
-      return next();
-    }
+  app2.use("/api/reservations", async (req, res, next) => {
     return mobileCrudProxy(req, res, "mobile/reservations", ["mobile/admin/reservations", "admin/reservations"]);
   });
-  app2.post("/api/mobile/quotes/:id/convert-to-invoice", async (req, res) => {
-    const { id } = req.params;
-    const authHeaders = {
-      "host": new URL(EXTERNAL_API).host,
+  app2.use("/api/quotes", async (req, res, next) => {
+    return mobileCrudProxy(req, res, "mobile/quotes", ["mobile/admin/quotes", "admin/quotes"]);
+  });
+  app2.get("/api/auth/me", async (req, res) => {
+    const headers = {
       "accept": "application/json",
-      "content-type": "application/json",
       "x-requested-with": "XMLHttpRequest"
     };
-    if (req.headers["authorization"]) authHeaders["authorization"] = req.headers["authorization"];
-    if (req.headers["cookie"]) authHeaders["cookie"] = req.headers["cookie"];
-    const fetchOpts = { method: "POST", headers: authHeaders, redirect: "manual" };
-    const tryConvertUrl = async (url) => {
-      try {
-        const r = await fetch(url, fetchOpts);
-        const txt = await r.text();
-        if (txt.includes("<!DOCTYPE") || txt.includes("<html")) return null;
-        const parsed = JSON.parse(txt);
-        const msgStr = typeof parsed?.message === "string" ? parsed.message.toLowerCase() : "";
-        const errStr = typeof parsed?.error === "string" ? parsed.error.toLowerCase() : "";
-        if (r.ok && parsed && !msgStr.includes("unexpected") && !errStr.includes("unexpected")) {
-          return { status: r.status, data: parsed };
-        }
-        return null;
-      } catch {
-        return null;
-      }
-    };
-    const convertEndpoints = [
-      `${EXTERNAL_API}/mobile/admin/quotes/${id}/convert-to-invoice`,
-      `${EXTERNAL_API}/admin/quotes/${id}/convert-to-invoice`,
-      `${EXTERNAL_API}/mobile/quotes/${id}/convert-to-invoice`
-    ];
-    for (const url of convertEndpoints) {
-      const result = await tryConvertUrl(url);
-      if (result) {
-        console.log(`[CONVERT-INVOICE] \u2705 Success via ${url}`);
-        return res.status(result.status).json(result.data);
-      }
-    }
-    console.log(`[CONVERT-INVOICE] External endpoints failed, falling back to manual invoice creation for quote ${id}`);
+    if (req.headers["authorization"]) headers["authorization"] = req.headers["authorization"];
+    if (req.headers["cookie"]) headers["cookie"] = req.headers["cookie"];
     try {
-      const quoteSegments = ["mobile/admin/quotes", "admin/quotes", "mobile/quotes"];
-      let quoteData = null;
-      for (const seg of quoteSegments) {
-        try {
-          const r = await fetch(`${EXTERNAL_API}/${seg}/${id}`, { headers: authHeaders, redirect: "manual" });
-          const txt = await r.text();
-          if (!txt.includes("<!DOCTYPE") && !txt.includes("<html")) {
-            const parsed = JSON.parse(txt);
-            const unwrapped = parsed?.data ?? parsed;
-            if (r.ok && unwrapped && (unwrapped.id || unwrapped.clientId)) {
-              quoteData = unwrapped;
-              console.log(`[CONVERT-INVOICE] Fetched quote from ${seg}/${id}`);
-              break;
-            }
-          }
-        } catch {
-        }
+      const r = await fetchWithBackendFallback("/mobile/auth/me", { headers, redirect: "manual" });
+      const text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(401).json({ message: "Non authentifi\xE9" });
       }
-      const items = quoteData?.items || quoteData?.lineItems || quoteData?.lines || [];
-      const clientId = quoteData?.clientId || quoteData?.client_id || req.body?.clientId || "";
-      let totalHT = 0;
-      let totalTTC = 0;
-      if (quoteData) {
-        totalHT = parseFloat(String(quoteData.priceExcludingTax || quoteData.totalHT || quoteData.totalExcludingTax || 0)) || 0;
-        totalTTC = parseFloat(String(quoteData.quoteAmount || quoteData.totalTTC || quoteData.total || quoteData.totalAmount || 0)) || 0;
-        if (!totalHT && !totalTTC && items.length > 0) {
-          items.forEach((it) => {
-            const price = parseFloat(String(it.unitPrice || it.price || it.unitPriceExcludingTax || 0)) || 0;
-            const qty = parseFloat(String(it.quantity || 1)) || 1;
-            const tax = parseFloat(String(it.taxRate || it.tvaRate || 0)) || 0;
-            totalHT += qty * price;
-            totalTTC += qty * price * (1 + tax / 100);
-          });
-        }
+      try {
+        return res.status(r.status).json(JSON.parse(text));
+      } catch {
+        return res.status(r.status).send(text);
       }
-      const mappedItems = items.map((it) => {
-        const price = parseFloat(String(it.unitPrice || it.price || it.unitPriceExcludingTax || it.priceExcludingTax || 0)) || 0;
-        const qty = parseFloat(String(it.quantity || 1)) || 1;
-        const tax = parseFloat(String(it.taxRate || it.tvaRate || 0)) || 0;
-        return {
-          description: it.description || it.name || "Prestation",
-          quantity: qty,
-          unitPrice: price,
-          unitPriceExcludingTax: price,
-          taxRate: tax,
-          tvaRate: tax,
-          totalExcludingTax: qty * price,
-          totalIncludingTax: qty * price * (1 + tax / 100),
-          totalPrice: qty * price * (1 + tax / 100)
-        };
-      });
-      const invoicePayload = {
-        clientId,
-        quoteId: id,
-        status: "pending",
-        items: mappedItems,
-        lineItems: mappedItems,
-        totalHT: totalHT.toFixed(2),
-        totalTTC: totalTTC.toFixed(2),
-        totalAmount: totalTTC.toFixed(2),
-        amount: totalTTC.toFixed(2),
-        total: totalTTC.toFixed(2),
-        priceExcludingTax: totalHT.toFixed(2),
-        totalExcludingTax: totalHT.toFixed(2),
-        taxAmount: (totalTTC - totalHT).toFixed(2)
-      };
-      const invoiceSegments = ["mobile/admin/invoices", "admin/invoices", "mobile/invoices"];
-      for (const seg of invoiceSegments) {
-        try {
-          const r = await fetch(`${EXTERNAL_API}/${seg}`, {
-            method: "POST",
-            headers: authHeaders,
-            redirect: "manual",
-            body: JSON.stringify(invoicePayload)
-          });
-          const txt = await r.text();
-          if (!txt.includes("<!DOCTYPE") && !txt.includes("<html")) {
-            const parsed = JSON.parse(txt);
-            if (r.status < 500 && parsed) {
-              console.log(`[CONVERT-INVOICE] \u2705 Manual invoice created via ${seg}, status ${r.status}`);
-              return res.status(r.ok ? r.status : 201).json({
-                ...parsed,
-                quoteId: id,
-                clientId,
-                totalHT: totalHT.toFixed(2),
-                totalTTC: totalTTC.toFixed(2),
-                items: mappedItems
-              });
-            }
-          }
-        } catch {
-        }
-      }
-      console.log(`[CONVERT-INVOICE] All invoice creation endpoints failed for quote ${id}`);
-      return res.status(502).json({ success: false, message: "Impossible de cr\xE9er la facture. Veuillez r\xE9essayer." });
     } catch (err) {
-      console.log(`[CONVERT-INVOICE] Fallback error:`, err);
-      return res.status(502).json({ success: false, message: "Erreur lors de la cr\xE9ation de la facture." });
+      return res.status(502).json({ message: "Erreur de connexion" });
     }
   });
-  app2.use("/api/mobile/quotes", async (req, res, next) => {
-    const auth = req.headers["authorization"] || "";
-    if (isReviewerToken(auth)) {
-      const method = req.method;
-      const parts = req.url.split("/").filter(Boolean);
-      const id = parts[0] || "";
-      const action = parts[1] || "";
-      if (method === "PATCH") return res.json({ ...REVIEWER_DEMO_QUOTES[0], ...req.body, id, updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
-      if (method === "DELETE") return res.json({ success: true, message: "Devis supprim\xE9" });
-      if (method === "POST" && action === "convert-to-invoice") {
-        const q = REVIEWER_DEMO_QUOTES.find((q2) => q2.id === id) || REVIEWER_DEMO_QUOTES[0];
-        const newInvoice = {
-          id: "demo-i-new-" + Date.now(),
-          invoiceNumber: "F-0036",
-          clientId: q.clientId,
-          quoteId: q.id,
-          status: "pending",
-          items: q.items,
-          totalHT: "1041.67",
-          totalTTC: q.totalAmount,
-          tvaAmount: "208.33",
-          createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-          updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-        };
-        return res.status(201).json(newInvoice);
+  app2.post("/api/refresh", async (req, res) => {
+    const headers = {
+      "content-type": "application/json",
+      "accept": "application/json"
+    };
+    if (req.headers["authorization"]) headers["authorization"] = req.headers["authorization"];
+    if (req.headers["cookie"]) headers["cookie"] = req.headers["cookie"];
+    try {
+      const r = await fetchWithBackendFallback("/mobile/refresh-token", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(req.body),
+        redirect: "manual"
+      });
+      const text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(401).json({ message: "Session expir\xE9e" });
       }
-      if (method === "POST" && action === "create-reservation") {
-        const q = REVIEWER_DEMO_QUOTES.find((q2) => q2.id === id) || REVIEWER_DEMO_QUOTES[0];
-        const newReserv = {
-          id: "demo-r-new-" + Date.now(),
-          reference: "RDV-2026-019",
-          clientId: q.clientId,
-          quoteId: q.id,
-          status: "pending",
-          scheduledDate: req.body?.scheduledDate || new Date(Date.now() + 864e5).toISOString(),
-          notes: req.body?.notes || "",
-          createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-          updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-        };
-        return res.status(201).json(newReserv);
+      try {
+        return res.status(r.status).json(JSON.parse(text));
+      } catch {
+        return res.status(r.status).send(text);
       }
-      return next();
+    } catch (err) {
+      return res.status(502).json({ message: "Erreur de connexion" });
     }
-    return mobileCrudProxy(req, res, "mobile/quotes", ["mobile/admin/quotes", "admin/quotes"]);
+  });
+  registerSocialAuthRoutes(app2);
+  app2.post("/api/register", async (req, res) => {
+    const headers = getAuthHeaders(req);
+    try {
+      const r = await fetchWithBackendFallback("/mobile/auth/register", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(req.body),
+        redirect: "manual"
+      });
+      forwardSetCookie(r, res);
+      const text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(400).json({ message: "Erreur lors de l'inscription" });
+      }
+      try {
+        return res.status(r.status).json(JSON.parse(text));
+      } catch {
+        return res.status(r.status).send(text);
+      }
+    } catch (err) {
+      return res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+  app2.get("/api/auth/user", async (req, res) => {
+    const headers = getAuthHeaders(req);
+    try {
+      let r = await fetch(`${EXTERNAL_API2}/mobile/profile`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API2}/mobile/auth/me`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(401).json({ message: "Non authentifi\xE9" });
+      }
+      forwardSetCookie(r, res);
+      try {
+        return res.status(r.status).json(JSON.parse(text));
+      } catch {
+        return res.status(r.status).send(text);
+      }
+    } catch (err) {
+      return res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+  app2.put("/api/auth/user", async (req, res) => {
+    const headers = getAuthHeaders(req);
+    try {
+      let r = await fetch(`${EXTERNAL_API2}/mobile/profile`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(req.body),
+        redirect: "manual"
+      });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html") || r.status >= 400) {
+        r = await fetch(`${EXTERNAL_API2}/auth/user`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(req.body),
+          redirect: "manual"
+        });
+        text = await r.text();
+      }
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(400).json({ message: "Erreur de mise \xE0 jour du profil" });
+      }
+      forwardSetCookie(r, res);
+      try {
+        return res.status(r.status).json(JSON.parse(text));
+      } catch {
+        return res.status(r.status).send(text);
+      }
+    } catch (err) {
+      return res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+  app2.post("/api/auth/change-password", async (req, res) => {
+    const headers = getAuthHeaders(req);
+    try {
+      let r = await fetch(`${EXTERNAL_API2}/user/password`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(req.body),
+        redirect: "manual"
+      });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html") || r.status >= 400) {
+        r = await fetch(`${EXTERNAL_API2}/auth/change-password`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(req.body),
+          redirect: "manual"
+        });
+        text = await r.text();
+      }
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(400).json({ message: "Erreur de changement de mot de passe" });
+      }
+      forwardSetCookie(r, res);
+      try {
+        return res.status(r.status).json(JSON.parse(text));
+      } catch {
+        return res.status(r.status).send(text);
+      }
+    } catch (err) {
+      return res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+  app2.post("/api/quotes/:id/create-reservation", async (req, res) => {
+    const { id } = req.params;
+    const headers = getAuthHeaders(req);
+    try {
+      const r = await fetch(`${EXTERNAL_API2}/mobile/quotes/${id}/create-reservation`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(req.body),
+        redirect: "manual"
+      });
+      forwardSetCookie(r, res);
+      const text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.status(400).json({ message: "Erreur lors de la cr\xE9ation de r\xE9servation" });
+      }
+      try {
+        return res.status(r.status).json(JSON.parse(text));
+      } catch {
+        return res.status(r.status).send(text);
+      }
+    } catch (err) {
+      return res.status(502).json({ message: "Erreur de connexion" });
+    }
+  });
+  app2.get("/api/services", async (req, res) => {
+    const headers = getAuthHeaders(req);
+    const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
+    try {
+      let r = await fetch(`${EXTERNAL_API2}/mobile/services${qs}`, { method: "GET", headers, redirect: "manual" });
+      let text = await r.text();
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        r = await fetch(`${EXTERNAL_API2}/services${qs}`, { method: "GET", headers, redirect: "manual" });
+        text = await r.text();
+      }
+      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+        return res.json([]);
+      }
+      forwardSetCookie(r, res);
+      try {
+        return res.status(r.status).json(JSON.parse(text));
+      } catch {
+        return res.status(r.status).send(text);
+      }
+    } catch (err) {
+      return res.json([]);
+    }
+  });
+  app2.post("/api/ocr/analyze", async (req, res) => {
+    try {
+      const { imageBase64, mimeType = "image/jpeg", mode = "invoice" } = req.body;
+      if (!imageBase64) return res.status(400).json({ success: false, message: "imageBase64 requis" });
+      const { GoogleGenAI } = __require("@google/genai");
+      const ocrAi = new GoogleGenAI({
+        apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
+        httpOptions: {
+          apiVersion: "",
+          baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL
+        }
+      });
+      const systemPrompt = mode === "quote" ? `Tu es un assistant OCR sp\xE9cialis\xE9 dans les devis automobiles fran\xE7ais. Analyse l'image et extrais les informations structur\xE9es. Retourne UNIQUEMENT un JSON valide (sans markdown, sans backticks): {"clientName":"string ou null","clientEmail":"string ou null","vehicleBrand":"string ou null","vehicleModel":"string ou null","vehiclePlate":"string ou null","notes":"string ou null","items":[{"description":"string","quantity":"1","unitPrice":"string","tvaRate":"20"}]}` : `Tu es un assistant OCR sp\xE9cialis\xE9 dans les factures fran\xE7aises. Analyse l'image et extrais les informations structur\xE9es. Retourne UNIQUEMENT un JSON valide (sans markdown, sans backticks): {"clientName":"string ou null","clientEmail":"string ou null","notes":"string ou null","paymentMethod":"cash|wire_transfer|card|sepa|stripe|klarna|alma ou null","items":[{"description":"string","quantity":"1","unitPrice":"string","tvaRate":"20"}]}`;
+      try {
+        const response = await ocrAi.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [{
+            role: "user",
+            parts: [
+              { text: systemPrompt },
+              { inlineData: { mimeType, data: imageBase64 } }
+            ]
+          }],
+          config: {
+            temperature: 0.1,
+            maxOutputTokens: 2048
+          }
+        });
+        const text = response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        if (text) {
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              const parsed = JSON.parse(jsonMatch[0]);
+              console.log(`[OCR] \u2705 Gemini SDK success for ${mode}`);
+              return res.json({ success: true, data: parsed });
+            } catch (parseErr) {
+              console.log(`[OCR] JSON parse error: ${parseErr.message}, raw: ${text.substring(0, 200)}`);
+            }
+          }
+        }
+        console.log(`[OCR] Gemini response could not be parsed: ${text.substring(0, 200)}`);
+      } catch (geminiErr) {
+        console.error(`[OCR] Gemini SDK error: ${geminiErr.message}`);
+        return res.status(500).json({ success: false, message: `Erreur IA: ${geminiErr.message}` });
+      }
+      console.log(`[OCR] Returning empty fallback for ${mode}`);
+      return res.json({
+        success: true,
+        data: {
+          clientName: null,
+          clientEmail: null,
+          notes: "Document scann\xE9 - remplir les champs manuellement",
+          items: [{ description: "", quantity: "1", unitPrice: "", tvaRate: "20" }],
+          ...mode === "quote" && { vehicleBrand: null, vehicleModel: null, vehiclePlate: null }
+        }
+      });
+    } catch (err) {
+      console.error("[OCR] Unexpected error:", err.message);
+      return res.status(500).json({ success: false, message: "Erreur lors de l'analyse OCR" });
+    }
+  });
+  app2.get("/api/public/pdf/:type/:id", async (req, res) => {
+    const { type, id } = req.params;
+    const token = req.query.token;
+    if (!type || !id || !["quotes", "invoices"].includes(type)) {
+      return res.status(400).json({ message: "Type invalide" });
+    }
+    if (!token) {
+      return res.status(400).json({ message: "Token requis" });
+    }
+    try {
+      const endpoint = `/mobile/${type}/${id}/pdf?viewToken=${encodeURIComponent(token)}`;
+      const headers = {
+        "accept": "application/pdf"
+      };
+      const response = await fetchWithBackendFallback(endpoint, { method: "GET", headers, redirect: "manual" });
+      const ct = response.headers.get("content-type") || "";
+      if (ct.includes("application/pdf") || ct.includes("octet-stream")) {
+        const body = await response.arrayBuffer();
+        res.status(response.status);
+        res.setHeader("content-type", ct);
+        const disposition = response.headers.get("content-disposition");
+        if (disposition) res.setHeader("content-disposition", disposition);
+        res.send(Buffer.from(body));
+      } else {
+        const body = await response.text();
+        if (body.includes("<!DOCTYPE") || body.includes("<html")) {
+          return res.status(404).json({ message: "PDF non trouv\xE9" });
+        }
+        res.status(response.status);
+        res.setHeader("content-type", ct || "application/json");
+        res.send(body);
+      }
+    } catch (err) {
+      console.error("[PUBLIC-PDF] Error:", err.message);
+      res.status(502).json({ message: "Erreur de connexion" });
+    }
   });
   app2.use("/api", async (req, res, next) => {
     try {
-      const targetUrl = `${EXTERNAL_API}${req.url}`;
+      const clientAccept = req.headers["accept"] || "application/json";
+      const wantsPdf = clientAccept.includes("application/pdf");
       const headers = {
-        "host": new URL(EXTERNAL_API).host,
-        "accept": "application/json",
+        "accept": wantsPdf ? "application/pdf" : "application/json",
         "x-requested-with": "XMLHttpRequest"
       };
       if (req.headers["content-type"]) {
@@ -1760,7 +2261,7 @@ async function registerRoutes(app2) {
           headers["content-type"] = "application/json";
         }
       }
-      const response = await fetch(targetUrl, fetchOptions);
+      const response = await fetchWithBackendFallback(req.url, fetchOptions);
       const proxyCookieParts = [];
       response.headers.forEach((value, key) => {
         const lk = key.toLowerCase();
@@ -1781,15 +2282,26 @@ async function registerRoutes(app2) {
         res.setHeader("X-Session-Cookie", proxyCookieParts.join("; "));
       }
       console.log(`[PROXY] ${req.method} /api${req.url} => ${response.status} ${response.statusText}`);
+      const upstreamContentType = response.headers.get("content-type") || "";
       const body = await response.arrayBuffer();
+      if (upstreamContentType.includes("application/pdf") || upstreamContentType.includes("octet-stream")) {
+        res.status(response.status);
+        res.setHeader("content-type", upstreamContentType);
+        const disposition = response.headers.get("content-disposition");
+        if (disposition) res.setHeader("content-disposition", disposition);
+        res.send(Buffer.from(body));
+        return;
+      }
       const text = Buffer.from(body).toString("utf-8");
       let isJson = false;
       try {
         const parsed = JSON.parse(text);
         isJson = true;
-        const debugEndpoints = ["/invoices", "/quotes", "/reservations", "/services", "/login", "/auth"];
+        const debugEndpoints = ["/invoices", "/quotes", "/reservations", "/services", "/login", "/auth", "/mobile/auth", "/mobile/public"];
         const shouldLog = debugEndpoints.some((ep) => req.url === ep || req.url.startsWith(ep + "?") || req.url.startsWith(ep + "/"));
-        if (shouldLog) {
+        if (response.status >= 400) {
+          console.log(`[PROXY-ERROR] ${req.method} /api${req.url} => ${response.status}:`, JSON.stringify(parsed).slice(0, 2e3));
+        } else if (shouldLog) {
           if (Array.isArray(parsed) && parsed.length > 0) {
             console.log(`[DEBUG] ${req.method} /api${req.url} => Array[${parsed.length}], keys:`, Object.keys(parsed[0]), "sample:", JSON.stringify(parsed[0]).slice(0, 1500));
           } else if (parsed && typeof parsed === "object") {
@@ -1827,8 +2339,9 @@ async function registerRoutes(app2) {
 }
 
 // server/index.ts
-import * as fs from "fs";
-import * as path from "path";
+import * as fs2 from "fs";
+import * as path2 from "path";
+require_parse_dev_secrets();
 var app = express();
 var log = console.log;
 function setupCors(app2) {
@@ -1877,17 +2390,18 @@ function setupBodyParsing(app2) {
   });
   app2.use(
     express.json({
+      limit: "25mb",
       verify: (req, _res, buf) => {
         req.rawBody = buf;
       }
     })
   );
-  app2.use(express.urlencoded({ extended: false }));
+  app2.use(express.urlencoded({ extended: false, limit: "25mb" }));
 }
 function setupRequestLogging(app2) {
   app2.use((req, res, next) => {
     const start = Date.now();
-    const path2 = req.path;
+    const path3 = req.path;
     let capturedJsonResponse = void 0;
     const originalResJson = res.json;
     res.json = function(bodyJson, ...args) {
@@ -1895,9 +2409,9 @@ function setupRequestLogging(app2) {
       return originalResJson.apply(res, [bodyJson, ...args]);
     };
     res.on("finish", () => {
-      if (!path2.startsWith("/api")) return;
+      if (!path3.startsWith("/api")) return;
       const duration = Date.now() - start;
-      let logLine = `${req.method} ${path2} ${res.statusCode} in ${duration}ms`;
+      let logLine = `${req.method} ${path3} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
@@ -1911,8 +2425,8 @@ function setupRequestLogging(app2) {
 }
 function getAppName() {
   try {
-    const appJsonPath = path.resolve(process.cwd(), "app.json");
-    const appJsonContent = fs.readFileSync(appJsonPath, "utf-8");
+    const appJsonPath = path2.resolve(process.cwd(), "app.json");
+    const appJsonContent = fs2.readFileSync(appJsonPath, "utf-8");
     const appJson = JSON.parse(appJsonContent);
     return appJson.expo?.name || "App Landing Page";
   } catch {
@@ -1920,19 +2434,19 @@ function getAppName() {
   }
 }
 function serveExpoManifest(platform, res) {
-  const manifestPath = path.resolve(
+  const manifestPath = path2.resolve(
     process.cwd(),
     "static-build",
     platform,
     "manifest.json"
   );
-  if (!fs.existsSync(manifestPath)) {
+  if (!fs2.existsSync(manifestPath)) {
     return res.status(404).json({ error: `Manifest not found for platform: ${platform}` });
   }
   res.setHeader("expo-protocol-version", "1");
   res.setHeader("expo-sfv-version", "0");
   res.setHeader("content-type", "application/json");
-  const manifest = fs.readFileSync(manifestPath, "utf-8");
+  const manifest = fs2.readFileSync(manifestPath, "utf-8");
   res.send(manifest);
 }
 function serveLandingPage({
@@ -1952,7 +2466,7 @@ function serveLandingPage({
   res.status(200).send(html);
 }
 function configureExpoAndLanding(app2) {
-  const templatePath = path.resolve(
+  const templatePath = path2.resolve(
     process.cwd(),
     "server",
     "templates",
@@ -1960,7 +2474,7 @@ function configureExpoAndLanding(app2) {
   );
   let landingPageTemplate = "";
   try {
-    landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
+    landingPageTemplate = fs2.readFileSync(templatePath, "utf-8");
   } catch {
     log("Warning: landing-page.html not found, using fallback");
     landingPageTemplate = "<!DOCTYPE html><html><body><h1>MyJantes App</h1></body></html>";
@@ -1996,9 +2510,9 @@ function configureExpoAndLanding(app2) {
     }
     next();
   });
-  app2.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
-  const staticBuildPath = path.resolve(process.cwd(), "static-build");
-  if (fs.existsSync(staticBuildPath)) {
+  app2.use("/assets", express.static(path2.resolve(process.cwd(), "assets")));
+  const staticBuildPath = path2.resolve(process.cwd(), "static-build");
+  if (fs2.existsSync(staticBuildPath)) {
     app2.use(express.static(staticBuildPath));
   } else {
     log("Warning: static-build directory not found, skipping static file serving");
