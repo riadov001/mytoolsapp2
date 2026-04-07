@@ -59,6 +59,9 @@ try {
   useFontsHook = null;
 }
 
+const safeFontHook: (fonts: Record<string, any>) => [boolean, Error | null] =
+  useFontsHook ?? (() => [true, null]);
+
 try {
   SplashScreen.preventAutoHideAsync();
 } catch (e) {
@@ -109,23 +112,19 @@ export default function RootLayout() {
   let fontsLoaded = false;
   let fontError: Error | null = null;
 
-  if (useFontsHook) {
-    try {
-      const result = useFontsHook({
-        Inter_400Regular,
-        Inter_500Medium,
-        Inter_600SemiBold,
-        Inter_700Bold,
-        Michroma_400Regular,
-      });
-      fontsLoaded = result[0];
-      fontError = result[1];
-    } catch (e) {
-      console.warn("[STARTUP] useFonts hook failed:", e);
-      fontError = e as Error;
-    }
-  } else {
-    fontError = new Error("Font modules not available");
+  try {
+    const result = safeFontHook({
+      Inter_400Regular,
+      Inter_500Medium,
+      Inter_600SemiBold,
+      Inter_700Bold,
+      Michroma_400Regular,
+    });
+    fontsLoaded = result[0];
+    fontError = result[1] ?? null;
+  } catch (e) {
+    console.warn("[STARTUP] useFonts hook failed:", e);
+    fontError = e as Error;
   }
 
   useEffect(() => {

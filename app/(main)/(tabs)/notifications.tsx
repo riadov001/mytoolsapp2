@@ -116,6 +116,9 @@ export default function NotificationsScreen() {
     try {
       const player = createAudioPlayer(require("@/assets/sounds/notification.mp3"));
       player.play();
+      setTimeout(() => {
+        try { player.remove(); } catch {}
+      }, 5000);
     } catch {}
   }, []);
 
