@@ -16,127 +16,100 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { authApi } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
-import { useCustomAlert } from "@/components/CustomAlert";
 
 export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
-  const { showAlert, AlertComponent } = useCustomAlert();
-  const [step, setStep] = useState<"email" | "code" | "newPassword">("email");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resetToken, setResetToken] = useState("");
+  const [sent, setSent] = useState(false);
 
   const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
-  const handleSendCode = async () => {
+  const handleSendLink = async () => {
     const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      showAlert({ type: "error", title: "Erreur", message: "Veuillez saisir votre adresse email.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
-    if (!validateEmail(trimmedEmail)) {
-      showAlert({ type: "error", title: "Erreur", message: "Veuillez saisir une adresse email valide.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
+    if (!trimmedEmail || !validateEmail(trimmedEmail)) return;
     setLoading(true);
     try {
-      const result = await authApi.forgotPassword(trimmedEmail);
-      showAlert({
-        type: "success",
-        title: "Lien envoyé",
-        message: "Vous recevrez un lien sécurisé de réinitialisation par email. Vous pouvez aussi réinitialiser votre mot de passe depuis le portail web.",
-        buttons: [{ text: "Continuer", style: "primary", onPress: () => setStep("code") }],
-      });
-    } catch (err: any) {
-      if (err.message?.includes("404") || err.message?.includes("Not Found")) {
-        showAlert({
-          type: "success",
-          title: "Vérifiez votre email",
-          message: "Si un compte est associé à cet email, vous recevrez un lien de réinitialisation. Vous pouvez aussi utiliser le portail web sécurisé.",
-          buttons: [{ text: "Continuer", style: "primary", onPress: () => setStep("code") }],
-        });
-      } else {
-        showAlert({
-          type: "warning",
-          title: "Information",
-          message: "Un lien de réinitialisation sécurisé sera envoyé à cet email. Vérifiez également vos spams. Vous pouvez aussi réinitialiser votre mot de passe depuis le portail web.",
-          buttons: [
-            { text: "Continuer", style: "primary", onPress: () => setStep("code") },
-            { text: "Contacter le support", onPress: () => router.push("/support") },
-          ],
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
+      await authApi.forgotPassword(trimmedEmail);
+    } catch {}
+    setLoading(false);
+    setSent(true);
   };
 
-  const handleVerifyCode = async () => {
-    if (!code.trim()) {
-      showAlert({ type: "error", title: "Erreur", message: "Veuillez saisir le token reçu dans votre email.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
-    if (code.trim().length < 4) {
-      showAlert({ type: "error", title: "Erreur", message: "Le token doit contenir au moins 4 caractères.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
-    setResetToken(code.trim());
-    setStep("newPassword");
-  };
+  if (sent) {
+    return (
+      <View style={styles.flex}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: Platform.OS === "web" ? 67 + 40 : insets.top + 40,
+              paddingBottom: Platform.OS === "web" ? 34 + 20 : insets.bottom + 20,
+            },
+          ]}
+        >
+          <View style={styles.sentContainer}>
+            <View style={styles.sentIconCircle}>
+              <Ionicons name="mail-unread-outline" size={40} color={theme.primary} />
+            </View>
 
-  const handleResetPassword = async () => {
-    if (!newPassword || !confirmPassword) {
-      showAlert({ type: "error", title: "Erreur", message: "Veuillez remplir les deux champs.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
-    if (newPassword.length < 8) {
-      showAlert({ type: "error", title: "Mot de passe trop court", message: "Le mot de passe doit contenir au moins 8 caractères.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      showAlert({ type: "error", title: "Erreur", message: "Les mots de passe ne correspondent pas.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
-    }
-    setLoading(true);
-    try {
-      await authApi.resetPassword(email.trim(), resetToken, newPassword);
-      showAlert({
-        type: "success",
-        title: "Mot de passe modifié",
-        message: "Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter.",
-        buttons: [{ text: "Se connecter", style: "primary", onPress: () => router.replace("/(auth)/login") }],
-      });
-    } catch (err: any) {
-      showAlert({
-        type: "error",
-        title: "Erreur",
-        message: err.message || "Impossible de réinitialiser le mot de passe. Le code est peut-être expiré.",
-        buttons: [
-          { text: "Réessayer", style: "primary" },
-          { text: "Contacter le support", onPress: () => router.push("/support") },
-        ],
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+            <Text style={styles.sentTitle}>Email envoyé</Text>
 
-  const renderStepIndicator = () => (
-    <View style={styles.stepIndicator}>
-      <View style={[styles.stepDot, step === "email" && styles.stepDotActive]} />
-      <View style={styles.stepLine} />
-      <View style={[styles.stepDot, step === "code" && styles.stepDotActive]} />
-      <View style={styles.stepLine} />
-      <View style={[styles.stepDot, step === "newPassword" && styles.stepDotActive]} />
-    </View>
-  );
+            <Text style={styles.sentMessage}>
+              Un lien de réinitialisation sécurisé a été envoyé à l'adresse :
+            </Text>
+            <Text style={styles.sentEmail}>{email.trim()}</Text>
+
+            <View style={styles.instructionsCard}>
+              <Text style={styles.instructionsTitle}>Étapes à suivre :</Text>
+              <View style={styles.instructionRow}>
+                <View style={styles.instructionBullet}>
+                  <Text style={styles.instructionNum}>1</Text>
+                </View>
+                <Text style={styles.instructionText}>Ouvrez l'email reçu (vérifiez aussi les spams)</Text>
+              </View>
+              <View style={styles.instructionRow}>
+                <View style={styles.instructionBullet}>
+                  <Text style={styles.instructionNum}>2</Text>
+                </View>
+                <Text style={styles.instructionText}>Cliquez sur le lien de réinitialisation dans l'email</Text>
+              </View>
+              <View style={styles.instructionRow}>
+                <View style={styles.instructionBullet}>
+                  <Text style={styles.instructionNum}>3</Text>
+                </View>
+                <Text style={styles.instructionText}>Suivez la procédure pour choisir votre nouveau mot de passe</Text>
+              </View>
+              <View style={styles.instructionRow}>
+                <View style={styles.instructionBullet}>
+                  <Text style={styles.instructionNum}>4</Text>
+                </View>
+                <Text style={styles.instructionText}>Revenez dans l'application et connectez-vous</Text>
+              </View>
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
+              onPress={() => router.replace("/(auth)/login")}
+            >
+              <Ionicons name="log-in-outline" size={20} color="#fff" />
+              <Text style={styles.actionBtnText}>Retour à la connexion</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.resendBtn}
+              onPress={() => { setSent(false); }}
+            >
+              <Ionicons name="refresh-outline" size={16} color={theme.primary} />
+              <Text style={styles.resendBtnText}>Renvoyer l'email</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -153,181 +126,65 @@ export default function ForgotPasswordScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable onPress={() => { if (step === "email") router.back(); else if (step === "code") setStep("email"); else setStep("code"); }} style={styles.backBtn}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
 
-        {renderStepIndicator()}
+        <View style={styles.iconHeader}>
+          <View style={styles.iconCircle}>
+            <Ionicons name="lock-open-outline" size={32} color={theme.primary} />
+          </View>
+        </View>
+        <Text style={styles.title}>Mot de passe oublié</Text>
+        <Text style={styles.subtitle}>
+          Saisissez votre adresse email pour recevoir un lien de réinitialisation sécurisé par email.
+        </Text>
 
-        {step === "email" && (
-          <>
-            <View style={styles.iconHeader}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="mail-outline" size={32} color={theme.primary} />
-              </View>
-            </View>
-            <Text style={styles.title}>Mot de passe oublié</Text>
-            <Text style={styles.subtitle}>
-              Saisissez votre adresse email pour recevoir un lien de réinitialisation sécurisé.
-            </Text>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Email</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={20} color={theme.textSecondary} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="votre@email.com"
+              placeholderTextColor={theme.textTertiary}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              testID="forgot-email-input"
+            />
+          </View>
+        </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color={theme.textSecondary} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="votre@email.com"
-                  placeholderTextColor={theme.textTertiary}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                />
-              </View>
-            </View>
-
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed, loading && styles.actionBtnDisabled]}
-              onPress={handleSendCode}
-              disabled={loading}
-            >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionBtnText}>Envoyer le code</Text>}
-            </Pressable>
-          </>
+        {email.trim().length > 0 && !validateEmail(email.trim()) && (
+          <Text style={styles.errorHint}>Adresse email invalide</Text>
         )}
 
-        {step === "code" && (
-          <>
-            <View style={styles.iconHeader}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="key-outline" size={32} color={theme.primary} />
-              </View>
-            </View>
-            <Text style={styles.title}>Vérifier votre identité</Text>
-            <Text style={styles.subtitle}>
-              Saisissez le token du lien reçu à {email}.
-            </Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Token de vérification</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="keypad-outline" size={20} color={theme.textSecondary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, styles.codeInput]}
-                  value={code}
-                  onChangeText={setCode}
-                  placeholder="Token du lien reçu"
-                  placeholderTextColor={theme.textTertiary}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-            </View>
-
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
-              onPress={handleVerifyCode}
-            >
-              <Text style={styles.actionBtnText}>Valider le token</Text>
-            </Pressable>
-
-            <Pressable style={styles.resendBtn} onPress={handleSendCode} disabled={loading}>
-              <Text style={styles.resendBtnText}>
-                {loading ? "Envoi en cours..." : "Renvoyer le lien"}
-              </Text>
-            </Pressable>
-          </>
-        )}
-
-        {step === "newPassword" && (
-          <>
-            <View style={styles.iconHeader}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="lock-closed-outline" size={32} color={theme.primary} />
-              </View>
-            </View>
-            <Text style={styles.title}>Nouveau mot de passe</Text>
-            <Text style={styles.subtitle}>
-              Choisissez un mot de passe sécurisé (8 caractères minimum).
-            </Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nouveau mot de passe</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color={theme.textSecondary} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  placeholder="Nouveau mot de passe"
-                  placeholderTextColor={theme.textTertiary}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                />
-                <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                  <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={theme.textSecondary} />
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Confirmer le mot de passe</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color={theme.textSecondary} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirmer le mot de passe"
-                  placeholderTextColor={theme.textTertiary}
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                />
-                <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeBtn}>
-                  <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color={theme.textSecondary} />
-                </Pressable>
-              </View>
-            </View>
-
-            {newPassword.length > 0 && (
-              <View style={styles.strengthContainer}>
-                <View style={styles.strengthRow}>
-                  <Ionicons name={newPassword.length >= 8 ? "checkmark-circle" : "ellipse-outline"} size={16} color={newPassword.length >= 8 ? theme.success : theme.textTertiary} />
-                  <Text style={[styles.strengthText, newPassword.length >= 8 && styles.strengthTextValid]}>8 caractères minimum</Text>
-                </View>
-                <View style={styles.strengthRow}>
-                  <Ionicons name={/[A-Z]/.test(newPassword) ? "checkmark-circle" : "ellipse-outline"} size={16} color={/[A-Z]/.test(newPassword) ? theme.success : theme.textTertiary} />
-                  <Text style={[styles.strengthText, /[A-Z]/.test(newPassword) && styles.strengthTextValid]}>Une majuscule</Text>
-                </View>
-                <View style={styles.strengthRow}>
-                  <Ionicons name={/[0-9]/.test(newPassword) ? "checkmark-circle" : "ellipse-outline"} size={16} color={/[0-9]/.test(newPassword) ? theme.success : theme.textTertiary} />
-                  <Text style={[styles.strengthText, /[0-9]/.test(newPassword) && styles.strengthTextValid]}>Un chiffre</Text>
-                </View>
-                <View style={styles.strengthRow}>
-                  <Ionicons name={newPassword === confirmPassword && confirmPassword.length > 0 ? "checkmark-circle" : "ellipse-outline"} size={16} color={newPassword === confirmPassword && confirmPassword.length > 0 ? theme.success : theme.textTertiary} />
-                  <Text style={[styles.strengthText, newPassword === confirmPassword && confirmPassword.length > 0 && styles.strengthTextValid]}>Mots de passe identiques</Text>
-                </View>
-              </View>
-            )}
-
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed, loading && styles.actionBtnDisabled]}
-              onPress={handleResetPassword}
-              disabled={loading}
-            >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionBtnText}>Réinitialiser le mot de passe</Text>}
-            </Pressable>
-          </>
-        )}
+        <Pressable
+          style={({ pressed }) => [
+            styles.actionBtn,
+            pressed && styles.actionBtnPressed,
+            (!email.trim() || !validateEmail(email.trim()) || loading) && styles.actionBtnDisabled,
+          ]}
+          onPress={handleSendLink}
+          disabled={!email.trim() || !validateEmail(email.trim()) || loading}
+          testID="forgot-send-btn"
+        >
+          {loading ? <ActivityIndicator color="#fff" /> : (
+            <>
+              <Ionicons name="send-outline" size={18} color="#fff" />
+              <Text style={styles.actionBtnText}>Envoyer le lien</Text>
+            </>
+          )}
+        </Pressable>
 
         <Pressable style={styles.supportLink} onPress={() => router.push("/support")}>
           <Ionicons name="help-circle-outline" size={18} color={theme.textSecondary} />
           <Text style={styles.supportLinkText}>Besoin d'aide ? Contacter le support</Text>
         </Pressable>
       </ScrollView>
-      {AlertComponent}
     </KeyboardAvoidingView>
   );
 }
@@ -343,34 +200,7 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
     height: 40,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
-  },
-  stepIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-    gap: 0,
-  },
-  stepDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: theme.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  stepDotActive: {
-    backgroundColor: theme.primary,
-    borderColor: theme.primary,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  stepLine: {
-    width: 40,
-    height: 2,
-    backgroundColor: theme.border,
+    marginBottom: 16,
   },
   iconHeader: {
     alignItems: "center",
@@ -403,7 +233,7 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   },
   inputGroup: {
     gap: 6,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   label: {
     fontSize: 14,
@@ -431,16 +261,12 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
     color: theme.text,
     height: "100%",
   },
-  codeInput: {
-    letterSpacing: 4,
-    fontSize: 18,
-    fontFamily: "Inter_600SemiBold",
-  },
-  eyeBtn: {
-    height: "100%",
-    width: 44,
-    justifyContent: "center",
-    alignItems: "center",
+  errorHint: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: theme.error,
+    marginLeft: 4,
+    marginBottom: 8,
   },
   actionBtn: {
     backgroundColor: theme.primary,
@@ -449,61 +275,123 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 8,
+    flexDirection: "row",
+    gap: 8,
   },
   actionBtnPressed: {
     backgroundColor: theme.primaryDark,
   },
   actionBtnDisabled: {
-    opacity: 0.7,
+    opacity: 0.5,
   },
   actionBtnText: {
     color: "#fff",
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
   },
-  resendBtn: {
-    alignItems: "center",
-    marginTop: 16,
-    paddingVertical: 8,
-  },
-  resendBtnText: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    color: theme.primary,
-  },
-  strengthContainer: {
-    backgroundColor: theme.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.border,
-    padding: 12,
-    marginBottom: 8,
-    gap: 6,
-  },
-  strengthRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  strengthText: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: theme.textTertiary,
-  },
-  strengthTextValid: {
-    color: theme.success,
-  },
   supportLink: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    marginTop: 28,
+    marginTop: 32,
     paddingVertical: 8,
   },
   supportLinkText: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
     color: theme.textSecondary,
+  },
+  sentContainer: {
+    flex: 1,
+    alignItems: "center",
+    paddingTop: 20,
+  },
+  sentIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.surfaceSecondary,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: theme.border,
+    marginBottom: 20,
+  },
+  sentTitle: {
+    fontSize: 24,
+    fontFamily: "Inter_700Bold",
+    color: theme.text,
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  sentMessage: {
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    color: theme.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  sentEmail: {
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+    color: theme.primary,
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  instructionsCard: {
+    backgroundColor: theme.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.border,
+    padding: 16,
+    width: "100%",
+    marginBottom: 28,
+    gap: 12,
+  },
+  instructionsTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: theme.text,
+    marginBottom: 4,
+  },
+  instructionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  instructionBullet: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: theme.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 1,
+  },
+  instructionNum: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+  },
+  instructionText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: theme.textSecondary,
+    lineHeight: 22,
+    flex: 1,
+  },
+  resendBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  resendBtnText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: theme.primary,
   },
 });

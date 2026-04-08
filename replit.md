@@ -45,21 +45,20 @@ Social login with Google and Apple. Uses Firebase Auth JS SDK on the frontend. B
 **Backend:**
 - `FIREBASE_SERVICE_ACCOUNT_JSON` (Firebase Admin SDK service account JSON)
 
-## PDF Download & Share
+## PDF Viewing
 
-PDF files are downloaded directly from the API (binary response, `Content-Type: application/pdf`). No redirect to PWA.
+PDF viewing uses `viewPdf()` from `lib/pdf-download.ts`. A single "Visualiser le PDF" button with eye icon on all 4 detail screens (admin/client devis/facture).
 
-### Endpoints
-- **Devis**: `GET /api/mobile/quotes/:id/pdf` (auth JWT required)
-- **Facture**: `GET /api/mobile/invoices/:id/pdf` (auth JWT required)
-- **Public PDF**: `GET /api/public/pdf/:type/:id?token=viewToken` (no auth, token-based access for sharing)
+### Strategy
+- **With viewToken** (preferred): Opens public URL `saas.mytoolsgroup.eu/api/public/pdf/{type}/{id}?token=xxx` — no auth needed
+  - Web: opens in new tab
+  - Native: opens in expo-web-browser
+- **Without viewToken** (fallback):
+  - Web: fetch via proxy with Bearer+Cookie headers → blob → window.open
+  - Native: FileSystem.downloadAsync directly to saas.mytoolsgroup.eu with auth headers → Sharing.shareAsync
 
-### Implementation
-- Web: `fetch` with `Authorization: Bearer` header → blob → `URL.createObjectURL` → download link
-- Native (client): PDF URL goes directly to `saas.mytoolsgroup.eu` (bypasses proxy to avoid 401 cookie issues) with auth headers (Bearer + Cookie)
-- Native (admin): Uses `getMobilePdfUrl()` from `lib/admin-api.ts` which resolves to the direct API URL with Bearer auth
-- Share: `sharePdfDirect()` in `lib/admin-api.ts` builds public URL with viewToken when available, falls back to direct API URL
-- Catch-all proxy: passes through `Accept: application/pdf` header and binary responses correctly (content-type preserved)
+### Key files
+- `lib/pdf-download.ts` — `viewPdf()` and `getPublicPdfUrl()` functions
 
 ## Reservation Multi-Service
 
@@ -84,7 +83,8 @@ Key features include:
 - Quote status flows from `pending` to `sent`, `approved`, and `accepted`, with appropriate UI actions.
 - Invoice creation is integrated with quotes via a "Générer facture" button in quote detail.
 - Numeric conversion and sanitization of items array for API payloads.
-- PDF sharing via PWA URLs (saas.mytoolsgroup.eu/quotes/view/{viewToken} or /invoices/view/{viewToken}).
+- PDF viewing via public URLs with viewToken (no auth required).
+- Password reset via email link (no in-app token entry — user follows email instructions).
 - Client creation is re-enabled with a "+" button in the Clients tab header. Only client (particulier/professionnel) roles can be created from this screen.
 
 ## Tab Navigation
