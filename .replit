@@ -88,12 +88,12 @@ outputType = "console"
 name = "Build Android APK"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "EAS_NO_VCS=1 npx eas build --platform android --profile preview --non-interactive --no-wait"
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/build-android.sh"
 
 [userenv]
 

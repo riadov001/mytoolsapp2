@@ -88,10 +88,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": "184bb31c-8fb0-42ce-b71f-8408a91225b3"
+        "projectId": "2429ee3a-9dd5-4767-9532-175f1db29ff3"
       },
       "router": {}
     },
-    "owner": "mytoolsapps"
+    "owner": "mytoolsgroup"
   }
 }
