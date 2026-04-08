@@ -8,7 +8,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminInvoices, adminClients, sharePdfDirect, getAdminAccessToken, getMobilePdfUrl } from "@/lib/admin-api";
+import { adminInvoices, adminClients, getAdminAccessToken, getMobilePdfUrl } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -65,7 +65,6 @@ export default function InvoiceDetailScreen() {
   const styles = useMemo(() => getStyles(theme), [theme]);
   const queryClient = useQueryClient();
   const { showAlert, AlertComponent } = useCustomAlert();
-  const [pdfLoading, setPdfLoading] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const { data: inv, isLoading, error } = useQuery({
@@ -319,44 +318,7 @@ export default function InvoiceDetailScreen() {
             </Pressable>
           ) : null}
           <Pressable
-            style={[styles.actionBtn, { borderColor: theme.primary + "50", opacity: pdfLoading ? 0.6 : 1 }]}
-            disabled={pdfLoading}
-            onPress={async () => {
-              setPdfLoading(true);
-              try {
-                const ref = inv?.invoiceNumber || inv?.reference || id;
-                const vt = inv?.viewToken || inv?.pdfToken || inv?.token || inv?.publicToken || inv?.shareToken || inv?.publicId;
-                const result = await sharePdfDirect("invoices", id, ref, vt);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                if (result === "copied") {
-                  showAlert({
-                    type: "success",
-                    title: "Lien copié",
-                    message: "Le lien de la facture a été copié dans le presse-papier.",
-                    buttons: [{ text: "OK", style: "primary" }],
-                  });
-                }
-              } catch (err: any) {
-                if (err?.message?.includes("cancelled") || err?.message?.includes("dismiss")) return;
-                showAlert({
-                  type: "error",
-                  title: "Erreur",
-                  message: err?.message || "Impossible de partager le lien.",
-                  buttons: [{ text: "OK", style: "primary" }],
-                });
-              } finally {
-                setPdfLoading(false);
-              }
-            }}
-          >
-            {pdfLoading
-              ? <ActivityIndicator size="small" color={theme.primary} />
-              : <Ionicons name="share-outline" size={18} color={theme.primary} />
-            }
-            <Text style={[styles.actionBtnText, { color: theme.primary }]}>Partager le PDF</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.actionBtn, { borderColor: "#22C55E50", opacity: downloadingPdf ? 0.6 : 1 }]}
+            style={[styles.actionBtn, { borderColor: theme.primary + "50", opacity: downloadingPdf ? 0.6 : 1 }]}
             disabled={downloadingPdf}
             onPress={async () => {
               setDownloadingPdf(true);
@@ -369,7 +331,7 @@ export default function InvoiceDetailScreen() {
                 showAlert({
                   type: "error",
                   title: "Erreur",
-                  message: err?.message || "Impossible de télécharger le PDF.",
+                  message: err?.message || "Impossible d'ouvrir le PDF.",
                   buttons: [{ text: "OK", style: "primary" }],
                 });
               } finally {
@@ -378,10 +340,10 @@ export default function InvoiceDetailScreen() {
             }}
           >
             {downloadingPdf
-              ? <ActivityIndicator size="small" color="#22C55E" />
-              : <Ionicons name="download-outline" size={18} color="#22C55E" />
+              ? <ActivityIndicator size="small" color={theme.primary} />
+              : <Ionicons name="eye-outline" size={18} color={theme.primary} />
             }
-            <Text style={[styles.actionBtnText, { color: "#22C55E" }]}>Télécharger le PDF</Text>
+            <Text style={[styles.actionBtnText, { color: theme.primary }]}>{downloadingPdf ? "Chargement…" : "Visualiser le PDF"}</Text>
           </Pressable>
         </View>
 

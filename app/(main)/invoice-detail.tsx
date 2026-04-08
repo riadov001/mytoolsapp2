@@ -17,7 +17,7 @@ import * as Linking from "expo-linking";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { invoicesApi, getBackendUrl, getSessionCookie } from "@/lib/api";
-import { getAdminAccessToken, sharePdfDirect } from "@/lib/admin-api";
+import { getAdminAccessToken } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
@@ -439,25 +439,9 @@ export default function InvoiceDetailScreen() {
             >
               {downloading
                 ? <ActivityIndicator size="small" color={theme.primary} />
-                : <Ionicons name="download-outline" size={18} color={theme.primary} />
+                : <Ionicons name="eye-outline" size={18} color={theme.primary} />
               }
-              <Text style={styles.btnPdfText}>{downloading ? "Téléchargement…" : "Télécharger la facture"}</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.btnPdf, pressed && styles.btnPdfPressed]}
-              onPress={async () => {
-                try {
-                  const result = await sharePdfDirect("invoices", String(id), displayRef, viewToken);
-                  if (result === "copied") {
-                    showAlert({ type: "success", title: "Lien copié", message: "Le lien de la facture a été copié dans le presse-papier.", buttons: [{ text: "OK", style: "primary" }] });
-                  }
-                } catch (err: any) {
-                  showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible de partager.", buttons: [{ text: "OK", style: "primary" }] });
-                }
-              }}
-            >
-              <Ionicons name="share-outline" size={18} color={theme.primary} />
-              <Text style={styles.btnPdfText}>Partager</Text>
+              <Text style={styles.btnPdfText}>{downloading ? "Chargement…" : "Visualiser la facture"}</Text>
             </Pressable>
           </View>
         )}

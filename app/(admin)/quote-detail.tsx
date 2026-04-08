@@ -8,10 +8,11 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminQuotes, adminClients, sharePdfDirect, getAdminAccessToken } from "@/lib/admin-api";
+import { adminQuotes, adminClients, getAdminAccessToken, getMobilePdfUrl } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
+import { downloadPdfFile } from "@/lib/pdf-download";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "En attente", approved: "Approuvé", rejected: "Rejeté",
@@ -437,23 +438,14 @@ export default function QuoteDetailScreen() {
                 setPdfLoading(true);
                 try {
                   const ref = q?.quoteNumber || q?.reference || id;
-                  const vt = q?.viewToken || q?.pdfToken || q?.token || q?.publicToken || q?.shareToken || q?.publicId;
-                  const result = await sharePdfDirect("quotes", id, ref, vt);
+                  const url = getMobilePdfUrl("quotes", id);
+                  await downloadPdfFile(url, `devis-${ref}.pdf`);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  if (result === "copied") {
-                    showAlert({
-                      type: "success",
-                      title: "Lien copié",
-                      message: "Le lien du devis a été copié dans le presse-papier.",
-                      buttons: [{ text: "OK", style: "primary" }],
-                    });
-                  }
                 } catch (err: any) {
-                  if (err?.message?.includes("cancelled") || err?.message?.includes("dismiss")) return;
                   showAlert({
                     type: "error",
                     title: "Erreur",
-                    message: err?.message || "Impossible de partager le lien.",
+                    message: err?.message || "Impossible d'ouvrir le PDF.",
                     buttons: [{ text: "OK", style: "primary" }],
                   });
                 } finally {
@@ -463,9 +455,9 @@ export default function QuoteDetailScreen() {
             >
               {pdfLoading
                 ? <ActivityIndicator size="small" color={theme.primary} />
-                : <Ionicons name="share-outline" size={18} color={theme.primary} />
+                : <Ionicons name="eye-outline" size={18} color={theme.primary} />
               }
-              <Text style={styles.actionBtnSecondaryText}>Partager le PDF</Text>
+              <Text style={styles.actionBtnSecondaryText}>{pdfLoading ? "Chargement…" : "Visualiser le PDF"}</Text>
             </Pressable>
           </View>
         ) : null}
