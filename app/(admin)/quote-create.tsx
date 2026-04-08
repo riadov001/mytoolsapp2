@@ -12,7 +12,6 @@ import * as Haptics from "expo-haptics";
 import { adminQuotes, adminClients, adminServices } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
-import OCRScannerModal, { OCRResult } from "@/components/OCRScannerModal";
 import { consumePendingNewClientId } from "@/lib/new-client-store";
 
 interface LineItem {
@@ -72,7 +71,6 @@ export default function QuoteCreateScreen() {
   const [photos, setPhotos] = useState<{ uri: string; name: string }[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [showServicesPicker, setShowServicesPicker] = useState(false);
-  const [showOCRModal, setShowOCRModal] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { id: uid(), description: "", quantity: "1", unitPrice: "", tvaRate: "20" },
   ]);
@@ -247,31 +245,6 @@ export default function QuoteCreateScreen() {
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
 
-  const handleOCRResult = (result: OCRResult) => {
-    if (result.notes) setNotes(result.notes);
-    if (result.vehicleBrand) setVehicleBrand(result.vehicleBrand);
-    if (result.vehicleModel) setVehicleModel(result.vehicleModel);
-    if (result.vehiclePlate) setVehiclePlate(result.vehiclePlate);
-    if (result.items && result.items.length > 0) {
-      setLineItems(result.items.map(it => ({
-        id: uid(),
-        description: it.description || "",
-        quantity: it.quantity || "1",
-        unitPrice: it.unitPrice || "",
-        tvaRate: it.tvaRate || "20",
-      })));
-    }
-    if ((result.clientName || result.clientEmail) && clientsArr.length > 0) {
-      const name = (result.clientName || "").toLowerCase();
-      const email = (result.clientEmail || "").toLowerCase();
-      const matched = clientsArr.find((c: any) => {
-        const fullName = `${c.firstName || ""} ${c.lastName || ""}`.toLowerCase().trim();
-        return (email && c.email?.toLowerCase() === email) || (name && fullName.includes(name));
-      });
-      if (matched) setSelectedClientId((matched as any).id);
-    }
-  };
-
   const addLineItem = () => {
     setLineItems(prev => [...prev, { id: uid(), description: "", quantity: "1", unitPrice: "", tvaRate: "20" }]);
   };
@@ -333,7 +306,7 @@ export default function QuoteCreateScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultiple: true,
+      allowsMultipleSelection: true,
       quality: 0.7,
     });
     if (!result.canceled) {
@@ -354,10 +327,6 @@ export default function QuoteCreateScreen() {
       Alert.alert("Attention", "Veuillez sélectionner au moins un service.");
       return;
     }
-    if (!isEditMode && photos.length === 0) {
-      Alert.alert("Attention", "Au moins une photo est obligatoire pour le devis.");
-      return;
-    }
     if (photos.length > 3) {
       Alert.alert("Attention", "Maximum 3 photos autorisées.");
       return;
@@ -376,7 +345,7 @@ export default function QuoteCreateScreen() {
 
     createMutation.mutate({
       clientId: selectedClientId,
-      serviceId: selectedServices[0],
+      serviceId: selectedServices[0] || "",
       status: "pending",
       notes: notes.trim() || undefined,
       vehicleInfo,
@@ -409,21 +378,6 @@ export default function QuoteCreateScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* OCR Scanner Banner */}
-        <Pressable
-          style={[styles.ocrBanner, { backgroundColor: theme.primary + "15", borderColor: theme.primary + "40" }]}
-          onPress={() => setShowOCRModal(true)}
-        >
-          <View style={[styles.ocrIconBg, { backgroundColor: theme.primary + "20" }]}>
-            <Ionicons name="scan-outline" size={20} color={theme.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.ocrBannerTitle, { color: theme.primary }]}>Scanner un document</Text>
-            <Text style={[styles.ocrBannerSub, { color: theme.textSecondary }]}>Pré-remplir le formulaire par OCR</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.primary} />
-        </Pressable>
-
         {/* Client Picker */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Client *</Text>
@@ -548,7 +502,7 @@ export default function QuoteCreateScreen() {
 
         {/* Photos */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photos * (1 minimum, maximum 3)</Text>
+          <Text style={styles.sectionTitle}>Photos (optionnel, maximum 3)</Text>
           {photos.length > 0 ? (
             <FlatList
               scrollEnabled={false}
@@ -560,7 +514,7 @@ export default function QuoteCreateScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.photoName} numberOfLines={1}>{item.name}</Text>
                   </View>
-                  {photos.length > 1 && (
+                  {photos.length > 0 && (
                     <Pressable onPress={() => setPhotos(prev => prev.filter((_, i) => i !== index))}>
                       <Ionicons name="close-circle" size={20} color="#EF4444" />
                     </Pressable>
@@ -704,12 +658,6 @@ export default function QuoteCreateScreen() {
         </Pressable>
       </ScrollView>
 
-      <OCRScannerModal
-        visible={showOCRModal}
-        mode="quote"
-        onResult={handleOCRResult}
-        onClose={() => setShowOCRModal(false)}
-      />
     </View>
   );
 }
@@ -816,22 +764,4 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
     paddingVertical: 16, paddingHorizontal: 20,
   },
   createBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  ocrBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  ocrIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  ocrBannerTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  ocrBannerSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
 });

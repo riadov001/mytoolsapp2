@@ -80,7 +80,7 @@ export default function IndexScreen() {
         />
       </View>
       <ActivityIndicator size="small" color={theme.primary} style={styles.loader} />
-      <Text style={styles.versionText}>v1.0</Text>
+      <Text style={styles.versionText}>v2.0.5</Text>
     </View>
   );
 }

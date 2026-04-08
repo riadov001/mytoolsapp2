@@ -304,7 +304,7 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Se déconnecter</Text>
         </Pressable>
 
-        <Text style={styles.version}>MyTools v1.0</Text>
+        <Text style={styles.version}>MyTools v2.0.5</Text>
       </ScrollView>
       {AlertComponent}
     </View>

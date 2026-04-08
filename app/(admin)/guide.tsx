@@ -23,7 +23,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
     items: [
       "L'application comporte 5 onglets principaux en bas de l'écran : Tableau de bord, Devis, Factures, Rendez-vous et Paramètres.",
       "Le bouton flottant « + » (rouge) en bas au centre permet de créer rapidement un devis, une facture ou un rendez-vous.",
-      "L'onglet « Plus » (en haut à droite de l'écran d'accueil) donne accès aux outils avancés : scanner OCR, gestion des services, utilisateurs et analyses IA.",
+      "L'onglet « Plus » (en haut à droite de l'écran d'accueil) donne accès aux outils avancés : gestion des services, utilisateurs et analyses IA.",
       "Swipez vers le bas sur n'importe quel écran à liste pour rafraîchir les données.",
     ],
   },
@@ -94,20 +94,6 @@ const GUIDE_SECTIONS: GuideSection[] = [
       "Recherchez un client par nom, prénom ou adresse email.",
       "Appuyez sur un client pour voir sa fiche complète avec l'historique de ses devis, factures et rendez-vous.",
       "Créez ou modifiez une fiche client via le bouton « + » ou depuis le formulaire client.",
-    ],
-  },
-  {
-    id: "ocr",
-    icon: "scan-outline",
-    iconColor: "#EC4899",
-    title: "Scanner OCR (IA)",
-    items: [
-      "Accédez au scanner depuis l'onglet « Plus » > « Scanner un devis » ou « Scanner une facture ».",
-      "Prenez une photo d'un document papier (devis, facture, bon de commande) avec l'appareil photo.",
-      "L'intelligence artificielle extrait automatiquement les informations : client, articles, quantités, prix et totaux.",
-      "Vérifiez et corrigez les données extraites avant de créer le document définitif.",
-      "Fonctionne avec la majorité des formats de documents : factures fournisseurs, devis partenaires, bons de livraison.",
-      "Cette fonctionnalité nécessite une connexion internet et des droits d'accès à la caméra.",
     ],
   },
   {

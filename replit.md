@@ -56,7 +56,8 @@ PDF files are downloaded directly from the API (binary response, `Content-Type: 
 
 ### Implementation
 - Web: `fetch` with `Authorization: Bearer` header → blob → `URL.createObjectURL` → download link
-- Native: `FileSystem.downloadAsync` with auth headers → `Sharing.shareAsync`
+- Native (client): PDF URL goes directly to `saas.mytoolsgroup.eu` (bypasses proxy to avoid 401 cookie issues) with auth headers (Bearer + Cookie)
+- Native (admin): Uses `getMobilePdfUrl()` from `lib/admin-api.ts` which resolves to the direct API URL with Bearer auth
 - Share: `sharePdfDirect()` in `lib/admin-api.ts` builds public URL with viewToken when available, falls back to direct API URL
 - Catch-all proxy: passes through `Accept: application/pdf` header and binary responses correctly (content-type preserved)
 
@@ -78,11 +79,10 @@ Key features include:
 - Admin interface provides a dashboard with KPIs and CRUD operations for quotes, invoices, reservations, and clients.
 - Admin authentication uses Bearer tokens stored in SecureStore.
 - Client authentication uses cookie-based sessions stored in SecureStore.
-- OCR scanning functionality for admin forms (invoice-create, quote-create) to extract information from documents using Gemini Vision.
 - Auto-refresh polling for data: quotes every 30s, invoices/reservations every 60s.
 - Robust API response handling with auto-unwrapping and extensive field name fallbacks for amounts and line items.
 - Quote status flows from `pending` to `sent`, `approved`, and `accepted`, with appropriate UI actions.
-- Invoice creation is integrated with quotes via a "Générer facture" button in quote detail, requiring photo upload for quotes.
+- Invoice creation is integrated with quotes via a "Générer facture" button in quote detail.
 - Numeric conversion and sanitization of items array for API payloads.
 - PDF sharing via PWA URLs (saas.mytoolsgroup.eu/quotes/view/{viewToken} or /invoices/view/{viewToken}).
 - Client creation is re-enabled with a "+" button in the Clients tab header. Only client (particulier/professionnel) roles can be created from this screen.
@@ -93,14 +93,13 @@ The admin tab bar has the following tabs:
 - **Devis** — Quotes management
 - **Factures** — Invoices management
 - **+ (Create)** — Center button opening creation modal
-- **Plus** — Features menu (RDV, OCR Scanner, AI Analytics)
+- **Plus** — Features menu (RDV, AI Analytics)
 - **Clients** — Client management
 - **Réglages** — Settings
 
 The "Plus" tab replaced the previous "RDV" tab and provides access to:
 - Rendez-vous (reservations) — always available
 - Utilisateurs — visible only for super_admin and root_admin roles. CRUD management of garage staff.
-- OCR Scanner (quote/invoice) — always available
 - Logs système — visible only for root_admin. Real-time server log viewer with filtering, search, export (JSON/CSV), and auto-refresh.
 - AI Analytics (global, commercial, growth) — conditionally available based on garage plan (Pro+)
 
@@ -126,13 +125,6 @@ The "Plus" tab replaced the previous "RDV" tab and provides access to:
 - Invoices: Same two-step process — create invoice, then upload media via POST to `/api/admin/invoices/{id}/media`
 - Photos are displayed in both quote-detail and invoice-detail screens
 
-## OCR
-- Uses Gemini 2.5 Flash vision model via `/api/ocr/analyze` endpoint (registered before catch-all proxy)
-- Supports both camera capture and gallery import
-- Extracts structured data: client info, vehicle info (quotes), line items, payment method (invoices)
-- 30-second timeout for AI analysis
-- Fallback to empty template if extraction fails
-
 ## Garage Plan & AI Features
 - `getGaragePlan()` in admin-api.ts fetches user info from `/api/auth/me`
 - Detects garage plan (free, pro, premium, enterprise, etc.)
@@ -151,7 +143,6 @@ Always run `npx expo install <package> --fix` or `npx expo install --fix` to aut
 - **Authentication**: Bearer tokens and cookie sessions managed by the external API. Apple Sign-In uses nonce-based verification via `expo-crypto`.
 - **Social Auth**: Firebase Admin SDK verifies Google/Apple tokens, then forwards to external API `/mobile/auth/login-with-firebase`.
 - **Data Storage**: AsyncStorage for GDPR consent, SecureStore for authentication tokens and session cookies.
-- **OCR**: Gemini Vision via `@google/genai` SDK (Replit AI Integrations) at `/api/ocr/analyze` endpoint for document scanning.
 - **AI Analytics**: Via `/api/admin/advanced-analytics` endpoint.
 - **Push Notifications**: Integrated for user notifications.
 - **Company Search**: SIRET lookup via `/api/mobile/public/siret-lookup` (proxied to external API).

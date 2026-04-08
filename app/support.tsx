@@ -92,7 +92,7 @@ export default function SupportScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <ScrollView
           style={styles.scrollView}
@@ -171,32 +171,31 @@ export default function SupportScreen() {
             />
           </View>
 
+          <View style={{ height: 16 }} />
+          <Pressable
+            style={({ pressed }) => [
+              styles.submitButton,
+              !canSubmit && styles.submitButtonDisabled,
+              pressed && canSubmit && styles.submitButtonPressed,
+            ]}
+            onPress={handleSubmit}
+            disabled={!canSubmit || loading}
+          >
+            {loading ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <ActivityIndicator color="#fff" size="small" />
+                <Text style={styles.submitButtonText}>Envoi…</Text>
+              </View>
+            ) : (
+              <>
+                <Ionicons name="send" size={18} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.submitButtonText}>Envoyer</Text>
+              </>
+            )}
+          </Pressable>
+          <View style={{ height: Platform.OS === "web" ? 34 : Math.max(insets.bottom, 16) }} />
         </ScrollView>
       </KeyboardAvoidingView>
-
-      <View style={[styles.bottomBar, { paddingBottom: Platform.OS === "web" ? 34 : Math.max(insets.bottom, 16) }]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.submitButton,
-            !canSubmit && styles.submitButtonDisabled,
-            pressed && canSubmit && styles.submitButtonPressed,
-          ]}
-          onPress={handleSubmit}
-          disabled={!canSubmit || loading}
-        >
-          {loading ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <ActivityIndicator color="#fff" size="small" />
-              <Text style={styles.submitButtonText}>Envoi…</Text>
-            </View>
-          ) : (
-            <>
-              <Ionicons name="send" size={18} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.submitButtonText}>Envoyer</Text>
-            </>
-          )}
-        </Pressable>
-      </View>
       {AlertComponent}
     </View>
   );

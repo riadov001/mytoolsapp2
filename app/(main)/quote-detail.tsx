@@ -208,7 +208,8 @@ export default function QuoteDetailScreen() {
   const finalStatuses = new Set(["accepted", "accepté", "accepte", "rejected", "refusé", "refuse", "refused", "completed", "terminé", "termine", "cancelled", "annulé", "annule", "annulée", "annulee"]);
   const canRespond = !isPending && !finalStatuses.has(statusLower);
 
-  const pdfUrl = `${getBackendUrl()}/api/mobile/quotes/${id}/pdf`;
+  const pdfBaseUrl = Platform.OS === "web" ? getBackendUrl() : "https://saas.mytoolsgroup.eu";
+  const pdfUrl = `${pdfBaseUrl}/api/mobile/quotes/${id}/pdf`;
 
   const existingReservation = (allReservations as any[]).find(
     (r) => r.quoteId === id || r.quoteId === quote?.id

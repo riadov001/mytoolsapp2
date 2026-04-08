@@ -213,7 +213,8 @@ export default function InvoiceDetailScreen() {
   const isUnpaid = statusLower === "pending" || statusLower === "en_attente"
     || statusLower === "overdue" || statusLower === "en_retard"
     || statusLower === "sent" || statusLower === "envoyee" || statusLower === "envoyée";
-  const pdfUrl = `${getBackendUrl()}/api/mobile/invoices/${id}/pdf`;
+  const pdfBaseUrl = Platform.OS === "web" ? getBackendUrl() : "https://saas.mytoolsgroup.eu";
+  const pdfUrl = `${pdfBaseUrl}/api/mobile/invoices/${id}/pdf`;
 
   const handleDownloadPdf = async () => {
     if (Platform.OS === "web") {

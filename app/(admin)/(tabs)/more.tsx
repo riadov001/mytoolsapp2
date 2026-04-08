@@ -11,7 +11,6 @@ import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { getGaragePlan, adminAnalytics } from "@/lib/admin-api";
 import { useAuth } from "@/lib/auth-context";
-import OCRScannerModal from "@/components/OCRScannerModal";
 
 const ROOT_ROLES = ["root", "root_admin"];
 const SUPER_ROLES = ["super_admin", "superadmin"];
@@ -58,8 +57,6 @@ export default function MoreScreen() {
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 90;
 
-  const [ocrVisible, setOcrVisible] = useState(false);
-  const [ocrMode, setOcrMode] = useState<"quote" | "invoice">("quote");
   const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<any>(null);
   const [aiType, setAiType] = useState<string>("");
@@ -70,7 +67,7 @@ export default function MoreScreen() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const features = planData?.features || ["reservations", "ocr"];
+  const features = planData?.features || ["reservations"];
   const hasAI = features.includes("ai_analytics");
 
   const handleAIAnalysis = async (type: string) => {
@@ -84,21 +81,6 @@ export default function MoreScreen() {
       setAiResult({ error: err?.message || "Erreur lors de l'analyse" });
     } finally {
       setAiLoading(null);
-    }
-  };
-
-  const handleOCR = (mode: "quote" | "invoice") => {
-    setOcrMode(mode);
-    setOcrVisible(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const handleOCRResult = (result: any) => {
-    setOcrVisible(false);
-    if (ocrMode === "quote") {
-      router.push({ pathname: "/(admin)/quote-create", params: { ocrData: JSON.stringify(result) } } as any);
-    } else {
-      router.push({ pathname: "/(admin)/invoice-create", params: { ocrData: JSON.stringify(result) } } as any);
     }
   };
 
@@ -124,23 +106,7 @@ export default function MoreScreen() {
           <ActivityIndicator size="small" color={theme.primary} style={{ marginTop: 40 }} />
         ) : (
           <>
-            <Text style={styles.sectionLabel}>Saisie rapide</Text>
-            <FeatureCard {...fp}
-              icon="scan-outline"
-              label="Scanner un devis"
-              sub="Extraire automatiquement les données (OCR IA)"
-              color="#8B5CF6"
-              onPress={() => handleOCR("quote")}
-            />
-            <FeatureCard {...fp}
-              icon="document-attach-outline"
-              label="Scanner une facture"
-              sub="Numériser une facture papier avec l'IA"
-              color="#3B82F6"
-              onPress={() => handleOCR("invoice")}
-            />
-
-            <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Gestion</Text>
+            <Text style={styles.sectionLabel}>Gestion</Text>
             <FeatureCard {...fp}
               icon="calendar-outline"
               label="Rendez-vous"
@@ -259,12 +225,6 @@ export default function MoreScreen() {
         )}
       </ScrollView>
 
-      <OCRScannerModal
-        visible={ocrVisible}
-        onClose={() => setOcrVisible(false)}
-        onResult={handleOCRResult}
-        mode={ocrMode}
-      />
     </View>
   );
 }
