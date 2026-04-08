@@ -299,13 +299,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const webBase = getWebBase();
-    const { NATIVE_BACKEND_URLS: nativeBases } = require("./config");
+    const { getMobileApiUrl, EXTERNAL_API_FALLBACK } = require("./config");
+    const primaryUrl = getMobileApiUrl();
+    const nativeBases = [primaryUrl, EXTERNAL_API_FALLBACK].filter((v: string, i: number, a: string[]) => a.indexOf(v) === i);
 
-    const bases = webBase
-      ? [webBase]
-      : process.env.EXPO_PUBLIC_DOMAIN
-        ? [`https://${process.env.EXPO_PUBLIC_DOMAIN}`, ...nativeBases.filter((b: string) => b !== `https://${process.env.EXPO_PUBLIC_DOMAIN}`)]
-        : nativeBases;
+    const bases = webBase ? [webBase] : nativeBases;
 
     let res: globalThis.Response | null = null;
     let lastErr: any = null;

@@ -9,12 +9,9 @@ import { NATIVE_BACKEND_URLS, getNativeApiBase } from "./config";
 const REQUEST_TIMEOUT_MS = 15000;
 const RETRY_DELAY_MS = 1000;
 
-const getApiBase = () => {
+export function adminApiBase(): string {
   return getNativeApiBase();
-};
-
-const API_BASE = getApiBase();
-export { API_BASE as adminApiBase };
+}
 
 let accessToken: string | null = null;
 let refreshTokenValue: string | null = null;
@@ -82,7 +79,7 @@ async function fetchWithRetry(url: string, options: any, useGlobal = false, retr
 
 async function fetchWithNativeFallback(endpoint: string, options: any, useGlobal = false): Promise<Response> {
   if (Platform.OS === "web" || NATIVE_BACKEND_URLS.length <= 1) {
-    return fetchWithRetry(`${API_BASE}${endpoint}`, options, useGlobal);
+    return fetchWithRetry(`${getNativeApiBase()}${endpoint}`, options, useGlobal);
   }
   let lastErr: any;
   for (const base of NATIVE_BACKEND_URLS) {
@@ -175,7 +172,7 @@ export async function adminApiCall<T = any>(
 async function tryRefreshToken(): Promise<boolean> {
   if (!refreshTokenValue) return false;
   try {
-    const res = await fetchWithRetry(`${API_BASE}/api/refresh`, {
+    const res = await fetchWithRetry(`${getNativeApiBase()}/api/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ refreshToken: refreshTokenValue }),
@@ -220,7 +217,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
 }
 
 export async function adminLogin(email: string, password: string) {
-  const res = await fetchWithRetry(`${API_BASE}/api/login`, {
+  const res = await fetchWithRetry(`${getNativeApiBase()}/api/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -251,7 +248,7 @@ export async function adminLogin(email: string, password: string) {
   if (!user?.id && !user?.email) {
     if (data.accessToken) {
       try {
-        const meRes = await fetchWithRetry(`${API_BASE}/api/auth/me`, {
+        const meRes = await fetchWithRetry(`${getNativeApiBase()}/api/auth/me`, {
           headers: { Authorization: `Bearer ${data.accessToken}`, Accept: "application/json" },
         });
         if (meRes.ok) user = await meRes.json();
@@ -265,7 +262,7 @@ export async function adminLogin(email: string, password: string) {
 export async function adminGetMe(): Promise<any> {
   if (!accessToken) return null;
   try {
-    const res = await fetchWithRetry(`${API_BASE}/api/auth/me`, {
+    const res = await fetchWithRetry(`${getNativeApiBase()}/api/auth/me`, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
     });
     if (res.ok) return await res.json();
@@ -384,7 +381,7 @@ export const adminNotifications = {
 };
 
 export function getMobilePdfUrl(type: "quotes" | "invoices", id: string): string {
-  return `${API_BASE}/api/mobile/${type}/${id}/pdf`;
+  return `${getNativeApiBase()}/api/mobile/${type}/${id}/pdf`;
 }
 
 export async function downloadMobilePdf(
@@ -409,7 +406,7 @@ export async function downloadMobilePdf(
 }
 
 export function getPublicPdfUrl(type: "quotes" | "invoices", id: string, viewToken: string): string {
-  return `${API_BASE}/api/public/pdf/${type}/${id}?token=${encodeURIComponent(viewToken)}`;
+  return `${getNativeApiBase()}/api/public/pdf/${type}/${id}?token=${encodeURIComponent(viewToken)}`;
 }
 
 export async function sharePdfDirect(

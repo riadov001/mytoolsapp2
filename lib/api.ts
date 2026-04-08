@@ -6,10 +6,8 @@ import { NATIVE_BACKEND_URLS, getNativeApiBase } from "./config";
 const REQUEST_TIMEOUT_MS = 15000;
 const RETRY_DELAY_MS = 1000;
 
-const API_BASE = getNativeApiBase();
-
 export function getBackendUrl() {
-  return API_BASE;
+  return getNativeApiBase();
 }
 
 function isNetworkError(err: any): boolean {
@@ -71,7 +69,7 @@ async function fetchWithRetry(
 
 async function fetchWithNativeFallback(endpoint: string, options: any, useGlobal = false): Promise<Response> {
   if (Platform.OS === "web" || NATIVE_BACKEND_URLS.length <= 1) {
-    return fetchWithRetry(`${API_BASE}${endpoint}`, options, useGlobal);
+    return fetchWithRetry(`${getNativeApiBase()}${endpoint}`, options, useGlobal);
   }
   let lastErr: any;
   for (const base of NATIVE_BACKEND_URLS) {

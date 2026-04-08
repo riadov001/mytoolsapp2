@@ -79,6 +79,8 @@ if (typeof window !== "undefined") {
   } catch {}
 }
 
+import { initApiConfig } from "@/lib/config";
+initApiConfig().catch(() => {});
 console.log("[STARTUP] Module-level init complete");
 
 function RootLayoutNav() {

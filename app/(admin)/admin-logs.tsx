@@ -82,7 +82,7 @@ export default function AdminLogsScreen() {
       const params = new URLSearchParams();
       params.set("format", format);
       if (levelFilter !== "all") params.set("level", levelFilter);
-      const url = `${adminApiBase}/api/admin/logs/export?${params.toString()}`;
+      const url = `${adminApiBase()}/api/admin/logs/export?${params.toString()}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}`, Accept: "*/*" },
       });

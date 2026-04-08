@@ -5,8 +5,8 @@ import * as WebBrowser from "expo-web-browser";
 import { getAdminAccessToken, getPublicPdfUrl } from "./admin-api";
 import { getSessionCookie } from "./api";
 
-import { EXTERNAL_API_PRIMARY } from "./config";
-const DIRECT_API = EXTERNAL_API_PRIMARY;
+import { getMobileApiUrl } from "./config";
+const getDIRECT_API = () => getMobileApiUrl();
 
 export async function viewPdf(
   type: "quotes" | "invoices",
@@ -71,7 +71,7 @@ export async function viewPdf(
       const cookie = getSessionCookie();
       if (cookie) headers["Cookie"] = cookie;
 
-      const directUrl = `${DIRECT_API}/api/mobile/${type}/${id}/pdf`;
+      const directUrl = `${getDIRECT_API()}/api/mobile/${type}/${id}/pdf`;
       const result = await FileSystem.downloadAsync(directUrl, filePath, { headers });
 
       if (result.status !== 200) {
