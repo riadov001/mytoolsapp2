@@ -238,7 +238,7 @@ export default function QuoteCreateScreen() {
       router.back();
     },
     onError: (err: any) => {
-      Alert.alert("Erreur", err?.message || isEditMode ? "Impossible de modifier le devis." : "Impossible de créer le devis.");
+      Alert.alert("Erreur", err?.message || (isEditMode ? "Impossible de modifier le devis." : "Impossible de créer le devis."));
     },
   });
 
@@ -325,6 +325,10 @@ export default function QuoteCreateScreen() {
     }
     if (!isEditMode && selectedServices.length === 0 && servicesArr.length > 0) {
       Alert.alert("Attention", "Veuillez sélectionner au moins un service.");
+      return;
+    }
+    if (!isEditMode && photos.length === 0) {
+      Alert.alert("Attention", "Veuillez ajouter au moins une photo.");
       return;
     }
     if (photos.length > 3) {
