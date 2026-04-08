@@ -45,6 +45,10 @@ args = "Start App"
 task = "workflow.run"
 args = "Start Frontend"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Build Android APK"
+
 [[workflows.workflow]]
 name = "Start App"
 author = "agent"
@@ -76,6 +80,17 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "CI=1 npm run expo:dev"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Build Android APK"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "EAS_NO_VCS=1 npx eas build --platform android --profile preview --non-interactive --no-wait"
 
 [workflows.workflow.metadata]
 outputType = "console"

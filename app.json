@@ -38,7 +38,7 @@
     },
     "android": {
       "package": "app.mytoolsmobile.mytoolsgroup.eu",
-      "versionCode": 7,
+      "versionCode": 10,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0A",
@@ -88,10 +88,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": "2429ee3a-9dd5-4767-9532-175f1db29ff3"
+        "projectId": "184bb31c-8fb0-42ce-b71f-8408a91225b3"
       },
       "router": {}
     },
-    "owner": "mytoolsgroup"
+    "owner": "mytoolsapps"
   }
 }
