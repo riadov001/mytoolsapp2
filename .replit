@@ -77,12 +77,13 @@ name = "Start Frontend"
 author = "agent"
 mode = "sequential"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "CI=1 npm run expo:dev"
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "fuser -k 8081/tcp 2>/dev/null; sleep 1; CI=1 npm run expo:dev"
+waitForPort = 8081
 
 [[workflows.workflow]]
 name = "Build Android APK"
