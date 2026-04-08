@@ -5,7 +5,8 @@ import * as WebBrowser from "expo-web-browser";
 import { getAdminAccessToken, getPublicPdfUrl } from "./admin-api";
 import { getSessionCookie } from "./api";
 
-const DIRECT_API = "https://saas.mytoolsgroup.eu";
+import { EXTERNAL_API_PRIMARY } from "./config";
+const DIRECT_API = EXTERNAL_API_PRIMARY;
 
 export async function viewPdf(
   type: "quotes" | "invoices",

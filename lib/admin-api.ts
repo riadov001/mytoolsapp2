@@ -4,30 +4,13 @@ import { Platform, Share } from "react-native";
 import { router } from "expo-router";
 import { getSessionCookie, setSessionCookie } from "./api";
 import * as Clipboard from "expo-clipboard";
+import { NATIVE_BACKEND_URLS, getNativeApiBase } from "./config";
 
 const REQUEST_TIMEOUT_MS = 15000;
 const RETRY_DELAY_MS = 1000;
 
-const NATIVE_BACKEND_URLS = [
-  "https://saas.mytoolsgroup.eu",
-  "https://pwa.mytoolsgroup.eu",
-];
-
 const getApiBase = () => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
-  }
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    const origin = window.location.origin;
-    if (origin.includes("localhost:8081") || origin.includes("127.0.0.1:8081")) {
-      return origin.replace(/:8081\b/, ":5000");
-    }
-    return origin;
-  }
-  if (process.env.EXPO_PUBLIC_DOMAIN) {
-    return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
-  }
-  return NATIVE_BACKEND_URLS[0];
+  return getNativeApiBase();
 };
 
 const API_BASE = getApiBase();

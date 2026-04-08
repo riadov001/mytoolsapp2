@@ -1,10 +1,8 @@
 import type { Express, Request, Response } from "express";
 
-const EXTERNAL_APIS = [
-  "https://saas.mytoolsgroup.eu/api",
-  "https://pwa.mytoolsgroup.eu/api",
-];
-const EXTERNAL_API = EXTERNAL_APIS[0];
+const EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://saas.mytoolsgroup.eu/api";
+const EXTERNAL_API_FALLBACK = process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api";
+const EXTERNAL_APIS = [EXTERNAL_API, EXTERNAL_API_FALLBACK].filter((v, i, a) => a.indexOf(v) === i);
 
 async function fetchExternalWithFallback(path: string, options: RequestInit): Promise<globalThis.Response> {
   let lastErr: any;

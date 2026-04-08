@@ -112,6 +112,9 @@ EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET = "crud-ae9d9.firebasestorage.app"
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = "129808585113-u2ql0k5vo7ih8oo06b3g9cc3qjj1g4v8.apps.googleusercontent.com"
 
 [userenv.shared]
+EXTERNAL_API_FALLBACK_URL = "https://pwa.mytoolsgroup.eu/api"
+EXPO_PUBLIC_EXTERNAL_API_URL = "https://saas.mytoolsgroup.eu"
+EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL = "https://pwa.mytoolsgroup.eu"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-744ef2e8-1b04-48ff-a81a-df6594af2930"

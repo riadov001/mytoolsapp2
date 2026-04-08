@@ -53,11 +53,9 @@ import fs from "node:fs";
 import Busboy from "busboy";
 
 // server/social-auth.ts
-var EXTERNAL_APIS = [
-  "https://saas.mytoolsgroup.eu/api",
-  "https://pwa.mytoolsgroup.eu/api"
-];
-var EXTERNAL_API = EXTERNAL_APIS[0];
+var EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://saas.mytoolsgroup.eu/api";
+var EXTERNAL_API_FALLBACK = process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api";
+var EXTERNAL_APIS = [EXTERNAL_API, EXTERNAL_API_FALLBACK].filter((v, i, a) => a.indexOf(v) === i);
 async function fetchExternalWithFallback(path3, options) {
   let lastErr;
   let lastResponse = null;
@@ -205,11 +203,9 @@ function registerSocialAuthRoutes(app2) {
 }
 
 // server/routes.ts
-var EXTERNAL_API2 = "https://saas.mytoolsgroup.eu/api";
-var EXTERNAL_API_FALLBACKS = [
-  "https://saas.mytoolsgroup.eu/api",
-  "https://pwa.mytoolsgroup.eu/api"
-];
+var EXTERNAL_API2 = process.env.EXTERNAL_API_URL || "https://saas.mytoolsgroup.eu/api";
+var EXTERNAL_API_FALLBACK2 = process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api";
+var EXTERNAL_API_FALLBACKS = [EXTERNAL_API2, EXTERNAL_API_FALLBACK2].filter((v, i, a) => a.indexOf(v) === i);
 console.log(`[CONFIG] External API: ${EXTERNAL_API2} (fallbacks: ${EXTERNAL_API_FALLBACKS.slice(1).join(", ")})`);
 async function fetchWithBackendFallback(path3, options, primaryBase = EXTERNAL_API2) {
   const bases = EXTERNAL_API_FALLBACKS[0] === primaryBase ? EXTERNAL_API_FALLBACKS : [primaryBase, ...EXTERNAL_API_FALLBACKS.filter((b) => b !== primaryBase)];

@@ -299,15 +299,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const webBase = getWebBase();
-    const nativeBases = [
-      "https://saas.mytoolsgroup.eu",
-      "https://pwa.mytoolsgroup.eu",
-    ];
+    const { NATIVE_BACKEND_URLS: nativeBases } = require("./config");
 
     const bases = webBase
       ? [webBase]
       : process.env.EXPO_PUBLIC_DOMAIN
-        ? [`https://${process.env.EXPO_PUBLIC_DOMAIN}`, ...nativeBases.filter(b => b !== `https://${process.env.EXPO_PUBLIC_DOMAIN}`)]
+        ? [`https://${process.env.EXPO_PUBLIC_DOMAIN}`, ...nativeBases.filter((b: string) => b !== `https://${process.env.EXPO_PUBLIC_DOMAIN}`)]
         : nativeBases;
 
     let res: globalThis.Response | null = null;

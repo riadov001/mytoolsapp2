@@ -6,11 +6,9 @@ import fs from "node:fs";
 import Busboy from "busboy";
 import { registerSocialAuthRoutes } from "./social-auth";
 
-const EXTERNAL_API = "https://saas.mytoolsgroup.eu/api";
-const EXTERNAL_API_FALLBACKS = [
-  "https://saas.mytoolsgroup.eu/api",
-  "https://pwa.mytoolsgroup.eu/api",
-];
+const EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://saas.mytoolsgroup.eu/api";
+const EXTERNAL_API_FALLBACK = process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api";
+const EXTERNAL_API_FALLBACKS = [EXTERNAL_API, EXTERNAL_API_FALLBACK].filter((v, i, a) => a.indexOf(v) === i);
 console.log(`[CONFIG] External API: ${EXTERNAL_API} (fallbacks: ${EXTERNAL_API_FALLBACKS.slice(1).join(", ")})`);
 
 async function fetchWithBackendFallback(
