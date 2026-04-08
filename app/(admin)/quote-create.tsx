@@ -144,7 +144,7 @@ export default function QuoteCreateScreen() {
   const createMutation = useMutation({
     mutationFn: async (payload: {
       clientId: string;
-      serviceId: string;
+      serviceId?: string;
       status: string;
       notes?: string;
       vehicleInfo?: any;
@@ -187,9 +187,9 @@ export default function QuoteCreateScreen() {
 
       const quoteBody: any = {
         clientId: payload.clientId,
-        serviceId: payload.serviceId,
         status: payload.status,
       };
+      if (payload.serviceId) quoteBody.serviceId = payload.serviceId;
       if (payload.notes?.trim()) quoteBody.notes = payload.notes.trim();
       if (payload.vehicleInfo) quoteBody.vehicleInfo = payload.vehicleInfo;
 
@@ -223,9 +223,7 @@ export default function QuoteCreateScreen() {
             type: "image/jpeg",
           } as any);
         });
-        try {
-          await adminQuotes.addMedia(quote.id, mediaForm);
-        } catch {}
+        await adminQuotes.addMedia(quote.id, mediaForm);
       }
 
       return quote;
@@ -335,10 +333,20 @@ export default function QuoteCreateScreen() {
       Alert.alert("Attention", "Maximum 3 photos autorisées.");
       return;
     }
-    const validItems = lineItems.filter(it => it.description.trim() && it.unitPrice?.trim() && parseFloat(it.unitPrice) > 0);
-    if (validItems.length === 0) {
-      Alert.alert("Attention", "Ajoutez au moins une prestation avec une description et un prix.");
-      return;
+    for (let i = 0; i < lineItems.length; i++) {
+      const it = lineItems[i];
+      if (!it.description.trim()) {
+        Alert.alert("Attention", `Prestation ${i + 1} : la description est obligatoire.`);
+        return;
+      }
+      if (!it.unitPrice?.trim() || parseFloat(it.unitPrice) <= 0) {
+        Alert.alert("Attention", `Prestation ${i + 1} : le prix unitaire est obligatoire.`);
+        return;
+      }
+      if (!it.quantity?.trim() || parseFloat(it.quantity) <= 0) {
+        Alert.alert("Attention", `Prestation ${i + 1} : la quantité est obligatoire.`);
+        return;
+      }
     }
 
     const vehicleInfo = (vehicleBrand || vehicleModel || vehiclePlate) ? {
@@ -349,11 +357,11 @@ export default function QuoteCreateScreen() {
 
     createMutation.mutate({
       clientId: selectedClientId,
-      serviceId: selectedServices[0] || "",
+      serviceId: selectedServices[0] || undefined,
       status: "pending",
       notes: notes.trim() || undefined,
       vehicleInfo,
-      validItems,
+      validItems: lineItems,
       photos,
     });
   };

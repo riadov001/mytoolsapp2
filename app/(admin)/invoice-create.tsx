@@ -216,9 +216,7 @@ export default function InvoiceCreateScreen() {
             type: "image/jpeg",
           } as any);
         });
-        try {
-          await adminInvoices.addMedia(invoiceShell.id, mediaForm);
-        } catch {}
+        await adminInvoices.addMedia(invoiceShell.id, mediaForm);
       }
       
       return invoiceShell;
@@ -291,13 +289,23 @@ export default function InvoiceCreateScreen() {
       return;
     }
 
-    const validItems = lineItems.filter(it => it.description.trim() && it.unitPrice?.trim() && parseFloat(it.unitPrice) > 0);
-    if (validItems.length === 0) {
-      showAlert({ type: "warning", title: "Attention", message: "Veuillez remplir toutes les prestations avec une description et un prix.", buttons: [{ text: "OK", style: "primary" }] });
-      return;
+    for (let i = 0; i < lineItems.length; i++) {
+      const it = lineItems[i];
+      if (!it.description.trim()) {
+        showAlert({ type: "warning", title: "Attention", message: `Prestation ${i + 1} : la description est obligatoire.`, buttons: [{ text: "OK", style: "primary" }] });
+        return;
+      }
+      if (!it.unitPrice?.trim() || parseFloat(it.unitPrice) <= 0) {
+        showAlert({ type: "warning", title: "Attention", message: `Prestation ${i + 1} : le prix unitaire est obligatoire.`, buttons: [{ text: "OK", style: "primary" }] });
+        return;
+      }
+      if (!it.quantity?.trim() || parseFloat(it.quantity) <= 0) {
+        showAlert({ type: "warning", title: "Attention", message: `Prestation ${i + 1} : la quantité est obligatoire.`, buttons: [{ text: "OK", style: "primary" }] });
+        return;
+      }
     }
 
-    const mappedItems = validItems.map(it => {
+    const mappedItems = lineItems.map(it => {
       const qty = parseFloat(it.quantity) || 1;
       const price = parseFloat(it.unitPrice) || 0;
       const tax = parseFloat(it.tvaRate) || 0;
