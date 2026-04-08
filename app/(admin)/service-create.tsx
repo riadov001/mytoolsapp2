@@ -134,7 +134,7 @@ export default function ServiceCreateScreen() {
       message: `Voulez-vous vraiment supprimer "${name}" ? Cette action est irréversible.`,
       buttons: [
         { text: "Annuler" },
-        { text: "Supprimer", style: "destructive", onPress: () => deleteMutation.mutate() },
+        { text: "Supprimer", style: "default", onPress: () => deleteMutation.mutate() },
       ],
     });
   };

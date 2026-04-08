@@ -51,7 +51,7 @@ async function imageToBase64(uri: string): Promise<{ base64: string; mimeType: s
     });
   } else {
     const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
+      encoding: "base64" as any,
     });
     const ext = uri.split(".").pop()?.toLowerCase();
     const mimeType = ext === "png" ? "image/png" : "image/jpeg";

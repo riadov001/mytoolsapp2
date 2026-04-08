@@ -237,7 +237,7 @@ export default function ClientFormScreen() {
                 buttons: [
                   { text: "Annuler" },
                   {
-                    text: "Supprimer", style: "destructive", onPress: async () => {
+                    text: "Supprimer", style: "default", onPress: async () => {
                       setDeleting(true);
                       try {
                         await adminClients.delete(id);

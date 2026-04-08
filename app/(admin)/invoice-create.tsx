@@ -318,8 +318,8 @@ export default function InvoiceCreateScreen() {
       };
     });
 
-    const dominantTva = validItems.length > 0
-      ? (parseFloat(validItems[0].tvaRate) || 20).toString()
+    const dominantTva = lineItems.length > 0
+      ? (parseFloat(lineItems[0].tvaRate) || 20).toString()
       : "20";
 
     const issueDate = new Date().toISOString().split("T")[0];
@@ -666,7 +666,7 @@ function getStyles(theme: ThemeColors) {
       justifyContent: "space-between",
       paddingHorizontal: 12,
       paddingVertical: 12,
-      backgroundColor: theme.cardBackground,
+      backgroundColor: theme.card,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.border,
@@ -674,7 +674,7 @@ function getStyles(theme: ThemeColors) {
     pickerText: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text },
     clientDropdown: {
       marginTop: 6,
-      backgroundColor: theme.cardBackground,
+      backgroundColor: theme.card,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.border,
@@ -719,7 +719,7 @@ function getStyles(theme: ThemeColors) {
     input: {
       paddingHorizontal: 12,
       paddingVertical: 10,
-      backgroundColor: theme.cardBackground,
+      backgroundColor: theme.card,
       borderRadius: 6,
       borderWidth: 1,
       borderColor: theme.border,
@@ -730,7 +730,7 @@ function getStyles(theme: ThemeColors) {
     textarea: {
       paddingHorizontal: 12,
       paddingVertical: 10,
-      backgroundColor: theme.cardBackground,
+      backgroundColor: theme.card,
       borderRadius: 6,
       borderWidth: 1,
       borderColor: theme.border,
@@ -745,7 +745,7 @@ function getStyles(theme: ThemeColors) {
       gap: 10,
       paddingHorizontal: 12,
       paddingVertical: 10,
-      backgroundColor: theme.cardBackground,
+      backgroundColor: theme.card,
       borderRadius: 6,
       marginVertical: 4,
       borderWidth: 1,
@@ -760,7 +760,7 @@ function getStyles(theme: ThemeColors) {
       gap: 10,
       paddingVertical: 8,
       paddingHorizontal: 12,
-      backgroundColor: theme.cardBackground,
+      backgroundColor: theme.card,
       borderRadius: 6,
       marginVertical: 4,
     },
@@ -782,7 +782,7 @@ function getStyles(theme: ThemeColors) {
     lineItemCard: {
       paddingHorizontal: 12,
       paddingVertical: 12,
-      backgroundColor: theme.cardBackground,
+      backgroundColor: theme.card,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.border,

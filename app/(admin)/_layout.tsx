@@ -31,6 +31,7 @@ export default function AdminLayout() {
       <Stack.Screen name="admin-logs" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="services-list" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="service-create" options={{ presentation: "modal", headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ presentation: "modal", headerShown: false }} />
     </Stack>
   );
 }

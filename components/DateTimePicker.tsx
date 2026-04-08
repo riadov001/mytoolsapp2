@@ -203,8 +203,8 @@ export function DateTimePicker({ label, value, onChange, showTime = false, minDa
                 key={i}
                 style={[
                   styles.dayCell,
-                  day && isSelected(day) && { backgroundColor: theme.primary },
-                  day && isDisabled(day) && { opacity: 0.25 },
+                  !!day && isSelected(day) && { backgroundColor: theme.primary },
+                  !!day && isDisabled(day) && { opacity: 0.25 },
                 ]}
                 onPress={() => day && selectDay(day)}
                 disabled={!day}

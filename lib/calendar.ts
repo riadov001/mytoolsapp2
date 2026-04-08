@@ -55,7 +55,7 @@ export const syncReservationsToCalendar = async (
           timeZone: "Europe/Paris",
         });
 
-        myToolsCalendar = await Calendar.getCalendarAsync(newCalendarId);
+        myToolsCalendar = { id: newCalendarId } as Calendar.Calendar;
       } catch (calError) {
         return { success: false, message: "Could not create calendar" };
       }
