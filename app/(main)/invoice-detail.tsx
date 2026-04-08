@@ -14,13 +14,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
-import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
-import { invoicesApi, getBackendUrl, getSessionCookie } from "@/lib/api";
-import { getAdminAccessToken } from "@/lib/admin-api";
+import { invoicesApi } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
+import { viewPdf } from "@/lib/pdf-download";
 
 
 
@@ -213,55 +211,15 @@ export default function InvoiceDetailScreen() {
   const isUnpaid = statusLower === "pending" || statusLower === "en_attente"
     || statusLower === "overdue" || statusLower === "en_retard"
     || statusLower === "sent" || statusLower === "envoyee" || statusLower === "envoyée";
-  const pdfBaseUrl = Platform.OS === "web" ? getBackendUrl() : "https://saas.mytoolsgroup.eu";
-  const pdfUrl = `${pdfBaseUrl}/api/mobile/invoices/${id}/pdf`;
-
-  const handleDownloadPdf = async () => {
-    if (Platform.OS === "web") {
-      try {
-        const headers: Record<string, string> = { Accept: "application/pdf" };
-        const token = getAdminAccessToken();
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        const res = await fetch(pdfUrl, { headers });
-        if (!res.ok) throw new Error(`Erreur ${res.status}`);
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `facture-${displayRef || id}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } catch (err: any) {
-        showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible de télécharger la facture.", buttons: [{ text: "OK", style: "primary" }] });
-      }
-      return;
-    }
+  const handleViewPdf = async () => {
     setDownloading(true);
     try {
-      const token = getAdminAccessToken();
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      const cookie = getSessionCookie();
-      if (cookie) headers["Cookie"] = cookie;
-      const filename = `facture-${displayRef || id}-${Date.now()}.pdf`;
-      const fileUri = (FileSystem.cacheDirectory ?? "") + filename;
-      const result = await FileSystem.downloadAsync(pdfUrl, fileUri, { headers });
-      if (result.status !== 200) throw new Error(`Erreur ${result.status}`);
-      const sharingAvailable = await Sharing.isAvailableAsync();
-      if (sharingAvailable) {
-        await Sharing.shareAsync(result.uri, {
-          mimeType: "application/pdf",
-          dialogTitle: "Facture PDF",
-          UTI: "com.adobe.pdf",
-        });
-      }
+      await viewPdf("invoices", String(id), `facture-${displayRef || id}.pdf`, viewToken);
     } catch (err: any) {
       showAlert({
         type: "error",
-        title: "Erreur de téléchargement",
-        message: err?.message || "Impossible de télécharger la facture.",
+        title: "Erreur",
+        message: err?.message || "Impossible d'ouvrir la facture.",
         buttons: [{ text: "OK", style: "primary" }],
       });
     } finally {
@@ -430,11 +388,11 @@ export default function InvoiceDetailScreen() {
           </View>
         ) : null}
 
-        {pdfUrl && (
+        {viewToken && (
           <View style={styles.footerActions}>
             <Pressable
               style={({ pressed }) => [styles.btnPdf, pressed && styles.btnPdfPressed, downloading && { opacity: 0.6 }]}
-              onPress={handleDownloadPdf}
+              onPress={handleViewPdf}
               disabled={downloading}
             >
               {downloading

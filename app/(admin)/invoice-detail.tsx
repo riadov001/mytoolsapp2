@@ -8,11 +8,11 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminInvoices, adminClients, getAdminAccessToken, getMobilePdfUrl } from "@/lib/admin-api";
+import { adminInvoices, adminClients } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
-import { downloadPdfFile } from "@/lib/pdf-download";
+import { viewPdf } from "@/lib/pdf-download";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "En attente", paid: "Payée", cancelled: "Annulée",
@@ -324,8 +324,8 @@ export default function InvoiceDetailScreen() {
               setDownloadingPdf(true);
               try {
                 const ref = inv?.invoiceNumber || inv?.reference || id;
-                const url = getMobilePdfUrl("invoices", id);
-                await downloadPdfFile(url, `facture-${ref}.pdf`);
+                const vt = inv?.viewToken || inv?.pdfToken || inv?.token || inv?.publicToken || inv?.shareToken || inv?.publicId;
+                await viewPdf("invoices", id, `facture-${ref}.pdf`, vt);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               } catch (err: any) {
                 showAlert({

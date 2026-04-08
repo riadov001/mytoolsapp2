@@ -15,13 +15,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
-import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
-import { quotesApi, reservationsApi, getBackendUrl, getSessionCookie, Quote } from "@/lib/api";
-import { getAdminAccessToken } from "@/lib/admin-api";
+import { quotesApi, reservationsApi, getBackendUrl, Quote } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
+import { viewPdf } from "@/lib/pdf-download";
 
 const EXTERNAL_API_BASE = getBackendUrl();
 
@@ -208,9 +206,6 @@ export default function QuoteDetailScreen() {
   const finalStatuses = new Set(["accepted", "accepté", "accepte", "rejected", "refusé", "refuse", "refused", "completed", "terminé", "termine", "cancelled", "annulé", "annule", "annulée", "annulee"]);
   const canRespond = !isPending && !finalStatuses.has(statusLower);
 
-  const pdfBaseUrl = Platform.OS === "web" ? getBackendUrl() : "https://saas.mytoolsgroup.eu";
-  const pdfUrl = `${pdfBaseUrl}/api/mobile/quotes/${id}/pdf`;
-
   const existingReservation = (allReservations as any[]).find(
     (r) => r.quoteId === id || r.quoteId === quote?.id
   );
@@ -221,52 +216,15 @@ export default function QuoteDetailScreen() {
     ? new Date(expiryDate).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
     : null;
 
-  const handleDownloadPdf = async () => {
-    if (Platform.OS === "web") {
-      try {
-        const headers: Record<string, string> = { Accept: "application/pdf" };
-        const token = getAdminAccessToken();
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        const res = await fetch(pdfUrl, { headers });
-        if (!res.ok) throw new Error(`Erreur ${res.status}`);
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `devis-${displayRef || id}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } catch (err: any) {
-        showAlert({ type: "error", title: "Erreur", message: err?.message || "Impossible de télécharger le devis.", buttons: [{ text: "OK", style: "primary" }] });
-      }
-      return;
-    }
+  const handleViewPdf = async () => {
     setDownloading(true);
     try {
-      const token = getAdminAccessToken();
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      const cookie = getSessionCookie();
-      if (cookie) headers["Cookie"] = cookie;
-      const filename = `devis-${displayRef || id}-${Date.now()}.pdf`;
-      const fileUri = (FileSystem.cacheDirectory ?? "") + filename;
-      const result = await FileSystem.downloadAsync(pdfUrl, fileUri, { headers });
-      if (result.status !== 200) throw new Error(`Erreur ${result.status}`);
-      const sharingAvailable = await Sharing.isAvailableAsync();
-      if (sharingAvailable) {
-        await Sharing.shareAsync(result.uri, {
-          mimeType: "application/pdf",
-          dialogTitle: "Devis PDF",
-          UTI: "com.adobe.pdf",
-        });
-      }
+      await viewPdf("quotes", String(id), `devis-${displayRef || id}.pdf`, viewToken);
     } catch (err: any) {
       showAlert({
         type: "error",
-        title: "Erreur de téléchargement",
-        message: err?.message || "Impossible de télécharger le devis.",
+        title: "Erreur",
+        message: err?.message || "Impossible d'ouvrir le devis.",
         buttons: [{ text: "OK", style: "primary" }],
       });
     } finally {
@@ -591,11 +549,11 @@ export default function QuoteDetailScreen() {
         ) : null}
 
         <View style={styles.footerActions}>
-          {pdfUrl && (
+          {viewToken && (
             <>
               <Pressable
                 style={({ pressed }) => [styles.btnSecondary, pressed && styles.btnSecondaryPressed, downloading && { opacity: 0.6 }]}
-                onPress={handleDownloadPdf}
+                onPress={handleViewPdf}
                 disabled={downloading}
               >
                 {downloading

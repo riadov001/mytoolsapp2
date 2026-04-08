@@ -8,11 +8,11 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { adminQuotes, adminClients, getAdminAccessToken, getMobilePdfUrl } from "@/lib/admin-api";
+import { adminQuotes, adminClients } from "@/lib/admin-api";
 import { useTheme } from "@/lib/theme";
 import { ThemeColors } from "@/constants/theme";
 import { useCustomAlert } from "@/components/CustomAlert";
-import { downloadPdfFile } from "@/lib/pdf-download";
+import { viewPdf } from "@/lib/pdf-download";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "En attente", approved: "Approuvé", rejected: "Rejeté",
@@ -438,8 +438,8 @@ export default function QuoteDetailScreen() {
                 setPdfLoading(true);
                 try {
                   const ref = q?.quoteNumber || q?.reference || id;
-                  const url = getMobilePdfUrl("quotes", id);
-                  await downloadPdfFile(url, `devis-${ref}.pdf`);
+                  const vt = q?.viewToken || q?.pdfToken || q?.token || q?.publicToken || q?.shareToken || q?.publicId;
+                  await viewPdf("quotes", id, `devis-${ref}.pdf`, vt);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 } catch (err: any) {
                   showAlert({
