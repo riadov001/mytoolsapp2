@@ -7,8 +7,8 @@ packages = ["zip", "zulu11"]
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["bash", "-c", "npm run server:build && npm run expo:static:build"]
-run = ["npm", "run", "server:prod"]
+build = ["npm", "run", "server:build"]
+run = ["bash", "-c", "PORT=8081 npm run server:prod"]
 
 [[ports]]
 localPort = 5000
