@@ -111,10 +111,6 @@ export default function ReservationDetailScreen() {
   const allServices = Array.isArray(allServicesRaw) ? allServicesRaw : [];
   const reservation = allReservations.find((r) => r.id === id);
 
-  if (reservation) {
-    console.log("[RESERVATION DEBUG] reservation keys:", Object.keys(reservation), "data:", JSON.stringify(reservation).substring(0, 1000));
-  }
-
   if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>

@@ -1,9 +1,9 @@
 import { Platform } from "react-native";
 
-const CONFIG_ENDPOINT = "https://pwa.mytoolsgroup.eu/api/public/mobile-api-url";
+const CONFIG_ENDPOINT = "https://backend.mytoolsgroup.eu/api/public/mobile-api-url";
 
 const DEFAULT_MOBILE_API_URL =
-  process.env.EXPO_PUBLIC_EXTERNAL_API_URL || "https://saas.mytoolsgroup.eu";
+  process.env.EXPO_PUBLIC_EXTERNAL_API_URL || "https://backend.mytoolsgroup.eu";
 const DEFAULT_FALLBACK_URL =
   process.env.EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu";
 

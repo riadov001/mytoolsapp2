@@ -6,19 +6,77 @@ import fs from "node:fs";
 import Busboy from "busboy";
 import { registerSocialAuthRoutes } from "./social-auth";
 
-const EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://saas.mytoolsgroup.eu/api";
-const EXTERNAL_API_FALLBACK = process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api";
-const EXTERNAL_API_FALLBACKS = [EXTERNAL_API, EXTERNAL_API_FALLBACK].filter((v, i, a) => a.indexOf(v) === i);
-console.log(`[CONFIG] External API: ${EXTERNAL_API} (fallbacks: ${EXTERNAL_API_FALLBACKS.slice(1).join(", ")})`);
+const SEED_DOMAIN = "backend.mytoolsgroup.eu";
+const REMOTE_CONFIG_ENDPOINT = `https://${SEED_DOMAIN}/api/public/mobile-api-url`;
+
+function normalizeApiUrl(raw: string): string {
+  let url = raw.trim();
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    url = `https://${url}`;
+  }
+  return url.replace(/\/+$/, "");
+}
+
+const DEFAULT_EXTERNAL_API = normalizeApiUrl(process.env.EXTERNAL_API_URL || `https://${SEED_DOMAIN}/api`);
+const DEFAULT_EXTERNAL_FALLBACK = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api");
+
+let _dynamicApiUrl: string = DEFAULT_EXTERNAL_API;
+let _dynamicApiFallback: string = DEFAULT_EXTERNAL_FALLBACK;
+let _urlLastRefreshed = 0;
+const URL_CACHE_TTL_MS = 30_000;
+
+function getActiveApiUrl(): string { return _dynamicApiUrl; }
+function getActiveFallbacks(): string[] {
+  return [_dynamicApiUrl, _dynamicApiFallback].filter((v, i, a) => a.indexOf(v) === i);
+}
+
+async function fetchRemoteConfigUrl(): Promise<string | null> {
+  try {
+    const res = await fetch(REMOTE_CONFIG_ENDPOINT, {
+      signal: AbortSignal.timeout(5000),
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    const url = data?.mobileApiUrl || data?.api_url || data?.apiUrl || data?.url;
+    if (url && typeof url === "string") return normalizeApiUrl(url);
+  } catch {}
+  return null;
+}
+
+async function refreshApiUrlFromDb(dbPool: pg.Pool): Promise<void> {
+  try {
+    let dbPrimary: string | null = null;
+    let dbFallback: string | null = null;
+    const r1 = await dbPool.query("SELECT value FROM app_config WHERE key = 'api_url' LIMIT 1");
+    if (r1.rows.length > 0 && r1.rows[0].value) dbPrimary = normalizeApiUrl(r1.rows[0].value);
+    const r2 = await dbPool.query("SELECT value FROM app_config WHERE key = 'api_fallback_url' LIMIT 1");
+    if (r2.rows.length > 0 && r2.rows[0].value) dbFallback = normalizeApiUrl(r2.rows[0].value);
+
+    if (dbPrimary) {
+      _dynamicApiUrl = dbPrimary;
+    } else {
+      const remote = await fetchRemoteConfigUrl();
+      if (remote) {
+        _dynamicApiUrl = remote;
+        console.log(`[CONFIG] API URL fetched from ${SEED_DOMAIN}: ${remote}`);
+      }
+    }
+    if (dbFallback) _dynamicApiFallback = dbFallback;
+    _urlLastRefreshed = Date.now();
+  } catch {}
+}
+
+console.log(`[CONFIG] External API seed: ${getActiveApiUrl()} (fallbacks: ${getActiveFallbacks().slice(1).join(", ")})`);
 
 async function fetchWithBackendFallback(
   path: string,
   options: RequestInit,
-  primaryBase: string = EXTERNAL_API
+  primaryBase: string = getActiveApiUrl()
 ): Promise<globalThis.Response> {
-  const bases = EXTERNAL_API_FALLBACKS[0] === primaryBase
-    ? EXTERNAL_API_FALLBACKS
-    : [primaryBase, ...EXTERNAL_API_FALLBACKS.filter(b => b !== primaryBase)];
+  const bases = getActiveFallbacks()[0] === primaryBase
+    ? getActiveFallbacks()
+    : [primaryBase, ...getActiveFallbacks().filter(b => b !== primaryBase)];
 
   let lastErr: any;
   let lastResponse: globalThis.Response | null = null;
@@ -36,7 +94,7 @@ async function fetchWithBackendFallback(
         lastResponse = res;
         continue;
       }
-      if (base !== EXTERNAL_API_FALLBACKS[0]) {
+      if (base !== getActiveFallbacks()[0]) {
         console.log(`[PROXY] Fallback succeeded: ${base}`);
       }
       return res;
@@ -117,6 +175,11 @@ async function initDatabase() {
         status TEXT DEFAULT 'open',
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS app_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
     console.log("[DB] Tables initialized");
   } catch (err: any) {
@@ -128,7 +191,7 @@ let capturedRealToken: string | null = null;
 
 function getAuthHeaders(req: Request): Record<string, string> {
   const headers: Record<string, string> = {
-    "host": new URL(EXTERNAL_API).host,
+    "host": new URL(getActiveApiUrl()).host,
     "content-type": "application/json",
     "accept": "application/json",
     "x-requested-with": "XMLHttpRequest",
@@ -217,6 +280,83 @@ console.error = (...args: any[]) => {
 export async function registerRoutes(app: Express): Promise<Server> {
   await initDatabase();
 
+  await refreshApiUrlFromDb(pool);
+  setInterval(() => {
+    if (Date.now() - _urlLastRefreshed > URL_CACHE_TTL_MS) {
+      refreshApiUrlFromDb(pool);
+    }
+  }, URL_CACHE_TTL_MS);
+  console.log(`[CONFIG] Active API URL: ${getActiveApiUrl()}`);
+
+  async function assertRootAdmin(req: Request, res: Response): Promise<boolean> {
+    const auth = req.headers["authorization"] || "";
+    if (!auth) { res.status(401).json({ message: "Non authentifié" }); return false; }
+    try {
+      const meRes = await fetch(`${getActiveApiUrl()}/mobile/auth/me`, {
+        headers: { "authorization": auth as string, "accept": "application/json" },
+      });
+      if (!meRes.ok) { res.status(401).json({ message: "Token invalide" }); return false; }
+      const user: any = await meRes.json();
+      const role = (user?.role || "").toLowerCase();
+      if (role !== "root_admin" && role !== "root") {
+        res.status(403).json({ message: "Accès réservé aux root admins" });
+        return false;
+      }
+    } catch { res.status(500).json({ message: "Erreur de vérification" }); return false; }
+    return true;
+  }
+
+  app.get("/api/admin/config", async (req: Request, res: Response) => {
+    if (!(await assertRootAdmin(req, res))) return;
+    try {
+      const rows = await pool.query("SELECT key, value FROM app_config ORDER BY key");
+      const config: Record<string, string> = {};
+      for (const r of rows.rows) config[r.key] = r.value;
+      return res.json({
+        api_url: config["api_url"] || _dynamicApiUrl,
+        api_fallback_url: config["api_fallback_url"] || _dynamicApiFallback,
+        default_api_url: DEFAULT_EXTERNAL_API,
+        default_fallback_url: DEFAULT_EXTERNAL_FALLBACK,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.put("/api/admin/config", async (req: Request, res: Response) => {
+    if (!(await assertRootAdmin(req, res))) return;
+    const { api_url, api_fallback_url } = req.body || {};
+    try {
+      if (api_url) {
+        const normalized = normalizeApiUrl(api_url);
+        new URL(normalized);
+        await pool.query(
+          "INSERT INTO app_config (key, value, updated_at) VALUES ('api_url', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()",
+          [normalized]
+        );
+        _dynamicApiUrl = normalized;
+      }
+      if (api_fallback_url) {
+        const normalized = normalizeApiUrl(api_fallback_url);
+        new URL(normalized);
+        await pool.query(
+          "INSERT INTO app_config (key, value, updated_at) VALUES ('api_fallback_url', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()",
+          [normalized]
+        );
+        _dynamicApiFallback = normalized;
+      }
+      _urlLastRefreshed = Date.now();
+      console.log(`[CONFIG] API URL updated by admin: ${getActiveApiUrl()}`);
+      return res.json({
+        api_url: _dynamicApiUrl,
+        api_fallback_url: _dynamicApiFallback,
+        message: "Configuration mise à jour avec succès",
+      });
+    } catch (err: any) {
+      if (err instanceof TypeError) return res.status(400).json({ message: "URL invalide" });
+      return res.status(500).json({ message: err.message });
+    }
+  });
 
   app.get("/api/admin/logs", async (req: Request, res: Response) => {
     const auth = req.headers["authorization"] || "";
@@ -224,7 +364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).json({ message: "Non authentifié" });
     }
     try {
-      const meRes = await fetch(`${EXTERNAL_API}/mobile/auth/me`, {
+      const meRes = await fetch(`${getActiveApiUrl()}/mobile/auth/me`, {
         headers: { "authorization": auth, "accept": "application/json" },
       });
       if (!meRes.ok) return res.status(401).json({ message: "Token invalide" });
@@ -266,7 +406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const token = capturedRealToken || reqAuth.replace(/^Bearer\s+/i, "");
     if (!token) return res.status(401).json({ message: "Non authentifié. Connectez-vous d'abord dans l'app.", capturedRealToken: null });
     try {
-      const r = await fetch(`${EXTERNAL_API}/swagger/spec`, {
+      const r = await fetch(`${getActiveApiUrl()}/swagger/spec`, {
         headers: { "authorization": `Bearer ${token}`, "accept": "application/json", "X-Requested-With": "XMLHttpRequest" }
       });
       const text = await r.text();
@@ -282,7 +422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const auth = req.headers["authorization"] || "";
     if (!auth) return res.status(401).json({ message: "Non authentifié" });
     try {
-      const meRes = await fetch(`${EXTERNAL_API}/mobile/auth/me`, {
+      const meRes = await fetch(`${getActiveApiUrl()}/mobile/auth/me`, {
         headers: { "authorization": auth, "accept": "application/json" },
       });
       if (!meRes.ok) return res.status(401).json({ message: "Token invalide" });
@@ -325,7 +465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).json({ message: "Non authentifié" });
     }
     try {
-      const meRes = await fetch(`${EXTERNAL_API}/mobile/auth/me`, {
+      const meRes = await fetch(`${getActiveApiUrl()}/mobile/auth/me`, {
         headers: { "authorization": auth, "accept": "application/json" },
       });
       if (!meRes.ok) return res.status(401).json({ message: "Token invalide" });
@@ -344,9 +484,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/public/garages", async (req: Request, res: Response) => {
     try {
       const endpoints = [
-        `${EXTERNAL_API}/garages`,
-        `${EXTERNAL_API}/superadmin/garages`,
-        `${EXTERNAL_API}/public/garages`,
+        `${getActiveApiUrl()}/garages`,
+        `${getActiveApiUrl()}/superadmin/garages`,
+        `${getActiveApiUrl()}/public/garages`,
       ];
       let garages: any[] = [];
       for (const url of endpoints) {
@@ -355,7 +495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             headers: {
               "accept": "application/json",
               "x-requested-with": "XMLHttpRequest",
-              "host": new URL(EXTERNAL_API).host,
+              "host": new URL(getActiveApiUrl()).host,
             },
           });
           if (r.ok) {
@@ -377,11 +517,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     try {
       const endpoints = [
-        { url: `${EXTERNAL_API}/mobile/quotes/${id}/accept`, method: "POST" as const, body: undefined as string | undefined },
-        { url: `${EXTERNAL_API}/quotes/${id}/accept`, method: "POST" as const, body: undefined as string | undefined },
-        { url: `${EXTERNAL_API}/quotes/${id}/respond`, method: "POST" as const, body: JSON.stringify({ status: "accepted", response: "accepted" }) },
-        { url: `${EXTERNAL_API}/quotes/${id}`, method: "PUT" as const, body: JSON.stringify({ status: "accepted" }) },
-        { url: `${EXTERNAL_API}/quotes/${id}`, method: "PATCH" as const, body: JSON.stringify({ status: "accepted" }) },
+        { url: `${getActiveApiUrl()}/mobile/quotes/${id}/accept`, method: "POST" as const, body: undefined as string | undefined },
+        { url: `${getActiveApiUrl()}/quotes/${id}/accept`, method: "POST" as const, body: undefined as string | undefined },
+        { url: `${getActiveApiUrl()}/quotes/${id}/respond`, method: "POST" as const, body: JSON.stringify({ status: "accepted", response: "accepted" }) },
+        { url: `${getActiveApiUrl()}/quotes/${id}`, method: "PUT" as const, body: JSON.stringify({ status: "accepted" }) },
+        { url: `${getActiveApiUrl()}/quotes/${id}`, method: "PATCH" as const, body: JSON.stringify({ status: "accepted" }) },
       ];
       for (const ep of endpoints) {
         try {
@@ -410,11 +550,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     try {
       const endpoints = [
-        { url: `${EXTERNAL_API}/mobile/quotes/${id}/reject`, method: "POST" as const, body: undefined as string | undefined },
-        { url: `${EXTERNAL_API}/quotes/${id}/reject`, method: "POST" as const, body: undefined as string | undefined },
-        { url: `${EXTERNAL_API}/quotes/${id}/respond`, method: "POST" as const, body: JSON.stringify({ status: "rejected", response: "rejected" }) },
-        { url: `${EXTERNAL_API}/quotes/${id}`, method: "PUT" as const, body: JSON.stringify({ status: "rejected" }) },
-        { url: `${EXTERNAL_API}/quotes/${id}`, method: "PATCH" as const, body: JSON.stringify({ status: "rejected" }) },
+        { url: `${getActiveApiUrl()}/mobile/quotes/${id}/reject`, method: "POST" as const, body: undefined as string | undefined },
+        { url: `${getActiveApiUrl()}/quotes/${id}/reject`, method: "POST" as const, body: undefined as string | undefined },
+        { url: `${getActiveApiUrl()}/quotes/${id}/respond`, method: "POST" as const, body: JSON.stringify({ status: "rejected", response: "rejected" }) },
+        { url: `${getActiveApiUrl()}/quotes/${id}`, method: "PUT" as const, body: JSON.stringify({ status: "rejected" }) },
+        { url: `${getActiveApiUrl()}/quotes/${id}`, method: "PATCH" as const, body: JSON.stringify({ status: "rejected" }) },
       ];
       for (const ep of endpoints) {
         try {
@@ -443,9 +583,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     try {
       const endpoints = [
-        { url: `${EXTERNAL_API}/reservations/${id}/confirm`, method: "POST" as const, body: undefined as string | undefined },
-        { url: `${EXTERNAL_API}/reservations/${id}`, method: "PUT" as const, body: JSON.stringify({ status: "confirmed" }) },
-        { url: `${EXTERNAL_API}/reservations/${id}`, method: "PATCH" as const, body: JSON.stringify({ status: "confirmed" }) },
+        { url: `${getActiveApiUrl()}/reservations/${id}/confirm`, method: "POST" as const, body: undefined as string | undefined },
+        { url: `${getActiveApiUrl()}/reservations/${id}`, method: "PUT" as const, body: JSON.stringify({ status: "confirmed" }) },
+        { url: `${getActiveApiUrl()}/reservations/${id}`, method: "PATCH" as const, body: JSON.stringify({ status: "confirmed" }) },
       ];
       for (const ep of endpoints) {
         try {
@@ -474,7 +614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const headers = getAuthHeaders(req);
       let userEmail = "";
       try {
-        const userRes = await fetch(`${EXTERNAL_API}/mobile/auth/me`, { method: "GET", headers, redirect: "manual" });
+        const userRes = await fetch(`${getActiveApiUrl()}/mobile/auth/me`, { method: "GET", headers, redirect: "manual" });
         if (userRes.ok) {
           const userData = await userRes.json() as any;
           userEmail = userData?.email || userData?.user?.email || "";
@@ -504,7 +644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/support/contact", async (req: Request, res: Response) => {
     const headers = getAuthHeaders(req);
     try {
-      const r = await fetch(`${EXTERNAL_API}/support/contact`, {
+      const r = await fetch(`${getActiveApiUrl()}/support/contact`, {
         method: "POST",
         headers,
         body: JSON.stringify(req.body),
@@ -548,7 +688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/users/me", async (req: Request, res: Response) => {
     try {
       const headers: Record<string, string> = {
-        "host": new URL(EXTERNAL_API).host,
+        "host": new URL(getActiveApiUrl()).host,
       };
       if (req.headers["cookie"]) {
         headers["cookie"] = req.headers["cookie"] as string;
@@ -557,7 +697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         headers["authorization"] = req.headers["authorization"] as string;
       }
 
-      const userRes = await fetch(`${EXTERNAL_API}/mobile/auth/me`, {
+      const userRes = await fetch(`${getActiveApiUrl()}/mobile/auth/me`, {
         method: "GET",
         headers,
         redirect: "manual",
@@ -594,14 +734,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       try {
-        await fetch(`${EXTERNAL_API}/mobile/profile`, {
+        await fetch(`${getActiveApiUrl()}/mobile/profile`, {
           method: "DELETE",
           headers: { ...headers, "content-type": "application/json" },
           redirect: "manual",
         });
       } catch {}
       try {
-        await fetch(`${EXTERNAL_API}/admin/users/${userId}`, {
+        await fetch(`${getActiveApiUrl()}/admin/users/${userId}`, {
           method: "DELETE",
           headers: { ...headers, "content-type": "application/json" },
           redirect: "manual",
@@ -609,7 +749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch {}
 
       try {
-        await fetch(`${EXTERNAL_API}/logout`, {
+        await fetch(`${getActiveApiUrl()}/logout`, {
           method: "POST",
           headers,
           redirect: "manual",
@@ -649,7 +789,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const reqBody = JSON.stringify(req.body);
       let response: globalThis.Response | null = null;
 
-      for (const base of EXTERNAL_API_FALLBACKS) {
+      for (const base of getActiveFallbacks()) {
         try {
           const hostHeader = new URL(base).host;
           const headers: Record<string, string> = {
@@ -747,9 +887,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             if (deletedById.rows.length > 0 || deletedByEmail.rows.length > 0) {
               try {
-                await fetch(`${EXTERNAL_API}/logout`, {
+                await fetch(`${getActiveApiUrl()}/logout`, {
                   method: "POST",
-                  headers: { "host": new URL(EXTERNAL_API).host, ...(req.headers["cookie"] ? { "cookie": req.headers["cookie"] as string } : {}) },
+                  headers: { "host": new URL(getActiveApiUrl()).host, ...(req.headers["cookie"] ? { "cookie": req.headers["cookie"] as string } : {}) },
                   redirect: "manual",
                 });
               } catch {}
@@ -782,8 +922,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { id } = req.params;
     const authHeaders = getAuthHeaders(req);
     const attempts = [
-      `${EXTERNAL_API}/admin/reservations/${id}/services`,
-      `${EXTERNAL_API}/mobile/admin/reservations/${id}/services`,
+      `${getActiveApiUrl()}/admin/reservations/${id}/services`,
+      `${getActiveApiUrl()}/mobile/admin/reservations/${id}/services`,
     ];
     for (const url of attempts) {
       try {
@@ -802,10 +942,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
     try {
-      let r = await fetch(`${EXTERNAL_API}/mobile/invoices${qs}`, { method: "GET", headers, redirect: "manual" });
+      let r = await fetch(`${getActiveApiUrl()}/mobile/invoices${qs}`, { method: "GET", headers, redirect: "manual" });
       let text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-        r = await fetch(`${EXTERNAL_API}/invoices${qs}`, { method: "GET", headers, redirect: "manual" });
+        r = await fetch(`${getActiveApiUrl()}/invoices${qs}`, { method: "GET", headers, redirect: "manual" });
         text = await r.text();
       }
       forwardSetCookie(r, res);
@@ -826,7 +966,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { id } = req.params;
     const headers = getAuthHeaders(req);
     try {
-      let r = await fetch(`${EXTERNAL_API}/mobile/invoices/${id}`, { method: "GET", headers, redirect: "manual" });
+      let r = await fetch(`${getActiveApiUrl()}/mobile/invoices/${id}`, { method: "GET", headers, redirect: "manual" });
       let text = await r.text();
       let usedDetailEndpoint = false;
       if (!text.includes("<!DOCTYPE") && !text.includes("<html")) {
@@ -841,10 +981,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch {}
       }
       if (!usedDetailEndpoint) {
-        r = await fetch(`${EXTERNAL_API}/mobile/invoices`, { method: "GET", headers, redirect: "manual" });
+        r = await fetch(`${getActiveApiUrl()}/mobile/invoices`, { method: "GET", headers, redirect: "manual" });
         text = await r.text();
         if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-          r = await fetch(`${EXTERNAL_API}/invoices`, { method: "GET", headers, redirect: "manual" });
+          r = await fetch(`${getActiveApiUrl()}/invoices`, { method: "GET", headers, redirect: "manual" });
           text = await r.text();
         }
       }
@@ -872,7 +1012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { id } = req.params;
     const headers = getAuthHeaders(req);
     try {
-      let r = await fetch(`${EXTERNAL_API}/mobile/quotes/${id}`, { method: "GET", headers, redirect: "manual" });
+      let r = await fetch(`${getActiveApiUrl()}/mobile/quotes/${id}`, { method: "GET", headers, redirect: "manual" });
       let text = await r.text();
       let usedDetailEndpoint = false;
       if (!text.includes("<!DOCTYPE") && !text.includes("<html")) {
@@ -891,10 +1031,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch {}
       }
       if (!usedDetailEndpoint) {
-        r = await fetch(`${EXTERNAL_API}/mobile/quotes`, { method: "GET", headers, redirect: "manual" });
+        r = await fetch(`${getActiveApiUrl()}/mobile/quotes`, { method: "GET", headers, redirect: "manual" });
         text = await r.text();
         if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-          r = await fetch(`${EXTERNAL_API}/quotes`, { method: "GET", headers, redirect: "manual" });
+          r = await fetch(`${getActiveApiUrl()}/quotes`, { method: "GET", headers, redirect: "manual" });
           text = await r.text();
         }
       }
@@ -931,7 +1071,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { id } = req.params;
     const headers = getAuthHeaders(req);
     try {
-      let r = await fetch(`${EXTERNAL_API}/mobile/reservations/${id}`, { method: "GET", headers, redirect: "manual" });
+      let r = await fetch(`${getActiveApiUrl()}/mobile/reservations/${id}`, { method: "GET", headers, redirect: "manual" });
       let text = await r.text();
       let usedDetailEndpoint = false;
       if (!text.includes("<!DOCTYPE") && !text.includes("<html")) {
@@ -950,10 +1090,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch {}
       }
       if (!usedDetailEndpoint) {
-        r = await fetch(`${EXTERNAL_API}/mobile/reservations`, { method: "GET", headers, redirect: "manual" });
+        r = await fetch(`${getActiveApiUrl()}/mobile/reservations`, { method: "GET", headers, redirect: "manual" });
         text = await r.text();
         if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-          r = await fetch(`${EXTERNAL_API}/reservations`, { method: "GET", headers, redirect: "manual" });
+          r = await fetch(`${getActiveApiUrl()}/reservations`, { method: "GET", headers, redirect: "manual" });
           text = await r.text();
         }
       }
@@ -991,10 +1131,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const userCookie = req.headers["cookie"] || "";
     const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
     try {
-      let r = await fetch(`${EXTERNAL_API}/mobile/quotes${qs}`, { method: "GET", headers, redirect: "manual" });
+      let r = await fetch(`${getActiveApiUrl()}/mobile/quotes${qs}`, { method: "GET", headers, redirect: "manual" });
       let text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-        r = await fetch(`${EXTERNAL_API}/quotes${qs}`, { method: "GET", headers, redirect: "manual" });
+        r = await fetch(`${getActiveApiUrl()}/quotes${qs}`, { method: "GET", headers, redirect: "manual" });
         text = await r.text();
       }
       forwardSetCookie(r, res);
@@ -1042,12 +1182,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const body = JSON.stringify(req.body);
     console.log("[RESERVATION CREATE] payload:", body.substring(0, 500));
     const endpoints = [
-      { url: `${EXTERNAL_API}/mobile/reservations`, method: "POST" as const },
-      { url: `${EXTERNAL_API}/mobile/reservation`, method: "POST" as const },
-      { url: `${EXTERNAL_API}/reservations/store`, method: "POST" as const },
-      { url: `${EXTERNAL_API}/reservation`, method: "POST" as const },
-      { url: `${EXTERNAL_API}/bookings`, method: "POST" as const },
-      { url: `${EXTERNAL_API}/appointments`, method: "POST" as const },
+      { url: `${getActiveApiUrl()}/mobile/reservations`, method: "POST" as const },
+      { url: `${getActiveApiUrl()}/mobile/reservation`, method: "POST" as const },
+      { url: `${getActiveApiUrl()}/reservations/store`, method: "POST" as const },
+      { url: `${getActiveApiUrl()}/reservation`, method: "POST" as const },
+      { url: `${getActiveApiUrl()}/bookings`, method: "POST" as const },
+      { url: `${getActiveApiUrl()}/appointments`, method: "POST" as const },
     ];
     for (const ep of endpoints) {
       try {
@@ -1071,10 +1211,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const body = JSON.stringify(req.body);
     console.log(`[RESERVATION UPDATE] id=${id}, payload:`, body.substring(0, 300));
     const endpoints = [
-      { url: `${EXTERNAL_API}/reservations/${id}`, method: "PUT" as const },
-      { url: `${EXTERNAL_API}/reservations/${id}`, method: "PATCH" as const },
-      { url: `${EXTERNAL_API}/mobile/reservations/${id}`, method: "PUT" as const },
-      { url: `${EXTERNAL_API}/mobile/reservations/${id}`, method: "PATCH" as const },
+      { url: `${getActiveApiUrl()}/reservations/${id}`, method: "PUT" as const },
+      { url: `${getActiveApiUrl()}/reservations/${id}`, method: "PATCH" as const },
+      { url: `${getActiveApiUrl()}/mobile/reservations/${id}`, method: "PUT" as const },
+      { url: `${getActiveApiUrl()}/mobile/reservations/${id}`, method: "PATCH" as const },
     ];
     for (const ep of endpoints) {
       try {
@@ -1097,9 +1237,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     try {
       const endpoints = [
-        { url: `${EXTERNAL_API}/reservations/${id}/cancel`, method: "POST" as const, body: undefined },
-        { url: `${EXTERNAL_API}/reservations/${id}`, method: "PUT" as const, body: JSON.stringify({ status: "cancelled" }) },
-        { url: `${EXTERNAL_API}/reservations/${id}`, method: "PATCH" as const, body: JSON.stringify({ status: "cancelled" }) },
+        { url: `${getActiveApiUrl()}/reservations/${id}/cancel`, method: "POST" as const, body: undefined },
+        { url: `${getActiveApiUrl()}/reservations/${id}`, method: "PUT" as const, body: JSON.stringify({ status: "cancelled" }) },
+        { url: `${getActiveApiUrl()}/reservations/${id}`, method: "PATCH" as const, body: JSON.stringify({ status: "cancelled" }) },
       ];
       for (const ep of endpoints) {
         try {
@@ -1126,15 +1266,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
     try {
-      await fetch(`${EXTERNAL_API}/mobile/notifications/mark-all-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
-      await fetch(`${EXTERNAL_API}/notifications/read-all`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
-      await fetch(`${EXTERNAL_API}/notifications/mark-all-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
+      await fetch(`${getActiveApiUrl()}/mobile/notifications/mark-all-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
+      await fetch(`${getActiveApiUrl()}/notifications/read-all`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
+      await fetch(`${getActiveApiUrl()}/notifications/mark-all-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
     } catch {}
     try {
-      let notifRes = await fetch(`${EXTERNAL_API}/mobile/notifications`, { method: "GET", headers, redirect: "manual" });
+      let notifRes = await fetch(`${getActiveApiUrl()}/mobile/notifications`, { method: "GET", headers, redirect: "manual" });
       let notifCheck = await notifRes.clone().text();
       if (notifCheck.includes("<!DOCTYPE") || notifCheck.includes("<html")) {
-        notifRes = await fetch(`${EXTERNAL_API}/notifications`, { method: "GET", headers, redirect: "manual" });
+        notifRes = await fetch(`${getActiveApiUrl()}/notifications`, { method: "GET", headers, redirect: "manual" });
       }
       const notifText = await notifRes.text();
       if (!notifText.includes("<!DOCTYPE") && !notifText.includes("<html")) {
@@ -1161,9 +1301,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
     try {
-      await fetch(`${EXTERNAL_API}/mobile/notifications/${id}/read`, { method: "PATCH", headers, redirect: "manual" }).catch(() => {});
-      await fetch(`${EXTERNAL_API}/notifications/${id}/read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
-      await fetch(`${EXTERNAL_API}/notifications/${id}/mark-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
+      await fetch(`${getActiveApiUrl()}/mobile/notifications/${id}/read`, { method: "PATCH", headers, redirect: "manual" }).catch(() => {});
+      await fetch(`${getActiveApiUrl()}/notifications/${id}/read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
+      await fetch(`${getActiveApiUrl()}/notifications/${id}/mark-read`, { method: "POST", headers, redirect: "manual" }).catch(() => {});
     } catch {}
     try {
       await pool.query(
@@ -1178,10 +1318,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     const userCookie = req.headers["cookie"] || "";
     try {
-      let r = await fetch(`${EXTERNAL_API}/mobile/notifications`, { method: "GET", headers, redirect: "manual" });
+      let r = await fetch(`${getActiveApiUrl()}/mobile/notifications`, { method: "GET", headers, redirect: "manual" });
       let text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-        r = await fetch(`${EXTERNAL_API}/notifications`, { method: "GET", headers, redirect: "manual" });
+        r = await fetch(`${getActiveApiUrl()}/notifications`, { method: "GET", headers, redirect: "manual" });
         text = await r.text();
       }
       if (text.includes("<!DOCTYPE") || text.includes("<html")) return res.json([]);
@@ -1215,10 +1355,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const userCookie = req.headers["cookie"] || "";
     const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
     try {
-      let r = await fetch(`${EXTERNAL_API}/mobile/reservations${qs}`, { method: "GET", headers, redirect: "manual" });
+      let r = await fetch(`${getActiveApiUrl()}/mobile/reservations${qs}`, { method: "GET", headers, redirect: "manual" });
       let text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-        r = await fetch(`${EXTERNAL_API}/reservations${qs}`, { method: "GET", headers, redirect: "manual" });
+        r = await fetch(`${getActiveApiUrl()}/reservations${qs}`, { method: "GET", headers, redirect: "manual" });
         text = await r.text();
       }
       forwardSetCookie(r, res);
@@ -1333,7 +1473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log(`[PHOTOS] Saved ${savedUrls.length} photos for ${type} ${docId}: ${savedUrls.join(", ")}`);
 
     const authHeaders: Record<string, string> = {
-      "host": new URL(EXTERNAL_API).host,
+      "host": new URL(getActiveApiUrl()).host,
       "accept": "application/json",
       "x-requested-with": "XMLHttpRequest",
     };
@@ -1342,7 +1482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     authHeaders["content-type"] = ct;
 
     try {
-      const mobileUrl = `${EXTERNAL_API}/mobile/admin/${docType}/${docId}/media`;
+      const mobileUrl = `${getActiveApiUrl()}/mobile/admin/${docType}/${docId}/media`;
       const r = await fetch(mobileUrl, { method: "POST", headers: authHeaders, body: rawBody, redirect: "manual" });
       const txt = await r.text();
       if (!txt.includes("<!DOCTYPE")) {
@@ -1359,7 +1499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/admin", async (req: Request, res: Response, next: NextFunction) => {
     try {
       const authHeaders: Record<string, string> = {
-        "host": new URL(EXTERNAL_API).host,
+        "host": new URL(getActiveApiUrl()).host,
         "accept": "application/json",
         "x-requested-with": "XMLHttpRequest",
       };
@@ -1446,8 +1586,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return { status: r.status, text: txt, headers: r.headers };
       };
 
-      const adminUrl = `${EXTERNAL_API}/admin${req.url}`;
-      const mobileUrl = `${EXTERNAL_API}/mobile/admin${req.url}`;
+      const adminUrl = `${getActiveApiUrl()}/admin${req.url}`;
+      const mobileUrl = `${getActiveApiUrl()}/mobile/admin${req.url}`;
 
       // Toujours essayer /mobile/admin/ en premier (spec API), puis /admin/ en fallback
       let result = await tryUrl(mobileUrl);
@@ -1662,7 +1802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   ) {
     const urlSuffix = req.url === "/" ? "" : req.url;
     const authHeaders: Record<string, string> = {
-      "host": new URL(EXTERNAL_API).host,
+      "host": new URL(getActiveApiUrl()).host,
       "accept": "application/json",
       "x-requested-with": "XMLHttpRequest",
       "content-type": "application/json",
@@ -1701,7 +1841,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let usedSeg = primarySegment;
 
     for (const seg of segments) {
-      const url = `${EXTERNAL_API}/${seg}${urlSuffix}`;
+      const url = `${getActiveApiUrl()}/${seg}${urlSuffix}`;
       result = await tryUrl(url);
       if (result) { usedSeg = seg; break; }
     }
@@ -1809,10 +1949,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/user", async (req: Request, res: Response) => {
     const headers = getAuthHeaders(req);
     try {
-      let r = await fetch(`${EXTERNAL_API}/mobile/profile`, { method: "GET", headers, redirect: "manual" });
+      let r = await fetch(`${getActiveApiUrl()}/mobile/profile`, { method: "GET", headers, redirect: "manual" });
       let text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-        r = await fetch(`${EXTERNAL_API}/mobile/auth/me`, { method: "GET", headers, redirect: "manual" });
+        r = await fetch(`${getActiveApiUrl()}/mobile/auth/me`, { method: "GET", headers, redirect: "manual" });
         text = await r.text();
       }
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
@@ -1829,12 +1969,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/auth/user", async (req: Request, res: Response) => {
     const headers = getAuthHeaders(req);
     try {
-      let r = await fetch(`${EXTERNAL_API}/mobile/profile`, {
+      let r = await fetch(`${getActiveApiUrl()}/mobile/profile`, {
         method: "PATCH", headers, body: JSON.stringify(req.body), redirect: "manual",
       });
       let text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html") || r.status >= 400) {
-        r = await fetch(`${EXTERNAL_API}/auth/user`, {
+        r = await fetch(`${getActiveApiUrl()}/auth/user`, {
           method: "PUT", headers, body: JSON.stringify(req.body), redirect: "manual",
         });
         text = await r.text();
@@ -1853,12 +1993,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/change-password", async (req: Request, res: Response) => {
     const headers = getAuthHeaders(req);
     try {
-      let r = await fetch(`${EXTERNAL_API}/user/password`, {
+      let r = await fetch(`${getActiveApiUrl()}/user/password`, {
         method: "PATCH", headers, body: JSON.stringify(req.body), redirect: "manual",
       });
       let text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html") || r.status >= 400) {
-        r = await fetch(`${EXTERNAL_API}/auth/change-password`, {
+        r = await fetch(`${getActiveApiUrl()}/auth/change-password`, {
           method: "POST", headers, body: JSON.stringify(req.body), redirect: "manual",
         });
         text = await r.text();
@@ -1878,7 +2018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { id } = req.params;
     const headers = getAuthHeaders(req);
     try {
-      const r = await fetch(`${EXTERNAL_API}/mobile/quotes/${id}/create-reservation`, {
+      const r = await fetch(`${getActiveApiUrl()}/mobile/quotes/${id}/create-reservation`, {
         method: "POST", headers, body: JSON.stringify(req.body), redirect: "manual",
       });
       forwardSetCookie(r, res);
@@ -1897,10 +2037,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const headers = getAuthHeaders(req);
     const qs = req.url.includes("?") ? req.url.substring(req.url.indexOf("?")) : "";
     try {
-      let r = await fetch(`${EXTERNAL_API}/mobile/services${qs}`, { method: "GET", headers, redirect: "manual" });
+      let r = await fetch(`${getActiveApiUrl()}/mobile/services${qs}`, { method: "GET", headers, redirect: "manual" });
       let text = await r.text();
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-        r = await fetch(`${EXTERNAL_API}/services${qs}`, { method: "GET", headers, redirect: "manual" });
+        r = await fetch(`${getActiveApiUrl()}/services${qs}`, { method: "GET", headers, redirect: "manual" });
         text = await r.text();
       }
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {

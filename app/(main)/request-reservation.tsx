@@ -278,7 +278,6 @@ export default function RequestReservationScreen() {
         time_slot: selectedSlot,
         notes: notes.trim() || undefined,
       };
-      console.log("[RESERVATION DEBUG] submitting:", JSON.stringify(data));
       if (isModification) {
         return apiCall(`/api/reservations/${modifyReservationId}`, {
           method: "PUT",

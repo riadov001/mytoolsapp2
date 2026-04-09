@@ -109,8 +109,6 @@ export default function InvoiceDetailScreen() {
     );
   }
 
-  console.log("[INVOICE DEBUG] invoice keys:", Object.keys(invoice), "invoice data:", JSON.stringify(invoice).substring(0, 1000));
-
   const statusInfo = getInvoiceStatusInfo(invoice.status, theme.isDark);
   const createdDate = new Date(invoice.createdAt).toLocaleDateString("fr-FR", {
     day: "numeric",
