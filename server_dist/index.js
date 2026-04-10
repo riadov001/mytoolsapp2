@@ -47,12 +47,13 @@ import express from "express";
 
 // server/routes.ts
 import { createServer } from "node:http";
+import pg from "pg";
 import path from "node:path";
 import fs from "node:fs";
 import Busboy from "busboy";
 
 // server/social-auth.ts
-var EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://backend.mytoolsgroup.eu/api";
+var EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://saas.mytoolsgroup.eu/api";
 var EXTERNAL_API_FALLBACK = process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api";
 var EXTERNAL_APIS = [EXTERNAL_API, EXTERNAL_API_FALLBACK].filter((v, i, a) => a.indexOf(v) === i);
 async function fetchExternalWithFallback(path3, options) {
@@ -211,15 +212,55 @@ function normalizeApiUrl(raw) {
   }
   return url.replace(/\/+$/, "");
 }
+var DEFAULT_EXTERNAL_API = normalizeApiUrl(process.env.EXTERNAL_API_URL || `https://${SEED_DOMAIN}/api`);
+var DEFAULT_EXTERNAL_FALLBACK = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api");
+var _dynamicApiUrl = DEFAULT_EXTERNAL_API;
+var _dynamicApiFallback = DEFAULT_EXTERNAL_FALLBACK;
+var _urlLastRefreshed = 0;
+var URL_CACHE_TTL_MS = 3e4;
 function getActiveApiUrl() {
-  return normalizeApiUrl(process.env.EXTERNAL_API_URL || `https://${SEED_DOMAIN}/api`);
+  return _dynamicApiUrl;
 }
 function getActiveFallbacks() {
-  const primary = getActiveApiUrl();
-  const fallback = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api");
-  return primary === fallback ? [primary] : [primary, fallback];
+  return [_dynamicApiUrl, _dynamicApiFallback].filter((v, i, a) => a.indexOf(v) === i);
 }
-console.log(`[CONFIG] External API: ${getActiveApiUrl()} (fallbacks: ${getActiveFallbacks().slice(1).join(", ")})`);
+async function fetchRemoteConfigUrl() {
+  try {
+    const res = await fetch(REMOTE_CONFIG_ENDPOINT, {
+      signal: AbortSignal.timeout(5e3),
+      headers: { accept: "application/json" }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const url = data?.mobileApiUrl || data?.api_url || data?.apiUrl || data?.url;
+    if (url && typeof url === "string") return normalizeApiUrl(url);
+  } catch {
+  }
+  return null;
+}
+async function refreshApiUrlFromDb(dbPool) {
+  try {
+    let dbPrimary = null;
+    let dbFallback = null;
+    const r1 = await dbPool.query("SELECT value FROM app_config WHERE key = 'api_url' LIMIT 1");
+    if (r1.rows.length > 0 && r1.rows[0].value) dbPrimary = normalizeApiUrl(r1.rows[0].value);
+    const r2 = await dbPool.query("SELECT value FROM app_config WHERE key = 'api_fallback_url' LIMIT 1");
+    if (r2.rows.length > 0 && r2.rows[0].value) dbFallback = normalizeApiUrl(r2.rows[0].value);
+    if (dbPrimary) {
+      _dynamicApiUrl = dbPrimary;
+    } else {
+      const remote = await fetchRemoteConfigUrl();
+      if (remote) {
+        _dynamicApiUrl = remote;
+        console.log(`[CONFIG] API URL fetched from ${SEED_DOMAIN}: ${remote}`);
+      }
+    }
+    if (dbFallback) _dynamicApiFallback = dbFallback;
+    _urlLastRefreshed = Date.now();
+  } catch {
+  }
+}
+console.log(`[CONFIG] External API seed: ${getActiveApiUrl()} (fallbacks: ${getActiveFallbacks().slice(1).join(", ")})`);
 async function fetchWithBackendFallback(path3, options, primaryBase = getActiveApiUrl()) {
   const bases = getActiveFallbacks()[0] === primaryBase ? getActiveFallbacks() : [primaryBase, ...getActiveFallbacks().filter((b) => b !== primaryBase)];
   let lastErr;
@@ -252,9 +293,80 @@ async function fetchWithBackendFallback(path3, options, primaryBase = getActiveA
   if (lastResponse) return lastResponse;
   throw lastErr;
 }
-var pool = {
-  query: async (_text, _values) => ({ rows: [], rowCount: 0 })
-};
+var pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL
+});
+async function initDatabase() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS deleted_accounts (
+        id SERIAL PRIMARY KEY,
+        external_user_id TEXT,
+        email TEXT,
+        user_data JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS document_amounts (
+        id SERIAL PRIMARY KEY,
+        doc_id TEXT NOT NULL UNIQUE,
+        doc_type TEXT NOT NULL,
+        price_excluding_tax NUMERIC,
+        total_including_tax NUMERIC,
+        tax_amount NUMERIC,
+        items JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS document_photos (
+        id SERIAL PRIMARY KEY,
+        doc_id TEXT NOT NULL,
+        doc_type TEXT NOT NULL,
+        photo_uri TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS quote_responses (
+        id SERIAL PRIMARY KEY,
+        quote_id TEXT NOT NULL,
+        user_cookie TEXT,
+        action TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS reservation_confirmations (
+        id SERIAL PRIMARY KEY,
+        reservation_id TEXT NOT NULL,
+        user_cookie TEXT,
+        action TEXT NOT NULL DEFAULT 'confirmed',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS notification_reads (
+        id SERIAL PRIMARY KEY,
+        notification_id TEXT NOT NULL,
+        user_cookie TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(notification_id, user_cookie)
+      );
+      CREATE TABLE IF NOT EXISTS support_tickets (
+        id SERIAL PRIMARY KEY,
+        user_cookie TEXT,
+        user_email TEXT,
+        name TEXT,
+        category TEXT,
+        subject TEXT,
+        message TEXT,
+        status TEXT DEFAULT 'open',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS app_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log("[DB] Tables initialized");
+  } catch (err) {
+    console.warn("[DB] Init skipped:", err.message);
+  }
+}
 var capturedRealToken = null;
 function getAuthHeaders(req) {
   const headers = {
@@ -340,7 +452,90 @@ console.error = (...args) => {
   pushLog("error", args.map(safeStringify).join(" "));
 };
 async function registerRoutes(app2) {
+  await initDatabase();
+  await refreshApiUrlFromDb(pool);
+  setInterval(() => {
+    if (Date.now() - _urlLastRefreshed > URL_CACHE_TTL_MS) {
+      refreshApiUrlFromDb(pool);
+    }
+  }, URL_CACHE_TTL_MS);
   console.log(`[CONFIG] Active API URL: ${getActiveApiUrl()}`);
+  async function assertRootAdmin(req, res) {
+    const auth = req.headers["authorization"] || "";
+    if (!auth) {
+      res.status(401).json({ message: "Non authentifi\xE9" });
+      return false;
+    }
+    try {
+      const meRes = await fetch(`${getActiveApiUrl()}/mobile/auth/me`, {
+        headers: { "authorization": auth, "accept": "application/json" }
+      });
+      if (!meRes.ok) {
+        res.status(401).json({ message: "Token invalide" });
+        return false;
+      }
+      const user = await meRes.json();
+      const role = (user?.role || "").toLowerCase();
+      if (role !== "root_admin" && role !== "root") {
+        res.status(403).json({ message: "Acc\xE8s r\xE9serv\xE9 aux root admins" });
+        return false;
+      }
+    } catch {
+      res.status(500).json({ message: "Erreur de v\xE9rification" });
+      return false;
+    }
+    return true;
+  }
+  app2.get("/api/admin/config", async (req, res) => {
+    if (!await assertRootAdmin(req, res)) return;
+    try {
+      const rows = await pool.query("SELECT key, value FROM app_config ORDER BY key");
+      const config = {};
+      for (const r of rows.rows) config[r.key] = r.value;
+      return res.json({
+        api_url: config["api_url"] || _dynamicApiUrl,
+        api_fallback_url: config["api_fallback_url"] || _dynamicApiFallback,
+        default_api_url: DEFAULT_EXTERNAL_API,
+        default_fallback_url: DEFAULT_EXTERNAL_FALLBACK
+      });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+  app2.put("/api/admin/config", async (req, res) => {
+    if (!await assertRootAdmin(req, res)) return;
+    const { api_url, api_fallback_url } = req.body || {};
+    try {
+      if (api_url) {
+        const normalized = normalizeApiUrl(api_url);
+        new URL(normalized);
+        await pool.query(
+          "INSERT INTO app_config (key, value, updated_at) VALUES ('api_url', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()",
+          [normalized]
+        );
+        _dynamicApiUrl = normalized;
+      }
+      if (api_fallback_url) {
+        const normalized = normalizeApiUrl(api_fallback_url);
+        new URL(normalized);
+        await pool.query(
+          "INSERT INTO app_config (key, value, updated_at) VALUES ('api_fallback_url', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()",
+          [normalized]
+        );
+        _dynamicApiFallback = normalized;
+      }
+      _urlLastRefreshed = Date.now();
+      console.log(`[CONFIG] API URL updated by admin: ${getActiveApiUrl()}`);
+      return res.json({
+        api_url: _dynamicApiUrl,
+        api_fallback_url: _dynamicApiFallback,
+        message: "Configuration mise \xE0 jour avec succ\xE8s"
+      });
+    } catch (err) {
+      if (err instanceof TypeError) return res.status(400).json({ message: "URL invalide" });
+      return res.status(500).json({ message: err.message });
+    }
+  });
   app2.get("/api/admin/logs", async (req, res) => {
     const auth = req.headers["authorization"] || "";
     if (!auth) {
