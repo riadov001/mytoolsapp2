@@ -1,6 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "node:http";
-import pg from "pg";
 import path from "node:path";
 import fs from "node:fs";
 import Busboy from "busboy";
@@ -17,57 +16,16 @@ function normalizeApiUrl(raw: string): string {
   return url.replace(/\/+$/, "");
 }
 
-const DEFAULT_EXTERNAL_API = normalizeApiUrl(process.env.EXTERNAL_API_URL || `https://${SEED_DOMAIN}/api`);
-const DEFAULT_EXTERNAL_FALLBACK = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api");
-
-let _dynamicApiUrl: string = DEFAULT_EXTERNAL_API;
-let _dynamicApiFallback: string = DEFAULT_EXTERNAL_FALLBACK;
-let _urlLastRefreshed = 0;
-const URL_CACHE_TTL_MS = 30_000;
-
-function getActiveApiUrl(): string { return _dynamicApiUrl; }
+function getActiveApiUrl(): string {
+  return normalizeApiUrl(process.env.EXTERNAL_API_URL || `https://${SEED_DOMAIN}/api`);
+}
 function getActiveFallbacks(): string[] {
-  return [_dynamicApiUrl, _dynamicApiFallback].filter((v, i, a) => a.indexOf(v) === i);
+  const primary = getActiveApiUrl();
+  const fallback = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api");
+  return primary === fallback ? [primary] : [primary, fallback];
 }
 
-async function fetchRemoteConfigUrl(): Promise<string | null> {
-  try {
-    const res = await fetch(REMOTE_CONFIG_ENDPOINT, {
-      signal: AbortSignal.timeout(5000),
-      headers: { accept: "application/json" },
-    });
-    if (!res.ok) return null;
-    const data: any = await res.json();
-    const url = data?.mobileApiUrl || data?.api_url || data?.apiUrl || data?.url;
-    if (url && typeof url === "string") return normalizeApiUrl(url);
-  } catch {}
-  return null;
-}
-
-async function refreshApiUrlFromDb(dbPool: pg.Pool): Promise<void> {
-  try {
-    let dbPrimary: string | null = null;
-    let dbFallback: string | null = null;
-    const r1 = await dbPool.query("SELECT value FROM app_config WHERE key = 'api_url' LIMIT 1");
-    if (r1.rows.length > 0 && r1.rows[0].value) dbPrimary = normalizeApiUrl(r1.rows[0].value);
-    const r2 = await dbPool.query("SELECT value FROM app_config WHERE key = 'api_fallback_url' LIMIT 1");
-    if (r2.rows.length > 0 && r2.rows[0].value) dbFallback = normalizeApiUrl(r2.rows[0].value);
-
-    if (dbPrimary) {
-      _dynamicApiUrl = dbPrimary;
-    } else {
-      const remote = await fetchRemoteConfigUrl();
-      if (remote) {
-        _dynamicApiUrl = remote;
-        console.log(`[CONFIG] API URL fetched from ${SEED_DOMAIN}: ${remote}`);
-      }
-    }
-    if (dbFallback) _dynamicApiFallback = dbFallback;
-    _urlLastRefreshed = Date.now();
-  } catch {}
-}
-
-console.log(`[CONFIG] External API seed: ${getActiveApiUrl()} (fallbacks: ${getActiveFallbacks().slice(1).join(", ")})`);
+console.log(`[CONFIG] External API: ${getActiveApiUrl()} (fallbacks: ${getActiveFallbacks().slice(1).join(", ")})`);
 
 async function fetchWithBackendFallback(
   path: string,
@@ -111,81 +69,9 @@ async function fetchWithBackendFallback(
   throw lastErr;
 }
 
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-async function initDatabase() {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS deleted_accounts (
-        id SERIAL PRIMARY KEY,
-        external_user_id TEXT,
-        email TEXT,
-        user_data JSONB,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS document_amounts (
-        id SERIAL PRIMARY KEY,
-        doc_id TEXT NOT NULL UNIQUE,
-        doc_type TEXT NOT NULL,
-        price_excluding_tax NUMERIC,
-        total_including_tax NUMERIC,
-        tax_amount NUMERIC,
-        items JSONB,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS document_photos (
-        id SERIAL PRIMARY KEY,
-        doc_id TEXT NOT NULL,
-        doc_type TEXT NOT NULL,
-        photo_uri TEXT NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS quote_responses (
-        id SERIAL PRIMARY KEY,
-        quote_id TEXT NOT NULL,
-        user_cookie TEXT,
-        action TEXT NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS reservation_confirmations (
-        id SERIAL PRIMARY KEY,
-        reservation_id TEXT NOT NULL,
-        user_cookie TEXT,
-        action TEXT NOT NULL DEFAULT 'confirmed',
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS notification_reads (
-        id SERIAL PRIMARY KEY,
-        notification_id TEXT NOT NULL,
-        user_cookie TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(notification_id, user_cookie)
-      );
-      CREATE TABLE IF NOT EXISTS support_tickets (
-        id SERIAL PRIMARY KEY,
-        user_cookie TEXT,
-        user_email TEXT,
-        name TEXT,
-        category TEXT,
-        subject TEXT,
-        message TEXT,
-        status TEXT DEFAULT 'open',
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS app_config (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `);
-    console.log("[DB] Tables initialized");
-  } catch (err: any) {
-    console.warn("[DB] Init skipped:", err.message);
-  }
-}
+const pool = {
+  query: async (_text: string, _values?: any[]) => ({ rows: [] as any[], rowCount: 0 }),
+};
 
 let capturedRealToken: string | null = null;
 
@@ -278,85 +164,7 @@ console.error = (...args: any[]) => {
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  await initDatabase();
-
-  await refreshApiUrlFromDb(pool);
-  setInterval(() => {
-    if (Date.now() - _urlLastRefreshed > URL_CACHE_TTL_MS) {
-      refreshApiUrlFromDb(pool);
-    }
-  }, URL_CACHE_TTL_MS);
   console.log(`[CONFIG] Active API URL: ${getActiveApiUrl()}`);
-
-  async function assertRootAdmin(req: Request, res: Response): Promise<boolean> {
-    const auth = req.headers["authorization"] || "";
-    if (!auth) { res.status(401).json({ message: "Non authentifié" }); return false; }
-    try {
-      const meRes = await fetch(`${getActiveApiUrl()}/mobile/auth/me`, {
-        headers: { "authorization": auth as string, "accept": "application/json" },
-      });
-      if (!meRes.ok) { res.status(401).json({ message: "Token invalide" }); return false; }
-      const user: any = await meRes.json();
-      const role = (user?.role || "").toLowerCase();
-      if (role !== "root_admin" && role !== "root") {
-        res.status(403).json({ message: "Accès réservé aux root admins" });
-        return false;
-      }
-    } catch { res.status(500).json({ message: "Erreur de vérification" }); return false; }
-    return true;
-  }
-
-  app.get("/api/admin/config", async (req: Request, res: Response) => {
-    if (!(await assertRootAdmin(req, res))) return;
-    try {
-      const rows = await pool.query("SELECT key, value FROM app_config ORDER BY key");
-      const config: Record<string, string> = {};
-      for (const r of rows.rows) config[r.key] = r.value;
-      return res.json({
-        api_url: config["api_url"] || _dynamicApiUrl,
-        api_fallback_url: config["api_fallback_url"] || _dynamicApiFallback,
-        default_api_url: DEFAULT_EXTERNAL_API,
-        default_fallback_url: DEFAULT_EXTERNAL_FALLBACK,
-      });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.put("/api/admin/config", async (req: Request, res: Response) => {
-    if (!(await assertRootAdmin(req, res))) return;
-    const { api_url, api_fallback_url } = req.body || {};
-    try {
-      if (api_url) {
-        const normalized = normalizeApiUrl(api_url);
-        new URL(normalized);
-        await pool.query(
-          "INSERT INTO app_config (key, value, updated_at) VALUES ('api_url', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()",
-          [normalized]
-        );
-        _dynamicApiUrl = normalized;
-      }
-      if (api_fallback_url) {
-        const normalized = normalizeApiUrl(api_fallback_url);
-        new URL(normalized);
-        await pool.query(
-          "INSERT INTO app_config (key, value, updated_at) VALUES ('api_fallback_url', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()",
-          [normalized]
-        );
-        _dynamicApiFallback = normalized;
-      }
-      _urlLastRefreshed = Date.now();
-      console.log(`[CONFIG] API URL updated by admin: ${getActiveApiUrl()}`);
-      return res.json({
-        api_url: _dynamicApiUrl,
-        api_fallback_url: _dynamicApiFallback,
-        message: "Configuration mise à jour avec succès",
-      });
-    } catch (err: any) {
-      if (err instanceof TypeError) return res.status(400).json({ message: "URL invalide" });
-      return res.status(500).json({ message: err.message });
-    }
-  });
 
   app.get("/api/admin/logs", async (req: Request, res: Response) => {
     const auth = req.headers["authorization"] || "";
