@@ -13,7 +13,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "saas.mytoolsgroup.eu",
+        "EXPO_PUBLIC_DOMAIN": "backend.mytoolsgroup.eu",
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc",
         "EXPO_PUBLIC_FIREBASE_APP_ID": "1:129808585113:web:03c4b7847847bf4e9b4308",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "crud-ae9d9.firebaseapp.com",
@@ -22,7 +22,7 @@
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
-        "EXPO_PUBLIC_EXTERNAL_API_URL": "https://saas.mytoolsgroup.eu",
+        "EXPO_PUBLIC_EXTERNAL_API_URL": "https://backend.mytoolsgroup.eu",
         "EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL": "https://pwa.mytoolsgroup.eu"
       }
     },
@@ -37,7 +37,7 @@
         "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "saas.mytoolsgroup.eu",
+        "EXPO_PUBLIC_DOMAIN": "backend.mytoolsgroup.eu",
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc",
         "EXPO_PUBLIC_FIREBASE_APP_ID": "1:129808585113:web:03c4b7847847bf4e9b4308",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "crud-ae9d9.firebaseapp.com",
@@ -46,7 +46,7 @@
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
-        "EXPO_PUBLIC_EXTERNAL_API_URL": "https://saas.mytoolsgroup.eu",
+        "EXPO_PUBLIC_EXTERNAL_API_URL": "https://backend.mytoolsgroup.eu",
         "EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL": "https://pwa.mytoolsgroup.eu"
       }
     },
@@ -61,7 +61,7 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "saas.mytoolsgroup.eu",
+        "EXPO_PUBLIC_DOMAIN": "backend.mytoolsgroup.eu",
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc",
         "EXPO_PUBLIC_FIREBASE_APP_ID": "1:129808585113:web:03c4b7847847bf4e9b4308",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "crud-ae9d9.firebaseapp.com",
@@ -70,7 +70,7 @@
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
-        "EXPO_PUBLIC_EXTERNAL_API_URL": "https://saas.mytoolsgroup.eu",
+        "EXPO_PUBLIC_EXTERNAL_API_URL": "https://backend.mytoolsgroup.eu",
         "EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL": "https://pwa.mytoolsgroup.eu"
       }
     }

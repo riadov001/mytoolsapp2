@@ -53,7 +53,7 @@ import fs from "node:fs";
 import Busboy from "busboy";
 
 // server/social-auth.ts
-var EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://saas.mytoolsgroup.eu/api";
+var EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://backend.mytoolsgroup.eu/api";
 var EXTERNAL_API_FALLBACK = process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api";
 var EXTERNAL_APIS = [EXTERNAL_API, EXTERNAL_API_FALLBACK].filter((v, i, a) => a.indexOf(v) === i);
 async function fetchExternalWithFallback(path3, options) {
