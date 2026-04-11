@@ -287,49 +287,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const socialLogin = async (idToken: string, provider: string): Promise<SocialLoginResult> => {
-    const getWebBase = () => {
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        const origin = window.location.origin;
-        if (origin.includes("localhost:8081") || origin.includes("127.0.0.1:8081")) {
-          return origin.replace(/:8081\b/, ":5000");
-        }
-        return origin;
-      }
-      return null;
+    // Decode Firebase JWT payload client-side (no verification — for extracting email/uid only)
+    const decodeFirebaseJwt = (token: string): any => {
+      try {
+        const parts = token.split(".");
+        if (parts.length !== 3) return null;
+        const pad = (s: string) => s + "=".repeat((4 - s.length % 4) % 4);
+        return JSON.parse(atob(pad(parts[1].replace(/-/g, "+").replace(/_/g, "/"))));
+      } catch { return null; }
     };
 
-    const webBase = getWebBase();
-    const { getMobileApiUrl, EXTERNAL_API_FALLBACK } = require("./config");
-    const primaryUrl = getMobileApiUrl();
-    const nativeBases = [primaryUrl, EXTERNAL_API_FALLBACK].filter((v: string, i: number, a: string[]) => a.indexOf(v) === i);
-
-    const bases = webBase ? [webBase] : nativeBases;
-
+    const isWeb = Platform.OS === "web" && typeof window !== "undefined";
     let res: globalThis.Response | null = null;
-    let lastErr: any = null;
-    for (const base of bases) {
+
+    if (isWeb) {
+      // Web: use proxy's /api/auth/social — it handles token verification and normalization
+      const origin = window.location.origin;
+      const webBase = (origin.includes("localhost:8081") || origin.includes("127.0.0.1:8081"))
+        ? origin.replace(/:8081\b/, ":5000")
+        : origin;
       try {
-        res = await fetch(`${base}/api/auth/social`, {
+        res = await fetch(`${webBase}/api/auth/social`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token: idToken, provider }),
         });
-        break;
       } catch (err: any) {
-        lastErr = err;
-        console.warn(`[SocialLogin] ${base} unreachable, trying next...`);
+        throw new Error("Connexion impossible. Vérifiez votre connexion réseau.");
       }
+    } else {
+      // Native (iOS/Android): /api/auth/social only exists on the proxy server.
+      // Call the external backend's Firebase login endpoint directly.
+      const { getMobileApiUrl, EXTERNAL_API_FALLBACK } = require("./config");
+      const bases: string[] = [getMobileApiUrl(), EXTERNAL_API_FALLBACK]
+        .filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i);
+      let lastErr: any = null;
+      for (const base of bases) {
+        try {
+          res = await fetch(`${base}/api/mobile/auth/login-with-firebase`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ idToken }),
+          });
+          break;
+        } catch (err: any) {
+          lastErr = err;
+          console.warn(`[SocialLogin] ${base} unreachable, trying next...`);
+        }
+      }
+      if (!res) throw lastErr || new Error("Authentification sociale échouée");
     }
-    if (!res) throw lastErr || new Error("Authentification sociale échouée");
 
-    const data = await res.json().catch(() => ({}));
+    let data: any = {};
+    try { data = await res.json(); } catch {}
 
-    if (res.status === 404 && data?.needsRegistration) {
+    // Handle "user not found — must register" (404)
+    if (res.status === 404) {
+      const decoded = decodeFirebaseJwt(idToken);
       return {
         status: "needs_registration",
-        email: data.email || "",
-        displayName: data.displayName || null,
-        firebaseUid: data.firebaseUid || "",
+        email: data.email || decoded?.email || "",
+        displayName: data.displayName || decoded?.name || null,
+        firebaseUid: data.firebaseUid || decoded?.user_id || decoded?.uid || decoded?.sub || "",
       };
     }
 
@@ -337,26 +356,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(data?.message || "Authentification sociale échouée");
     }
 
-    if (!data.accessToken || !data.user) {
+    // Normalize response fields — different backends use different names
+    const accessToken =
+      data.accessToken || data.token || data.jwt || data.access_token || null;
+    const user =
+      data.user || data.data?.user || data.profile || data.data || null;
+    const refreshToken =
+      data.refreshToken || data.refresh_token || data.data?.refreshToken || null;
+
+    if (!accessToken || !user) {
+      console.warn("[SocialLogin] Incomplete response:", JSON.stringify(data).slice(0, 300));
       throw new Error("Réponse d'authentification incomplète");
     }
 
-    await storeToken("access_token", data.accessToken);
-    setStoredAccessToken(data.accessToken);
-    setAdminTokens(data.accessToken, data.refreshToken || null);
-    if (data.refreshToken) {
-      await storeToken("refresh_token", data.refreshToken);
+    await storeToken("access_token", accessToken);
+    setStoredAccessToken(accessToken);
+    setAdminTokens(accessToken, refreshToken);
+    if (refreshToken) {
+      await storeToken("refresh_token", refreshToken);
     }
 
     await removeToken("social_access_token");
-
-    setUser(data.user as UserProfile);
+    setUser(user as UserProfile);
 
     return {
       status: "authenticated",
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken || null,
-      user: data.user as UserProfile,
+      accessToken,
+      refreshToken,
+      user: user as UserProfile,
     };
   };
 

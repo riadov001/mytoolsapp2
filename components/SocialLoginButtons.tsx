@@ -93,19 +93,27 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
     accessToken?: string | null
   ) => {
     if (!googleIdToken && !accessToken) {
+      console.warn("[Google] No idToken or accessToken in OAuth response");
+      onError("Aucun token reçu de Google. Veuillez réessayer.");
       setLoading(null);
       return;
+    }
+    if (!googleIdToken) {
+      console.warn("[Google] idToken absent — only accessToken available. Firebase may reject this.");
     }
     try {
       const { getFirebaseAuth } = require("@/lib/firebase");
       const { signInWithCredential, GoogleAuthProvider } = await import("firebase/auth");
       const fbAuth = getFirebaseAuth();
       if (!fbAuth) throw new Error("Firebase non configuré");
-      const credential = GoogleAuthProvider.credential(googleIdToken, accessToken);
+      const credential = GoogleAuthProvider.credential(googleIdToken ?? null, accessToken ?? null);
       const result = await signInWithCredential(fbAuth, credential);
-      await onIdToken(await result.user.getIdToken(), "google");
+      const firebaseIdToken = await result.user.getIdToken();
+      await onIdToken(firebaseIdToken, "google");
     } catch (err: any) {
-      onError(err?.message || "Erreur Google Sign-In");
+      const msg = err?.message || "Erreur Google Sign-In";
+      console.error("[Google] signInWithCredential failed:", msg);
+      onError(msg);
     } finally {
       setLoading(null);
     }
