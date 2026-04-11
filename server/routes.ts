@@ -17,8 +17,23 @@ function normalizeApiUrl(raw: string): string {
   return url.replace(/\/+$/, "");
 }
 
-const DEFAULT_EXTERNAL_API = normalizeApiUrl(process.env.EXTERNAL_API_URL || `https://${SEED_DOMAIN}/api`);
-const DEFAULT_EXTERNAL_FALLBACK = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || `https://${SEED_DOMAIN}/api`);
+function sanitizeApiUrlEnv(raw: string | undefined, label: string): string {
+  if (!raw) return `https://${SEED_DOMAIN}/api`;
+  const normalized = normalizeApiUrl(raw);
+  try {
+    const host = new URL(normalized).hostname.toLowerCase();
+    if (!host.includes(SEED_DOMAIN)) {
+      console.warn(`[CONFIG] ${label} rejected non-production domain (${host}), using default`);
+      return `https://${SEED_DOMAIN}/api`;
+    }
+  } catch {
+    return `https://${SEED_DOMAIN}/api`;
+  }
+  return normalized;
+}
+
+const DEFAULT_EXTERNAL_API = sanitizeApiUrlEnv(process.env.EXTERNAL_API_URL, "EXTERNAL_API_URL");
+const DEFAULT_EXTERNAL_FALLBACK = sanitizeApiUrlEnv(process.env.EXTERNAL_API_FALLBACK_URL, "EXTERNAL_API_FALLBACK_URL");
 
 let _dynamicApiUrl: string = DEFAULT_EXTERNAL_API;
 let _dynamicApiFallback: string = DEFAULT_EXTERNAL_FALLBACK;
@@ -198,6 +213,18 @@ async function initDatabase() {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+    // Ensure production API URL is always authoritative — overwrite any deprecated domain stored in DB
+    const productionApiUrl = `https://${SEED_DOMAIN}/api`;
+    await pool.query(`
+      INSERT INTO app_config (key, value, updated_at) VALUES ('api_url', $1, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
+      WHERE app_config.value NOT LIKE $2
+    `, [productionApiUrl, `%${SEED_DOMAIN}%`]);
+    await pool.query(`
+      INSERT INTO app_config (key, value, updated_at) VALUES ('api_fallback_url', $1, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
+      WHERE app_config.value NOT LIKE $2
+    `, [productionApiUrl, `%${SEED_DOMAIN}%`]);
     console.log("[DB] Tables initialized");
   } catch (err: any) {
     console.warn("[DB] Init skipped:", err.message);

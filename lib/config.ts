@@ -9,12 +9,24 @@ const DEFAULT_FALLBACK_URL =
 
 let _mobileApiUrl: string = DEFAULT_MOBILE_API_URL;
 
+const ALLOWED_MOBILE_API_DOMAIN = "backend.mytoolsgroup.eu";
+
 export async function initApiConfig(): Promise<void> {
   try {
     const res = await fetch(CONFIG_ENDPOINT);
     const data = await res.json();
     if (data?.mobileApiUrl) {
-      _mobileApiUrl = data.mobileApiUrl;
+      const candidate = data.mobileApiUrl as string;
+      try {
+        const host = new URL(candidate).hostname.toLowerCase();
+        if (!host.includes(ALLOWED_MOBILE_API_DOMAIN)) {
+          console.warn("[CONFIG] Remote mobileApiUrl rejected (non-production domain):", host);
+          return;
+        }
+      } catch {
+        return;
+      }
+      _mobileApiUrl = candidate;
       console.log("[CONFIG] mobileApiUrl loaded:", _mobileApiUrl);
     }
   } catch (e) {
