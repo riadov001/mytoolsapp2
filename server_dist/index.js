@@ -53,8 +53,24 @@ import fs from "node:fs";
 import Busboy from "busboy";
 
 // server/social-auth.ts
-var EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://backend.mytoolsgroup.eu/api";
-var EXTERNAL_API_FALLBACK = process.env.EXTERNAL_API_FALLBACK_URL || "https://backend.mytoolsgroup.eu/api";
+var ALLOWED_API_DOMAIN = "backend.mytoolsgroup.eu";
+function sanitizeSocialApiUrl(raw, fallback) {
+  if (!raw) return fallback;
+  try {
+    const normalized = raw.trim().replace(/\/+$/, "");
+    const host = new URL(normalized).hostname.toLowerCase();
+    if (!host.includes(ALLOWED_API_DOMAIN)) {
+      console.warn(`[SocialAuth] Rejected non-production API domain: ${host}`);
+      return fallback;
+    }
+    return normalized;
+  } catch {
+    return fallback;
+  }
+}
+var DEFAULT_API = `https://${ALLOWED_API_DOMAIN}/api`;
+var EXTERNAL_API = sanitizeSocialApiUrl(process.env.EXTERNAL_API_URL, DEFAULT_API);
+var EXTERNAL_API_FALLBACK = sanitizeSocialApiUrl(process.env.EXTERNAL_API_FALLBACK_URL, DEFAULT_API);
 var EXTERNAL_APIS = [EXTERNAL_API, EXTERNAL_API_FALLBACK].filter((v, i, a) => a.indexOf(v) === i);
 async function fetchExternalWithFallback(path3, options) {
   let lastErr;
@@ -82,13 +98,15 @@ async function fetchExternalWithFallback(path3, options) {
 }
 var adminApp = null;
 var firebaseAdminModule = null;
+var adminInitFailed = false;
 async function getAdminAuth() {
+  if (adminInitFailed) return null;
   if (adminApp) return adminApp;
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) {
-    throw new Error(
-      "FIREBASE_SERVICE_ACCOUNT_JSON non configur\xE9 sur le serveur"
-    );
+    console.warn("[SocialAuth] FIREBASE_SERVICE_ACCOUNT_JSON not set \u2014 local token verification disabled, forwarding to backend.");
+    adminInitFailed = true;
+    return null;
   }
   try {
     if (!firebaseAdminModule) {
@@ -109,18 +127,26 @@ async function getAdminAuth() {
     adminApp = admin.auth();
     return adminApp;
   } catch (err) {
-    throw new Error(`Erreur init Firebase Admin: ${err.message}`);
+    console.error(`[SocialAuth] Firebase Admin init failed: ${err.message} \u2014 forwarding to backend for verification.`);
+    adminInitFailed = true;
+    return null;
   }
 }
 async function verifyFirebaseIdToken(idToken) {
   const auth = await getAdminAuth();
-  const decoded = await auth.verifyIdToken(idToken);
-  return {
-    uid: decoded.uid,
-    email: decoded.email || void 0,
-    displayName: decoded.name || decoded.display_name || void 0,
-    photoUrl: decoded.picture || void 0
-  };
+  if (!auth) return null;
+  try {
+    const decoded = await auth.verifyIdToken(idToken);
+    return {
+      uid: decoded.uid,
+      email: decoded.email || void 0,
+      displayName: decoded.name || decoded.display_name || void 0,
+      photoUrl: decoded.picture || void 0
+    };
+  } catch (err) {
+    console.error("[SocialAuth] Firebase verify error:", err.message);
+    throw new Error("Token Firebase invalide ou expir\xE9");
+  }
 }
 function registerSocialAuthRoutes(app2) {
   app2.post("/api/auth/social", async (req, res) => {
@@ -129,16 +155,20 @@ function registerSocialAuthRoutes(app2) {
       if (!token || !provider) {
         return res.status(400).json({ message: "token et provider requis" });
       }
-      let firebaseUser;
+      if (!["google", "apple", "facebook", "twitter"].includes(provider)) {
+        return res.status(400).json({ message: "Provider non support\xE9" });
+      }
+      let firebaseUser = null;
       try {
         firebaseUser = await verifyFirebaseIdToken(token);
       } catch (err) {
-        console.error("[SocialAuth] Firebase verify error:", err.message);
-        return res.status(401).json({ message: "Token Firebase invalide" });
+        return res.status(401).json({ message: "Token Firebase invalide ou expir\xE9. Veuillez vous reconnecter." });
       }
-      if (!firebaseUser.email) {
+      if (!firebaseUser) {
+        console.log("[SocialAuth] Forwarding token to backend for verification (local Admin SDK not configured)");
+      } else if (!firebaseUser.email) {
         return res.status(403).json({
-          message: "Aucune adresse email associ\xE9e \xE0 ce compte. Connexion refus\xE9e."
+          message: "Aucune adresse email associ\xE9e \xE0 ce compte. Veuillez utiliser un compte avec une adresse email v\xE9rifi\xE9e."
         });
       }
       const externalRes = await fetchExternalWithFallback(
@@ -157,28 +187,31 @@ function registerSocialAuthRoutes(app2) {
       if (!contentType.includes("application/json")) {
         console.error("[SocialAuth] External API returned non-JSON response");
         return res.status(503).json({
-          message: "Service temporairement indisponible. Veuillez r\xE9essayer."
+          message: "Service temporairement indisponible. Veuillez r\xE9essayer dans quelques instants."
         });
       }
       const externalData = await externalRes.json();
       if (externalRes.status === 404) {
-        console.log("[SocialAuth] User not found, needs registration:", {
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          firebaseUid: firebaseUser.uid
-        });
+        const email = firebaseUser?.email || externalData?.email;
+        const displayName = firebaseUser?.displayName || externalData?.displayName || null;
+        const uid = firebaseUser?.uid || externalData?.firebaseUid;
+        console.log("[SocialAuth] User not found, needs registration:", { email, displayName, firebaseUid: uid });
+        if (!email) {
+          return res.status(403).json({
+            message: "Impossible de r\xE9cup\xE9rer votre adresse email. Veuillez utiliser un compte avec une adresse email v\xE9rifi\xE9e."
+          });
+        }
         return res.status(404).json({
           message: externalData?.message || "Aucun compte trouv\xE9 avec cette adresse email.",
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName || null,
-          firebaseUid: firebaseUser.uid,
+          email,
+          displayName,
+          firebaseUid: uid,
           needsRegistration: true
         });
       }
       if (!externalRes.ok) {
-        return res.status(externalRes.status).json({
-          message: externalData?.message || "Authentification \xE9chou\xE9e"
-        });
+        const msg = externalData?.message || "Authentification \xE9chou\xE9e. Veuillez r\xE9essayer.";
+        return res.status(externalRes.status).json({ message: msg });
       }
       const setCookieHeaders = externalRes.headers.getSetCookie?.() || [];
       for (const cookie of setCookieHeaders) {
@@ -188,16 +221,18 @@ function registerSocialAuthRoutes(app2) {
         accessToken: externalData.accessToken,
         refreshToken: externalData.refreshToken,
         user: externalData.user,
-        firebaseUid: firebaseUser.uid
+        firebaseUid: firebaseUser?.uid || externalData?.firebaseUid
       });
     } catch (err) {
       console.error("[SocialAuth] Error:", err.message);
       if (err.name === "TimeoutError" || err.name === "AbortError") {
         return res.status(503).json({
-          message: "Service temporairement indisponible. Veuillez r\xE9essayer."
+          message: "Le service est temporairement indisponible. Veuillez r\xE9essayer dans quelques instants."
         });
       }
-      return res.status(401).json({ message: err.message || "Authentification sociale \xE9chou\xE9e" });
+      return res.status(500).json({
+        message: "Une erreur inattendue s'est produite. Veuillez r\xE9essayer."
+      });
     }
   });
 }
@@ -212,8 +247,25 @@ function normalizeApiUrl(raw) {
   }
   return url.replace(/\/+$/, "");
 }
-var DEFAULT_EXTERNAL_API = normalizeApiUrl(process.env.EXTERNAL_API_URL || `https://${SEED_DOMAIN}/api`);
-var DEFAULT_EXTERNAL_FALLBACK = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || "https://backend.mytoolsgroup.eu/api");
+function sanitizeApiUrlEnv(raw, label) {
+  if (!raw) return `https://${SEED_DOMAIN}/api`;
+  let normalized = normalizeApiUrl(raw);
+  try {
+    const host = new URL(normalized).hostname.toLowerCase();
+    if (!host.includes(SEED_DOMAIN)) {
+      console.warn(`[CONFIG] ${label} rejected non-production domain (${host}), using default`);
+      return `https://${SEED_DOMAIN}/api`;
+    }
+  } catch {
+    return `https://${SEED_DOMAIN}/api`;
+  }
+  if (!normalized.endsWith("/api") && !normalized.includes("/api/")) {
+    normalized = normalized.replace(/\/$/, "") + "/api";
+  }
+  return normalized;
+}
+var DEFAULT_EXTERNAL_API = sanitizeApiUrlEnv(process.env.EXTERNAL_API_URL, "EXTERNAL_API_URL");
+var DEFAULT_EXTERNAL_FALLBACK = sanitizeApiUrlEnv(process.env.EXTERNAL_API_FALLBACK_URL, "EXTERNAL_API_FALLBACK_URL");
 var _dynamicApiUrl = DEFAULT_EXTERNAL_API;
 var _dynamicApiFallback = DEFAULT_EXTERNAL_FALLBACK;
 var _urlLastRefreshed = 0;
@@ -224,6 +276,7 @@ function getActiveApiUrl() {
 function getActiveFallbacks() {
   return [_dynamicApiUrl, _dynamicApiFallback].filter((v, i, a) => a.indexOf(v) === i);
 }
+var ALLOWED_API_DOMAIN2 = SEED_DOMAIN;
 async function fetchRemoteConfigUrl() {
   try {
     const res = await fetch(REMOTE_CONFIG_ENDPOINT, {
@@ -232,8 +285,22 @@ async function fetchRemoteConfigUrl() {
     });
     if (!res.ok) return null;
     const data = await res.json();
-    const url = data?.mobileApiUrl || data?.api_url || data?.apiUrl || data?.url;
-    if (url && typeof url === "string") return normalizeApiUrl(url);
+    const raw = data?.mobileApiUrl || data?.api_url || data?.apiUrl || data?.url;
+    if (!raw || typeof raw !== "string") return null;
+    let url = normalizeApiUrl(raw);
+    try {
+      const parsedHost = new URL(url).hostname.toLowerCase();
+      if (!parsedHost.includes(ALLOWED_API_DOMAIN2)) {
+        console.warn(`[CONFIG] Remote config rejected non-production domain: ${parsedHost} (expected: ${ALLOWED_API_DOMAIN2})`);
+        return null;
+      }
+    } catch {
+      return null;
+    }
+    if (!url.endsWith("/api") && !url.includes("/api/")) {
+      url = url.replace(/\/$/, "") + "/api";
+    }
+    return url;
   } catch {
   }
   return null;
@@ -362,6 +429,17 @@ async function initDatabase() {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+    const productionApiUrl = `https://${SEED_DOMAIN}/api`;
+    await pool.query(`
+      INSERT INTO app_config (key, value, updated_at) VALUES ('api_url', $1, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
+      WHERE app_config.value NOT LIKE $2
+    `, [productionApiUrl, `%${SEED_DOMAIN}%`]);
+    await pool.query(`
+      INSERT INTO app_config (key, value, updated_at) VALUES ('api_fallback_url', $1, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
+      WHERE app_config.value NOT LIKE $2
+    `, [productionApiUrl, `%${SEED_DOMAIN}%`]);
     console.log("[DB] Tables initialized");
   } catch (err) {
     console.warn("[DB] Init skipped:", err.message);
@@ -578,7 +656,7 @@ async function registerRoutes(app2) {
   app2.get("/api/admin/swagger-spec", async (req, res) => {
     const reqAuth = req.headers["authorization"] || "";
     const token = capturedRealToken || reqAuth.replace(/^Bearer\s+/i, "");
-    if (!token) return res.status(401).json({ message: "Non authentifi\xE9. Connectez-vous d'abord dans l'app.", capturedRealToken: null });
+    if (!token) return res.status(401).json({ message: "Non authentifi\xE9. Connectez-vous d'abord dans l'app." });
     try {
       const r = await fetch(`${getActiveApiUrl()}/swagger/spec`, {
         headers: { "authorization": `Bearer ${token}`, "accept": "application/json", "X-Requested-With": "XMLHttpRequest" }
