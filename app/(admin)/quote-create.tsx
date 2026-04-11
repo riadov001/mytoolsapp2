@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform, TextInput, ActivityIndicator, Alert, FlatList,
 } from "react-native";
@@ -75,6 +75,7 @@ export default function QuoteCreateScreen() {
     { id: uid(), description: "", quantity: "1", unitPrice: "", tvaRate: "20" },
   ]);
   const [editLoaded, setEditLoaded] = useState(false);
+  const originalItemIdsRef = useRef<string[]>([]);
 
   const { data: editQuote } = useQuery({
     queryKey: ["admin-quote", editId],
@@ -93,6 +94,9 @@ export default function QuoteCreateScreen() {
       setVehiclePlate(editQuote.vehicleInfo.plate || "");
     }
     const existingItems: any[] = editQuote.items || editQuote.lineItems || editQuote.lines || editQuote.quote_items || [];
+    originalItemIdsRef.current = existingItems
+      .map((it: any) => String(it.id || it._id || ""))
+      .filter(Boolean);
     if (existingItems.length > 0) {
       setLineItems(existingItems.map((it: any) => ({
         id: uid(),
@@ -152,12 +156,7 @@ export default function QuoteCreateScreen() {
       photos: Array<{ uri: string; name: string }>;
     }) => {
       if (isEditMode) {
-        const updateBody: any = {
-          clientId: payload.clientId,
-          notes: payload.notes || null,
-        };
-        if (payload.vehicleInfo) updateBody.vehicleInfo = payload.vehicleInfo;
-        const items = payload.validItems.map(it => {
+        const mappedItems = payload.validItems.map(it => {
           const qty = parseFloat(it.quantity) || 1;
           const price = parseFloat(it.unitPrice) || 0;
           const tva = parseFloat(it.tvaRate) || 0;
@@ -174,15 +173,29 @@ export default function QuoteCreateScreen() {
             totalIncludingTax: totalTTC.toFixed(2),
           };
         });
-        updateBody.items = items;
-        const sumHT = items.reduce((s, it) => s + (parseFloat(it.totalExcludingTax) || 0), 0);
-        const sumTTC = items.reduce((s, it) => s + (parseFloat(it.totalIncludingTax) || 0), 0);
-        updateBody.priceExcludingTax = sumHT.toFixed(2);
-        updateBody.total_excluding_tax = sumHT.toFixed(2);
-        updateBody.quoteAmount = sumTTC.toFixed(2);
-        updateBody.total_including_tax = sumTTC.toFixed(2);
-        updateBody.amount = sumTTC.toFixed(2);
-        return await adminQuotes.update(editId, updateBody);
+        const sumHT = mappedItems.reduce((s, it) => s + (parseFloat(it.totalExcludingTax) || 0), 0);
+        const sumTTC = mappedItems.reduce((s, it) => s + (parseFloat(it.totalIncludingTax) || 0), 0);
+        const updateBody: any = {
+          clientId: payload.clientId,
+          notes: payload.notes || null,
+          priceExcludingTax: sumHT.toFixed(2),
+          total_excluding_tax: sumHT.toFixed(2),
+          quoteAmount: sumTTC.toFixed(2),
+          total_including_tax: sumTTC.toFixed(2),
+          amount: sumTTC.toFixed(2),
+        };
+        if (payload.vehicleInfo) updateBody.vehicleInfo = payload.vehicleInfo;
+        // 1. Update header
+        await adminQuotes.update(editId, updateBody);
+        // 2. Delete all previously existing items
+        for (const itemId of originalItemIdsRef.current) {
+          try { await adminQuotes.deleteItem(itemId); } catch {}
+        }
+        // 3. Re-add all current items
+        for (const item of mappedItems) {
+          await adminQuotes.addItem(editId, item);
+        }
+        return { id: editId };
       }
 
       const quoteBody: any = {

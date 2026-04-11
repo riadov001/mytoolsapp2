@@ -165,18 +165,22 @@ export function registerSocialAuthRoutes(app: Express) {
         }
       );
 
+      const rawText = await externalRes.text();
       const contentType = externalRes.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        console.error("[SocialAuth] External API returned non-JSON response");
-        return res.status(503).json({
-          message: "Service temporairement indisponible. Veuillez réessayer dans quelques instants.",
-        });
+
+      let externalData: any = {};
+      try {
+        externalData = JSON.parse(rawText);
+      } catch {
+        if (!contentType.includes("application/json")) {
+          console.error("[SocialAuth] External API returned non-JSON response:", rawText.substring(0, 200));
+          return res.status(503).json({
+            message: "Service temporairement indisponible. Veuillez réessayer dans quelques instants.",
+          });
+        }
       }
 
-      const externalData = await externalRes.json();
-
       if (externalRes.status === 404) {
-        // Backend returned not found — user needs to register
         const email = firebaseUser?.email || externalData?.email;
         const displayName = firebaseUser?.displayName || externalData?.displayName || null;
         const uid = firebaseUser?.uid || externalData?.firebaseUid;
@@ -208,10 +212,33 @@ export function registerSocialAuthRoutes(app: Express) {
         res.appendHeader("set-cookie", cookie);
       }
 
+      // Normalize response — different backends use different field names
+      const accessToken =
+        externalData.accessToken ||
+        externalData.token ||
+        externalData.jwt ||
+        externalData.access_token ||
+        null;
+
+      const user =
+        externalData.user ||
+        externalData.data?.user ||
+        externalData.profile ||
+        externalData.data ||
+        null;
+
+      const refreshToken =
+        externalData.refreshToken ||
+        externalData.refresh_token ||
+        externalData.data?.refreshToken ||
+        null;
+
+      console.log("[SocialAuth] Login success, token present:", !!accessToken, "user present:", !!user);
+
       return res.json({
-        accessToken: externalData.accessToken,
-        refreshToken: externalData.refreshToken,
-        user: externalData.user,
+        accessToken,
+        refreshToken,
+        user,
         firebaseUid: firebaseUser?.uid || externalData?.firebaseUid,
       });
     } catch (err: any) {

@@ -2279,13 +2279,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const upstreamContentType = response.headers.get("content-type") || "";
       const body = await response.arrayBuffer();
+      const bodyBuf = Buffer.from(body);
 
-      if (upstreamContentType.includes("application/pdf") || upstreamContentType.includes("octet-stream")) {
+      // Detect PDF: check Content-Type OR magic bytes (%PDF) OR URL ending with /pdf
+      const isPdfByType = upstreamContentType.includes("application/pdf") || upstreamContentType.includes("octet-stream");
+      const isPdfByMagic = bodyBuf.length > 4 && bodyBuf.slice(0, 4).toString("ascii") === "%PDF";
+      const isPdfByUrl = req.url.endsWith("/pdf") || req.url.includes("/pdf?");
+      if (isPdfByType || isPdfByMagic || (isPdfByUrl && response.status === 200)) {
         res.status(response.status);
-        res.setHeader("content-type", upstreamContentType);
+        res.setHeader("content-type", "application/pdf");
         const disposition = response.headers.get("content-disposition");
         if (disposition) res.setHeader("content-disposition", disposition);
-        res.send(Buffer.from(body));
+        else res.setHeader("content-disposition", "inline; filename=\"document.pdf\"");
+        res.send(bodyBuf);
         return;
       }
 
