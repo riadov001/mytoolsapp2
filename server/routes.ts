@@ -38,8 +38,13 @@ async function fetchRemoteConfigUrl(): Promise<string | null> {
     });
     if (!res.ok) return null;
     const data: any = await res.json();
-    const url = data?.mobileApiUrl || data?.api_url || data?.apiUrl || data?.url;
-    if (url && typeof url === "string") return normalizeApiUrl(url);
+    const raw = data?.mobileApiUrl || data?.api_url || data?.apiUrl || data?.url;
+    if (!raw || typeof raw !== "string") return null;
+    let url = normalizeApiUrl(raw);
+    if (!url.endsWith("/api") && !url.includes("/api/")) {
+      url = url.replace(/\/$/, "") + "/api";
+    }
+    return url;
   } catch {}
   return null;
 }
