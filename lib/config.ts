@@ -5,7 +5,7 @@ const CONFIG_ENDPOINT = "https://backend.mytoolsgroup.eu/api/public/mobile-api-u
 const DEFAULT_MOBILE_API_URL =
   process.env.EXPO_PUBLIC_EXTERNAL_API_URL || "https://backend.mytoolsgroup.eu";
 const DEFAULT_FALLBACK_URL =
-  process.env.EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu";
+  process.env.EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL || "https://backend.mytoolsgroup.eu";
 
 let _mobileApiUrl: string = DEFAULT_MOBILE_API_URL;
 

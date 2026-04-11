@@ -54,7 +54,7 @@ import Busboy from "busboy";
 
 // server/social-auth.ts
 var EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://backend.mytoolsgroup.eu/api";
-var EXTERNAL_API_FALLBACK = process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api";
+var EXTERNAL_API_FALLBACK = process.env.EXTERNAL_API_FALLBACK_URL || "https://backend.mytoolsgroup.eu/api";
 var EXTERNAL_APIS = [EXTERNAL_API, EXTERNAL_API_FALLBACK].filter((v, i, a) => a.indexOf(v) === i);
 async function fetchExternalWithFallback(path3, options) {
   let lastErr;
@@ -213,7 +213,7 @@ function normalizeApiUrl(raw) {
   return url.replace(/\/+$/, "");
 }
 var DEFAULT_EXTERNAL_API = normalizeApiUrl(process.env.EXTERNAL_API_URL || `https://${SEED_DOMAIN}/api`);
-var DEFAULT_EXTERNAL_FALLBACK = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api");
+var DEFAULT_EXTERNAL_FALLBACK = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || "https://backend.mytoolsgroup.eu/api");
 var _dynamicApiUrl = DEFAULT_EXTERNAL_API;
 var _dynamicApiFallback = DEFAULT_EXTERNAL_FALLBACK;
 var _urlLastRefreshed = 0;

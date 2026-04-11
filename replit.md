@@ -71,7 +71,7 @@ The admin dashboard (`app/(admin)/(tabs)/index.tsx`) fetches from `/api/admin/da
 ## System Architecture
 **App name**: MyToolsApp | **Slug**: mytoolsapp | **Scheme**: mytools
 
-The application is built using Expo React Native with file-based routing via Expo Router for the frontend. It consumes an external API with fallback priority: `saas.mytoolsgroup.eu` (primary) → `pwa.mytoolsgroup.eu` (fallback) → Replit proxy URL. Authentication is handled via a dual system: Bearer tokens for admin API calls and cookie sessions for client-side interactions. State management utilizes React Query for server data and React Context for authentication.
+The application is built using Expo React Native with file-based routing via Expo Router for the frontend. It consumes an external API exclusively at `backend.mytoolsgroup.eu` (production API). Authentication is handled via a dual system: Bearer tokens for admin API calls and cookie sessions for client-side interactions. State management utilizes React Query for server data and React Context for authentication.
 
 Key features include:
 - Role-based routing, directing `admin`/`employe` users to the `(admin)` interface and `client` users to the `(main)` interface.
@@ -139,7 +139,7 @@ All Expo packages must be compatible with the installed SDK version. Use `npx ex
 Always run `npx expo install <package> --fix` or `npx expo install --fix` to auto-resolve version mismatches.
 
 ## External Dependencies
-- **Backend API**: `saas.mytoolsgroup.eu` (primary), `pwa.mytoolsgroup.eu` (fallback). All backend routes use automatic fallback with retry on 5xx errors.
+- **Backend API**: `backend.mytoolsgroup.eu` (production). All backend routes proxy to this single production endpoint with retry on 5xx errors.
 - **Authentication**: Bearer tokens and cookie sessions managed by the external API. Apple Sign-In uses nonce-based verification via `expo-crypto`.
 - **Social Auth**: Firebase Admin SDK verifies Google/Apple tokens, then forwards to external API `/mobile/auth/login-with-firebase`.
 - **Data Storage**: AsyncStorage for GDPR consent, SecureStore for authentication tokens and session cookies.

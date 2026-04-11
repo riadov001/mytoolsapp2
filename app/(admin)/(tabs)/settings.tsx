@@ -139,7 +139,7 @@ function ApiConfigSection({ theme, styles }: { theme: ThemeColors; styles: any }
               style={[styles.apiInput, { borderColor: editing ? theme.primary : theme.border, color: theme.text }]}
               value={apiFallbackUrl}
               onChangeText={(v) => { setApiFallbackUrl(v); setEditing(true); }}
-              placeholder="https://pwa.mytoolsgroup.eu/api"
+              placeholder="https://backend.mytoolsgroup.eu/api"
               placeholderTextColor={theme.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}

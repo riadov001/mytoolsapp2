@@ -23,7 +23,7 @@
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
         "EXPO_PUBLIC_EXTERNAL_API_URL": "https://backend.mytoolsgroup.eu",
-        "EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL": "https://pwa.mytoolsgroup.eu"
+        "EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL": "https://backend.mytoolsgroup.eu"
       }
     },
     "preview": {
@@ -47,7 +47,7 @@
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
         "EXPO_PUBLIC_EXTERNAL_API_URL": "https://backend.mytoolsgroup.eu",
-        "EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL": "https://pwa.mytoolsgroup.eu"
+        "EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL": "https://backend.mytoolsgroup.eu"
       }
     },
     "production": {
@@ -71,7 +71,7 @@
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "129808585113-q81uhog8n2eivfpgg924tdfrh3s3ifau.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "129808585113-fs2ovorj3vl39g4sgvehi61k3jprhood.apps.googleusercontent.com",
         "EXPO_PUBLIC_EXTERNAL_API_URL": "https://backend.mytoolsgroup.eu",
-        "EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL": "https://pwa.mytoolsgroup.eu"
+        "EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL": "https://backend.mytoolsgroup.eu"
       }
     }
   },

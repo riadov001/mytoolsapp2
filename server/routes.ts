@@ -18,7 +18,7 @@ function normalizeApiUrl(raw: string): string {
 }
 
 const DEFAULT_EXTERNAL_API = normalizeApiUrl(process.env.EXTERNAL_API_URL || `https://${SEED_DOMAIN}/api`);
-const DEFAULT_EXTERNAL_FALLBACK = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || "https://pwa.mytoolsgroup.eu/api");
+const DEFAULT_EXTERNAL_FALLBACK = normalizeApiUrl(process.env.EXTERNAL_API_FALLBACK_URL || `https://${SEED_DOMAIN}/api`);
 
 let _dynamicApiUrl: string = DEFAULT_EXTERNAL_API;
 let _dynamicApiFallback: string = DEFAULT_EXTERNAL_FALLBACK;
@@ -409,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/swagger-spec", async (req: Request, res: Response) => {
     const reqAuth = (req.headers["authorization"] as string) || "";
     const token = capturedRealToken || reqAuth.replace(/^Bearer\s+/i, "");
-    if (!token) return res.status(401).json({ message: "Non authentifié. Connectez-vous d'abord dans l'app.", capturedRealToken: null });
+    if (!token) return res.status(401).json({ message: "Non authentifié. Connectez-vous d'abord dans l'app." });
     try {
       const r = await fetch(`${getActiveApiUrl()}/swagger/spec`, {
         headers: { "authorization": `Bearer ${token}`, "accept": "application/json", "X-Requested-With": "XMLHttpRequest" }
