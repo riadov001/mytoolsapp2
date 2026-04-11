@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert,
   TextInput, ActivityIndicator, FlatList,
@@ -84,7 +84,6 @@ export default function InvoiceCreateScreen() {
   const [lineItems, setLineItems] = useState<LineItem[]>([{ id: uid(), description: "", quantity: "1", unitPrice: "", tvaRate: "20" }]);
   const [photos, setPhotos] = useState<{ uri: string; name: string }[]>([]);
   const [editLoaded, setEditLoaded] = useState(false);
-  const originalItemIdsRef = useRef<string[]>([]);
 
   const { data: editInvoice } = useQuery({
     queryKey: ["admin-invoice", editId],
@@ -99,9 +98,6 @@ export default function InvoiceCreateScreen() {
     if (editInvoice.description) setNotes(editInvoice.description);
     if (editInvoice.paymentMethod) setPaymentMethod(editInvoice.paymentMethod);
     const existingItems: any[] = editInvoice.items || editInvoice.lineItems || editInvoice.lines || editInvoice.invoice_lines || [];
-    originalItemIdsRef.current = existingItems
-      .map((it: any) => String(it.id || it._id || ""))
-      .filter(Boolean);
     if (existingItems.length > 0) {
       setLineItems(existingItems.map((it: any) => ({
         id: uid(),
@@ -181,24 +177,15 @@ export default function InvoiceCreateScreen() {
       });
 
       if (isEditMode) {
-        // 1. Update the invoice header fields
-        await adminInvoices.update(editId, {
+        return await adminInvoices.update(editId, {
           clientId: payload.clientId,
           total_excluding_tax: payload.total_excluding_tax,
           total_including_tax: payload.total_including_tax,
           amount: payload.amount,
           notes: payload.notes,
           paymentMethod: payload.paymentMethod,
+          items: mappedItems,
         });
-        // 2. Delete all previously existing items
-        for (const itemId of originalItemIdsRef.current) {
-          try { await adminInvoices.deleteItem(itemId); } catch {}
-        }
-        // 3. Re-add all current items
-        for (const item of mappedItems) {
-          await adminInvoices.addItem(editId, item);
-        }
-        return { id: editId };
       }
 
       const invoiceShell = await adminInvoices.create({

@@ -75,7 +75,6 @@ export default function QuoteCreateScreen() {
     { id: uid(), description: "", quantity: "1", unitPrice: "", tvaRate: "20" },
   ]);
   const [editLoaded, setEditLoaded] = useState(false);
-  const originalItemIdsRef = useRef<string[]>([]);
 
   const { data: editQuote } = useQuery({
     queryKey: ["admin-quote", editId],
@@ -94,9 +93,6 @@ export default function QuoteCreateScreen() {
       setVehiclePlate(editQuote.vehicleInfo.plate || "");
     }
     const existingItems: any[] = editQuote.items || editQuote.lineItems || editQuote.lines || editQuote.quote_items || [];
-    originalItemIdsRef.current = existingItems
-      .map((it: any) => String(it.id || it._id || ""))
-      .filter(Boolean);
     if (existingItems.length > 0) {
       setLineItems(existingItems.map((it: any) => ({
         id: uid(),
@@ -183,19 +179,10 @@ export default function QuoteCreateScreen() {
           quoteAmount: sumTTC.toFixed(2),
           total_including_tax: sumTTC.toFixed(2),
           amount: sumTTC.toFixed(2),
+          items: mappedItems,
         };
         if (payload.vehicleInfo) updateBody.vehicleInfo = payload.vehicleInfo;
-        // 1. Update header
-        await adminQuotes.update(editId, updateBody);
-        // 2. Delete all previously existing items
-        for (const itemId of originalItemIdsRef.current) {
-          try { await adminQuotes.deleteItem(itemId); } catch {}
-        }
-        // 3. Re-add all current items
-        for (const item of mappedItems) {
-          await adminQuotes.addItem(editId, item);
-        }
-        return { id: editId };
+        return await adminQuotes.update(editId, updateBody);
       }
 
       const quoteBody: any = {

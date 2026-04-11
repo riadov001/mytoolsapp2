@@ -97,11 +97,29 @@ export default function GarageRegisterScreen() {
     setSearchAttempted(true);
     try {
       const param = isSiret ? `siret=${encodeURIComponent(query)}` : `name=${encodeURIComponent(query)}`;
-      const res = await fetch(`${apiBase}/api/mobile/public/siret-lookup?${param}`, {
-        headers: { Accept: "application/json" },
+      const reqHeaders: Record<string, string> = { Accept: "application/json" };
+      if (idToken) reqHeaders["Authorization"] = `Bearer ${idToken}`;
+      const res = await fetch(`${apiBase}/api/mobile/company/search?${param}`, {
+        headers: reqHeaders,
       });
+      if (res.status === 503) {
+        showAlert({
+          type: "error",
+          title: "Service indisponible",
+          message: "Le service de recherche d'entreprise est temporairement indisponible.\n\nVous pouvez saisir vos informations manuellement.",
+          buttons: [
+            { text: "Saisir manuellement", style: "primary", onPress: () => setManualEntry(true) },
+            { text: "Réessayer", style: "cancel" },
+          ],
+        });
+        return;
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        if (err?.requiresManualEntry) {
+          setManualEntry(true);
+          return;
+        }
         throw new Error(err?.message || "Entreprise introuvable");
       }
       const data = await res.json();
@@ -131,7 +149,7 @@ export default function GarageRegisterScreen() {
     } finally {
       setLoading(false);
     }
-  }, [garageName, apiBase]);
+  }, [garageName, apiBase, idToken]);
 
   const handleSiretChange = useCallback((text: string) => {
     const digits = text.replace(/\D/g, "").slice(0, 14);
