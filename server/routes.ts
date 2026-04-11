@@ -30,6 +30,8 @@ function getActiveFallbacks(): string[] {
   return [_dynamicApiUrl, _dynamicApiFallback].filter((v, i, a) => a.indexOf(v) === i);
 }
 
+const ALLOWED_API_DOMAIN = SEED_DOMAIN; // Only trust URLs on the production domain
+
 async function fetchRemoteConfigUrl(): Promise<string | null> {
   try {
     const res = await fetch(REMOTE_CONFIG_ENDPOINT, {
@@ -41,6 +43,16 @@ async function fetchRemoteConfigUrl(): Promise<string | null> {
     const raw = data?.mobileApiUrl || data?.api_url || data?.apiUrl || data?.url;
     if (!raw || typeof raw !== "string") return null;
     let url = normalizeApiUrl(raw);
+    // Security: reject any remote config that points to a domain other than the production domain
+    try {
+      const parsedHost = new URL(url).hostname.toLowerCase();
+      if (!parsedHost.includes(ALLOWED_API_DOMAIN)) {
+        console.warn(`[CONFIG] Remote config rejected non-production domain: ${parsedHost} (expected: ${ALLOWED_API_DOMAIN})`);
+        return null;
+      }
+    } catch {
+      return null;
+    }
     if (!url.endsWith("/api") && !url.includes("/api/")) {
       url = url.replace(/\/$/, "") + "/api";
     }
