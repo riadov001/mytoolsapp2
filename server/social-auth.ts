@@ -1,7 +1,25 @@
 import type { Express, Request, Response } from "express";
 
-const EXTERNAL_API = process.env.EXTERNAL_API_URL || "https://backend.mytoolsgroup.eu/api";
-const EXTERNAL_API_FALLBACK = process.env.EXTERNAL_API_FALLBACK_URL || "https://backend.mytoolsgroup.eu/api";
+const ALLOWED_API_DOMAIN = "backend.mytoolsgroup.eu";
+
+function sanitizeSocialApiUrl(raw: string | undefined, fallback: string): string {
+  if (!raw) return fallback;
+  try {
+    const normalized = raw.trim().replace(/\/+$/, "");
+    const host = new URL(normalized).hostname.toLowerCase();
+    if (!host.includes(ALLOWED_API_DOMAIN)) {
+      console.warn(`[SocialAuth] Rejected non-production API domain: ${host}`);
+      return fallback;
+    }
+    return normalized;
+  } catch {
+    return fallback;
+  }
+}
+
+const DEFAULT_API = `https://${ALLOWED_API_DOMAIN}/api`;
+const EXTERNAL_API = sanitizeSocialApiUrl(process.env.EXTERNAL_API_URL, DEFAULT_API);
+const EXTERNAL_API_FALLBACK = sanitizeSocialApiUrl(process.env.EXTERNAL_API_FALLBACK_URL, DEFAULT_API);
 const EXTERNAL_APIS = [EXTERNAL_API, EXTERNAL_API_FALLBACK].filter((v, i, a) => a.indexOf(v) === i);
 
 async function fetchExternalWithFallback(path: string, options: RequestInit): Promise<globalThis.Response> {
@@ -32,15 +50,17 @@ async function fetchExternalWithFallback(path: string, options: RequestInit): Pr
 
 let adminApp: any = null;
 let firebaseAdminModule: any = null;
+let adminInitFailed = false;
 
-async function getAdminAuth() {
+async function getAdminAuth(): Promise<any | null> {
+  if (adminInitFailed) return null;
   if (adminApp) return adminApp;
 
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) {
-    throw new Error(
-      "FIREBASE_SERVICE_ACCOUNT_JSON non configuré sur le serveur"
-    );
+    console.warn("[SocialAuth] FIREBASE_SERVICE_ACCOUNT_JSON not set — local token verification disabled, forwarding to backend.");
+    adminInitFailed = true;
+    return null;
   }
 
   try {
@@ -65,7 +85,9 @@ async function getAdminAuth() {
     adminApp = admin.auth();
     return adminApp;
   } catch (err: any) {
-    throw new Error(`Erreur init Firebase Admin: ${err.message}`);
+    console.error(`[SocialAuth] Firebase Admin init failed: ${err.message} — forwarding to backend for verification.`);
+    adminInitFailed = true;
+    return null;
   }
 }
 
@@ -74,16 +96,21 @@ async function verifyFirebaseIdToken(idToken: string): Promise<{
   email?: string;
   displayName?: string;
   photoUrl?: string;
-}> {
+} | null> {
   const auth = await getAdminAuth();
-  const decoded = await auth.verifyIdToken(idToken);
-
-  return {
-    uid: decoded.uid,
-    email: decoded.email || undefined,
-    displayName: decoded.name || decoded.display_name || undefined,
-    photoUrl: decoded.picture || undefined,
-  };
+  if (!auth) return null;
+  try {
+    const decoded = await auth.verifyIdToken(idToken);
+    return {
+      uid: decoded.uid,
+      email: decoded.email || undefined,
+      displayName: decoded.name || decoded.display_name || undefined,
+      photoUrl: decoded.picture || undefined,
+    };
+  } catch (err: any) {
+    console.error("[SocialAuth] Firebase verify error:", err.message);
+    throw new Error("Token Firebase invalide ou expiré");
+  }
 }
 
 export function registerSocialAuthRoutes(app: Express) {
@@ -98,23 +125,30 @@ export function registerSocialAuthRoutes(app: Express) {
         return res.status(400).json({ message: "token et provider requis" });
       }
 
+      if (!["google", "apple", "facebook", "twitter"].includes(provider)) {
+        return res.status(400).json({ message: "Provider non supporté" });
+      }
+
       let firebaseUser: {
         uid: string;
         email?: string;
         displayName?: string;
         photoUrl?: string;
-      };
+      } | null = null;
 
       try {
         firebaseUser = await verifyFirebaseIdToken(token);
       } catch (err: any) {
-        console.error("[SocialAuth] Firebase verify error:", err.message);
-        return res.status(401).json({ message: "Token Firebase invalide" });
+        return res.status(401).json({ message: "Token Firebase invalide ou expiré. Veuillez vous reconnecter." });
       }
 
-      if (!firebaseUser.email) {
+      // If local Firebase Admin verification is unavailable, forward directly to backend
+      // The backend will perform its own token verification
+      if (!firebaseUser) {
+        console.log("[SocialAuth] Forwarding token to backend for verification (local Admin SDK not configured)");
+      } else if (!firebaseUser.email) {
         return res.status(403).json({
-          message: "Aucune adresse email associée à ce compte. Connexion refusée.",
+          message: "Aucune adresse email associée à ce compte. Veuillez utiliser un compte avec une adresse email vérifiée.",
         });
       }
 
@@ -135,31 +169,38 @@ export function registerSocialAuthRoutes(app: Express) {
       if (!contentType.includes("application/json")) {
         console.error("[SocialAuth] External API returned non-JSON response");
         return res.status(503).json({
-          message: "Service temporairement indisponible. Veuillez réessayer.",
+          message: "Service temporairement indisponible. Veuillez réessayer dans quelques instants.",
         });
       }
 
       const externalData = await externalRes.json();
 
       if (externalRes.status === 404) {
-        console.log("[SocialAuth] User not found, needs registration:", {
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          firebaseUid: firebaseUser.uid,
-        });
+        // Backend returned not found — user needs to register
+        const email = firebaseUser?.email || externalData?.email;
+        const displayName = firebaseUser?.displayName || externalData?.displayName || null;
+        const uid = firebaseUser?.uid || externalData?.firebaseUid;
+
+        console.log("[SocialAuth] User not found, needs registration:", { email, displayName, firebaseUid: uid });
+
+        if (!email) {
+          return res.status(403).json({
+            message: "Impossible de récupérer votre adresse email. Veuillez utiliser un compte avec une adresse email vérifiée.",
+          });
+        }
+
         return res.status(404).json({
           message: externalData?.message || "Aucun compte trouvé avec cette adresse email.",
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName || null,
-          firebaseUid: firebaseUser.uid,
+          email,
+          displayName,
+          firebaseUid: uid,
           needsRegistration: true,
         });
       }
 
       if (!externalRes.ok) {
-        return res.status(externalRes.status).json({
-          message: externalData?.message || "Authentification échouée",
-        });
+        const msg = externalData?.message || "Authentification échouée. Veuillez réessayer.";
+        return res.status(externalRes.status).json({ message: msg });
       }
 
       const setCookieHeaders = externalRes.headers.getSetCookie?.() || [];
@@ -171,18 +212,18 @@ export function registerSocialAuthRoutes(app: Express) {
         accessToken: externalData.accessToken,
         refreshToken: externalData.refreshToken,
         user: externalData.user,
-        firebaseUid: firebaseUser.uid,
+        firebaseUid: firebaseUser?.uid || externalData?.firebaseUid,
       });
     } catch (err: any) {
       console.error("[SocialAuth] Error:", err.message);
       if (err.name === "TimeoutError" || err.name === "AbortError") {
         return res.status(503).json({
-          message: "Service temporairement indisponible. Veuillez réessayer.",
+          message: "Le service est temporairement indisponible. Veuillez réessayer dans quelques instants.",
         });
       }
-      return res
-        .status(401)
-        .json({ message: err.message || "Authentification sociale échouée" });
+      return res.status(500).json({
+        message: "Une erreur inattendue s'est produite. Veuillez réessayer.",
+      });
     }
   });
 }

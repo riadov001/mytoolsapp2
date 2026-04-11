@@ -19,7 +19,7 @@ function normalizeApiUrl(raw: string): string {
 
 function sanitizeApiUrlEnv(raw: string | undefined, label: string): string {
   if (!raw) return `https://${SEED_DOMAIN}/api`;
-  const normalized = normalizeApiUrl(raw);
+  let normalized = normalizeApiUrl(raw);
   try {
     const host = new URL(normalized).hostname.toLowerCase();
     if (!host.includes(SEED_DOMAIN)) {
@@ -28,6 +28,10 @@ function sanitizeApiUrlEnv(raw: string | undefined, label: string): string {
     }
   } catch {
     return `https://${SEED_DOMAIN}/api`;
+  }
+  // Ensure /api suffix is present
+  if (!normalized.endsWith("/api") && !normalized.includes("/api/")) {
+    normalized = normalized.replace(/\/$/, "") + "/api";
   }
   return normalized;
 }

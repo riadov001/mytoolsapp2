@@ -25,6 +25,18 @@ interface CompanyInfo {
   tvaNumber: string;
 }
 
+function getPasswordStrength(pwd: string): { level: 0 | 1 | 2 | 3; label: string; color: string } {
+  if (!pwd) return { level: 0, label: "", color: "transparent" };
+  let score = 0;
+  if (pwd.length >= 8) score++;
+  if (pwd.length >= 12) score++;
+  if (/[A-Z]/.test(pwd) && /[0-9]/.test(pwd)) score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+  if (score <= 1) return { level: 1, label: "Faible", color: "#EF4444" };
+  if (score === 2) return { level: 2, label: "Moyen", color: "#F59E0B" };
+  return { level: 3, label: "Fort", color: "#10B981" };
+}
+
 export default function GarageRegisterScreen() {
   const params = useLocalSearchParams();
   const prefillEmail = Array.isArray(params.email) ? params.email[0] : (params.email as string || "");
@@ -42,11 +54,28 @@ export default function GarageRegisterScreen() {
   const [step, setStep] = useState<Step>("siret");
   const [loading, setLoading] = useState(false);
 
+  // SIRET search
   const [siretInput, setSiretInput] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [company, setCompany] = useState<CompanyInfo | null>(null);
+  const [searchAttempted, setSearchAttempted] = useState(false);
   const siretLookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Manual entry
+  const [manualEntry, setManualEntry] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualAddress, setManualAddress] = useState("");
+  const [manualCity, setManualCity] = useState("");
+  const [manualPostalCode, setManualPostalCode] = useState("");
+  const [manualSiret, setManualSiret] = useState("");
+  const [manualSiren, setManualSiren] = useState("");
+  const [manualLegalForm, setManualLegalForm] = useState("");
+  const [manualTvaNumber, setManualTvaNumber] = useState("");
+
+  // Certification consent (step 1 — company data accuracy)
+  const [certificationConsent, setCertificationConsent] = useState(false);
+
+  // Personal info
   const nameParts = prefillName.split(" ");
   const [firstName, setFirstName] = useState(nameParts[0] || "");
   const [lastName, setLastName] = useState(nameParts.slice(1).join(" ") || "");
@@ -58,12 +87,14 @@ export default function GarageRegisterScreen() {
   const [legalConsent, setLegalConsent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const pwdStrength = getPasswordStrength(password);
   const apiBase = getBackendUrl();
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
 
   const doLookup = useCallback(async (query: string, isSiret: boolean) => {
     setLoading(true);
+    setSearchAttempted(true);
     try {
       const param = isSiret ? `siret=${encodeURIComponent(query)}` : `name=${encodeURIComponent(query)}`;
       const res = await fetch(`${apiBase}/api/mobile/public/siret-lookup?${param}`, {
@@ -85,9 +116,18 @@ export default function GarageRegisterScreen() {
         tvaNumber: data.tvaNumber || "",
       });
       if (!garageName && (data.name || data.companyName)) setGarageName(data.name || data.companyName);
+      setManualEntry(false);
     } catch (err: any) {
-      showAlert({ type: "error", title: "Recherche échouée", message: err.message || "Impossible de trouver l'entreprise.", buttons: [{ text: "OK", style: "primary" }] });
       setCompany(null);
+      showAlert({
+        type: "error",
+        title: "Entreprise introuvable",
+        message: `${err.message || "Impossible de trouver l'entreprise."}\n\nVous pouvez saisir les informations manuellement.`,
+        buttons: [
+          { text: "Saisir manuellement", style: "primary", onPress: () => setManualEntry(true) },
+          { text: "Réessayer", style: "cancel" },
+        ],
+      });
     } finally {
       setLoading(false);
     }
@@ -97,6 +137,7 @@ export default function GarageRegisterScreen() {
     const digits = text.replace(/\D/g, "").slice(0, 14);
     setSiretInput(digits);
     setCompany(null);
+    setSearchAttempted(false);
     if (siretLookupTimer.current) clearTimeout(siretLookupTimer.current);
     if (digits.length === 14) {
       siretLookupTimer.current = setTimeout(() => doLookup(digits, true), 300);
@@ -113,9 +154,50 @@ export default function GarageRegisterScreen() {
   }, [siretInput, nameInput, doLookup]);
 
   const checkEmailAndProceed = useCallback(async () => {
+    if (manualEntry) {
+      // Validate all required manual fields
+      if (!manualName.trim()) {
+        showAlert({ type: "error", title: "Champ requis", message: "La raison sociale est obligatoire.", buttons: [{ text: "OK", style: "primary" }] });
+        return;
+      }
+      if (!manualAddress.trim()) {
+        showAlert({ type: "error", title: "Champ requis", message: "L'adresse est obligatoire.", buttons: [{ text: "OK", style: "primary" }] });
+        return;
+      }
+      if (!manualCity.trim()) {
+        showAlert({ type: "error", title: "Champ requis", message: "La ville est obligatoire.", buttons: [{ text: "OK", style: "primary" }] });
+        return;
+      }
+      if (!manualPostalCode.trim() || !/^\d{5}$/.test(manualPostalCode.trim())) {
+        showAlert({ type: "error", title: "Champ requis", message: "Le code postal doit contenir exactement 5 chiffres.", buttons: [{ text: "OK", style: "primary" }] });
+        return;
+      }
+      if (!certificationConsent) {
+        showAlert({ type: "error", title: "Certification requise", message: "Vous devez certifier l'exactitude des informations renseignées.", buttons: [{ text: "OK", style: "primary" }] });
+        return;
+      }
+      // Build company from manual fields
+      setCompany({
+        name: manualName.trim(),
+        address: manualAddress.trim(),
+        city: manualCity.trim(),
+        postalCode: manualPostalCode.trim(),
+        siret: manualSiret.trim(),
+        siren: manualSiren.trim(),
+        legalForm: manualLegalForm.trim(),
+        tvaNumber: manualTvaNumber.trim(),
+      });
+      if (!garageName) setGarageName(manualName.trim());
+      setStep("form");
+      return;
+    }
     if (!company) return;
+    if (!certificationConsent) {
+      showAlert({ type: "error", title: "Certification requise", message: "Vous devez certifier l'exactitude des informations renseignées.", buttons: [{ text: "OK", style: "primary" }] });
+      return;
+    }
     setStep("form");
-  }, [company]);
+  }, [company, manualEntry, manualName, manualAddress, manualCity, manualPostalCode, manualSiret, manualSiren, manualLegalForm, manualTvaNumber, certificationConsent, garageName]);
 
   const handleRegister = useCallback(async () => {
     if (!firstName.trim() || !lastName.trim()) {
@@ -169,6 +251,7 @@ export default function GarageRegisterScreen() {
         tvaNumber: company?.tvaNumber || "",
         legalForm: company?.legalForm || "",
         smsConsent,
+        certificationConsent: true,
       };
       if (isGoogleFlow) {
         body.firebaseUid = firebaseUid;
@@ -224,6 +307,140 @@ export default function GarageRegisterScreen() {
     }
   }, [firstName, lastName, email, password, confirmPassword, garageName, smsConsent, legalConsent, company, firebaseUid, isGoogleFlow, idToken, socialLogin, apiBase]);
 
+  const renderCertificationCheckbox = () => (
+    <Pressable
+      style={[styles.certRow, certificationConsent && { borderColor: theme.primary + "60", backgroundColor: theme.primary + "08" }]}
+      onPress={() => setCertificationConsent(!certificationConsent)}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: certificationConsent }}
+    >
+      <View style={[styles.certCheckbox, certificationConsent && { backgroundColor: theme.primary, borderColor: theme.primary }]}>
+        {certificationConsent && <Ionicons name="checkmark" size={14} color="#fff" />}
+      </View>
+      <Text style={styles.certLabel}>
+        <Text style={{ fontFamily: "Inter_600SemiBold" }}>Je certifie sur l'honneur</Text> que les informations renseignées sont exactes et j'autorise MyTools à les vérifier auprès des autorités compétentes si nécessaire.
+      </Text>
+    </Pressable>
+  );
+
+  const renderManualEntryForm = () => (
+    <View style={styles.manualContainer}>
+      <View style={[styles.manualHeader, { backgroundColor: theme.warning + "15" || "#F59E0B15" }]}>
+        <Ionicons name="create-outline" size={18} color={theme.warning || "#F59E0B"} />
+        <Text style={[styles.manualHeaderText, { color: theme.warning || "#F59E0B" }]}>
+          Saisie manuelle des informations
+        </Text>
+      </View>
+
+      <Text style={styles.label}>Raison sociale <Text style={styles.required}>*</Text></Text>
+      <TextInput
+        style={styles.input}
+        value={manualName}
+        onChangeText={setManualName}
+        placeholder="Ex: Garage Dupont SARL"
+        placeholderTextColor={theme.textTertiary}
+        autoCapitalize="words"
+      />
+
+      <Text style={styles.label}>Adresse <Text style={styles.required}>*</Text></Text>
+      <TextInput
+        style={styles.input}
+        value={manualAddress}
+        onChangeText={setManualAddress}
+        placeholder="Ex: 12 rue de la Paix"
+        placeholderTextColor={theme.textTertiary}
+        autoCapitalize="words"
+      />
+
+      <View style={styles.row}>
+        <View style={{ flex: 2 }}>
+          <Text style={styles.label}>Ville <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            value={manualCity}
+            onChangeText={setManualCity}
+            placeholder="Paris"
+            placeholderTextColor={theme.textTertiary}
+            autoCapitalize="words"
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.label}>Code postal <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            value={manualPostalCode}
+            onChangeText={(t) => setManualPostalCode(t.replace(/\D/g, "").slice(0, 5))}
+            placeholder="75001"
+            placeholderTextColor={theme.textTertiary}
+            keyboardType="number-pad"
+            maxLength={5}
+          />
+        </View>
+      </View>
+
+      <Text style={styles.label}>Numéro SIRET</Text>
+      <TextInput
+        style={styles.input}
+        value={manualSiret}
+        onChangeText={(t) => setManualSiret(t.replace(/\D/g, "").slice(0, 14))}
+        placeholder="14 chiffres (recommandé)"
+        placeholderTextColor={theme.textTertiary}
+        keyboardType="number-pad"
+        maxLength={14}
+      />
+      {manualSiret.length > 0 && manualSiret.length < 14 && (
+        <Text style={styles.siretHint}>{manualSiret.length}/14 chiffres</Text>
+      )}
+
+      <Text style={styles.label}>Numéro SIREN</Text>
+      <TextInput
+        style={styles.input}
+        value={manualSiren}
+        onChangeText={(t) => setManualSiren(t.replace(/\D/g, "").slice(0, 9))}
+        placeholder="9 chiffres (optionnel)"
+        placeholderTextColor={theme.textTertiary}
+        keyboardType="number-pad"
+        maxLength={9}
+      />
+
+      <Text style={styles.label}>Forme juridique</Text>
+      <TextInput
+        style={styles.input}
+        value={manualLegalForm}
+        onChangeText={setManualLegalForm}
+        placeholder="Ex: SARL, SAS, EI, EURL..."
+        placeholderTextColor={theme.textTertiary}
+        autoCapitalize="characters"
+      />
+
+      <Text style={styles.label}>N° TVA Intracommunautaire</Text>
+      <TextInput
+        style={styles.input}
+        value={manualTvaNumber}
+        onChangeText={setManualTvaNumber}
+        placeholder="Ex: FR12345678901 (optionnel)"
+        placeholderTextColor={theme.textTertiary}
+        autoCapitalize="characters"
+      />
+
+      {renderCertificationCheckbox()}
+
+      <Pressable
+        style={[styles.primaryBtn, (!certificationConsent || !manualName.trim() || !manualAddress.trim() || !manualCity.trim() || manualPostalCode.length !== 5) && { opacity: 0.5 }]}
+        onPress={checkEmailAndProceed}
+        disabled={!certificationConsent || !manualName.trim() || !manualAddress.trim() || !manualCity.trim() || manualPostalCode.length !== 5}
+      >
+        <Ionicons name="arrow-forward-circle" size={18} color="#fff" />
+        <Text style={styles.primaryBtnText}>Continuer avec ces informations</Text>
+      </Pressable>
+
+      <Pressable style={styles.backStepBtn} onPress={() => setManualEntry(false)}>
+        <Ionicons name="search" size={16} color={theme.textSecondary} />
+        <Text style={styles.backStepText}>Réessayer la recherche</Text>
+      </Pressable>
+    </View>
+  );
+
   const renderSiretStep = () => (
     <>
       <View style={styles.stepHeader}>
@@ -245,82 +462,111 @@ export default function GarageRegisterScreen() {
         </View>
       )}
 
-      <Text style={styles.label}>Numéro SIRET</Text>
-      <TextInput
-        style={styles.input}
-        value={siretInput}
-        onChangeText={handleSiretChange}
-        placeholder="Ex: 12345678901234"
-        placeholderTextColor={theme.textTertiary}
-        keyboardType="number-pad"
-        maxLength={14}
-        autoCapitalize="none"
-      />
-      {siretInput.length > 0 && siretInput.length < 14 && (
-        <Text style={styles.siretHint}>{siretInput.length}/14 chiffres</Text>
-      )}
+      {!manualEntry ? (
+        <>
+          <Text style={styles.label}>Numéro SIRET</Text>
+          <TextInput
+            style={styles.input}
+            value={siretInput}
+            onChangeText={handleSiretChange}
+            placeholder="Ex: 12345678901234"
+            placeholderTextColor={theme.textTertiary}
+            keyboardType="number-pad"
+            maxLength={14}
+            autoCapitalize="none"
+          />
+          {siretInput.length > 0 && siretInput.length < 14 && (
+            <Text style={styles.siretHint}>{siretInput.length}/14 chiffres</Text>
+          )}
 
-      <View style={styles.orRow}>
-        <View style={styles.orLine} />
-        <Text style={styles.orText}>ou</Text>
-        <View style={styles.orLine} />
-      </View>
-
-      <Text style={styles.label}>Nom de l'entreprise</Text>
-      <TextInput
-        style={styles.input}
-        value={nameInput}
-        onChangeText={(t) => { setNameInput(t); setCompany(null); }}
-        placeholder="Ex: Mon Garage Auto"
-        placeholderTextColor={theme.textTertiary}
-        autoCapitalize="words"
-      />
-
-      <Pressable
-        style={[styles.primaryBtn, loading && { opacity: 0.6 }]}
-        onPress={lookupManual}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <>
-            <Ionicons name="search" size={18} color="#fff" />
-            <Text style={styles.primaryBtnText}>Rechercher</Text>
-          </>
-        )}
-      </Pressable>
-
-      {company && (
-        <View style={styles.companyCard}>
-          <Text style={styles.companyName}>{company.name}</Text>
-          <View style={styles.companyRow}>
-            <Ionicons name="location-outline" size={14} color={theme.textSecondary} />
-            <Text style={styles.companyDetail}>{company.address}, {company.postalCode} {company.city}</Text>
+          <View style={styles.orRow}>
+            <View style={styles.orLine} />
+            <Text style={styles.orText}>ou</Text>
+            <View style={styles.orLine} />
           </View>
-          {company.siret ? (
-            <View style={styles.companyRow}>
-              <Ionicons name="document-text-outline" size={14} color={theme.textSecondary} />
-              <Text style={styles.companyDetail}>SIRET: {company.siret}</Text>
-            </View>
-          ) : null}
-          {company.tvaNumber ? (
-            <View style={styles.companyRow}>
-              <Ionicons name="receipt-outline" size={14} color={theme.textSecondary} />
-              <Text style={styles.companyDetail}>TVA: {company.tvaNumber}</Text>
-            </View>
-          ) : null}
-          {company.legalForm ? (
-            <View style={styles.companyRow}>
-              <Ionicons name="briefcase-outline" size={14} color={theme.textSecondary} />
-              <Text style={styles.companyDetail}>{company.legalForm}</Text>
-            </View>
-          ) : null}
-          <Pressable style={styles.confirmBtn} onPress={checkEmailAndProceed}>
-            <Ionicons name="checkmark-circle" size={18} color="#fff" />
-            <Text style={styles.confirmBtnText}>C'est mon entreprise</Text>
+
+          <Text style={styles.label}>Nom de l'entreprise</Text>
+          <TextInput
+            style={styles.input}
+            value={nameInput}
+            onChangeText={(t) => { setNameInput(t); setCompany(null); setSearchAttempted(false); }}
+            placeholder="Ex: Mon Garage Auto"
+            placeholderTextColor={theme.textTertiary}
+            autoCapitalize="words"
+          />
+
+          <Pressable
+            style={[styles.primaryBtn, loading && { opacity: 0.6 }]}
+            onPress={lookupManual}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Ionicons name="search" size={18} color="#fff" />
+                <Text style={styles.primaryBtnText}>Rechercher</Text>
+              </>
+            )}
           </Pressable>
-        </View>
+
+          {searchAttempted && !company && !loading && (
+            <Pressable style={styles.manualEntryBtn} onPress={() => setManualEntry(true)}>
+              <Ionicons name="create-outline" size={16} color={theme.primary} />
+              <Text style={styles.manualEntryBtnText}>Saisir manuellement mes informations</Text>
+            </Pressable>
+          )}
+
+          {!searchAttempted && (
+            <Pressable style={styles.manualEntryBtn} onPress={() => setManualEntry(true)}>
+              <Ionicons name="create-outline" size={16} color={theme.textSecondary} />
+              <Text style={[styles.manualEntryBtnText, { color: theme.textSecondary }]}>
+                Mon entreprise n'est pas dans la base de données
+              </Text>
+            </Pressable>
+          )}
+
+          {company && (
+            <View style={styles.companyCard}>
+              <Text style={styles.companyName}>{company.name}</Text>
+              <View style={styles.companyRow}>
+                <Ionicons name="location-outline" size={14} color={theme.textSecondary} />
+                <Text style={styles.companyDetail}>{company.address}, {company.postalCode} {company.city}</Text>
+              </View>
+              {company.siret ? (
+                <View style={styles.companyRow}>
+                  <Ionicons name="document-text-outline" size={14} color={theme.textSecondary} />
+                  <Text style={styles.companyDetail}>SIRET: {company.siret}</Text>
+                </View>
+              ) : null}
+              {company.tvaNumber ? (
+                <View style={styles.companyRow}>
+                  <Ionicons name="receipt-outline" size={14} color={theme.textSecondary} />
+                  <Text style={styles.companyDetail}>TVA: {company.tvaNumber}</Text>
+                </View>
+              ) : null}
+              {company.legalForm ? (
+                <View style={styles.companyRow}>
+                  <Ionicons name="briefcase-outline" size={14} color={theme.textSecondary} />
+                  <Text style={styles.companyDetail}>{company.legalForm}</Text>
+                </View>
+              ) : null}
+
+              {renderCertificationCheckbox()}
+
+              <Pressable
+                style={[styles.confirmBtn, !certificationConsent && { opacity: 0.5 }]}
+                onPress={checkEmailAndProceed}
+                disabled={!certificationConsent}
+              >
+                <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                <Text style={styles.confirmBtnText}>C'est mon entreprise — Continuer</Text>
+              </Pressable>
+            </View>
+          )}
+        </>
+      ) : (
+        renderManualEntryForm()
       )}
     </>
   );
@@ -352,6 +598,12 @@ export default function GarageRegisterScreen() {
         <View style={styles.companyBadge}>
           <Ionicons name="business" size={16} color={theme.primary} />
           <Text style={styles.companyBadgeText}>{company.name}</Text>
+          {!company.siret && (
+            <View style={[styles.manualBadge, { backgroundColor: "#F59E0B20" }]}>
+              <Ionicons name="create-outline" size={11} color="#F59E0B" />
+              <Text style={{ fontSize: 10, color: "#F59E0B", fontFamily: "Inter_500Medium" }}>Manuel</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -366,7 +618,7 @@ export default function GarageRegisterScreen() {
 
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.label}>Prénom</Text>
+          <Text style={styles.label}>Prénom <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.input}
             value={firstName}
@@ -378,7 +630,7 @@ export default function GarageRegisterScreen() {
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.label}>Nom</Text>
+          <Text style={styles.label}>Nom <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.input}
             value={lastName}
@@ -391,7 +643,7 @@ export default function GarageRegisterScreen() {
         </View>
       </View>
 
-      <Text style={styles.label}>Email</Text>
+      <Text style={styles.label}>Email <Text style={styles.required}>*</Text></Text>
       <TextInput
         style={[styles.input, isGoogleFlow && { opacity: 0.7, backgroundColor: theme.surface }]}
         value={email}
@@ -406,7 +658,7 @@ export default function GarageRegisterScreen() {
 
       {!isGoogleFlow && (
         <>
-          <Text style={styles.label}>Mot de passe</Text>
+          <Text style={styles.label}>Mot de passe <Text style={styles.required}>*</Text></Text>
           <View style={styles.passwordRow}>
             <TextInput
               style={[styles.input, { flex: 1, marginBottom: 0 }]}
@@ -416,22 +668,43 @@ export default function GarageRegisterScreen() {
               placeholderTextColor={theme.textTertiary}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
+              autoComplete="new-password"
+              textContentType="newPassword"
             />
             <Pressable style={styles.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
               <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color={theme.textTertiary} />
             </Pressable>
           </View>
+          {password.length > 0 && (
+            <View style={styles.strengthRow}>
+              {[1, 2, 3].map((i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.strengthBar,
+                    { backgroundColor: i <= pwdStrength.level ? pwdStrength.color : theme.border },
+                  ]}
+                />
+              ))}
+              <Text style={[styles.strengthLabel, { color: pwdStrength.color }]}>{pwdStrength.label}</Text>
+            </View>
+          )}
 
-          <Text style={styles.label}>Confirmer le mot de passe</Text>
+          <Text style={styles.label}>Confirmer le mot de passe <Text style={styles.required}>*</Text></Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, confirmPassword.length > 0 && password !== confirmPassword && { borderColor: "#EF4444" }]}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             placeholder="Confirmez votre mot de passe"
             placeholderTextColor={theme.textTertiary}
             secureTextEntry={!showPassword}
             autoCapitalize="none"
+            autoComplete="new-password"
+            textContentType="newPassword"
           />
+          {confirmPassword.length > 0 && password !== confirmPassword && (
+            <Text style={styles.fieldError}>Les mots de passe ne correspondent pas</Text>
+          )}
         </>
       )}
 
@@ -442,7 +715,7 @@ export default function GarageRegisterScreen() {
           trackColor={{ false: theme.border, true: theme.primary + "60" }}
           thumbColor={smsConsent ? theme.primary : theme.textTertiary}
         />
-        <Text style={styles.switchLabel}>J'accepte de recevoir des SMS</Text>
+        <Text style={styles.switchLabel}>J'accepte de recevoir des notifications SMS</Text>
       </View>
 
       <Pressable style={styles.checkboxRow} onPress={() => setLegalConsent(!legalConsent)}>
@@ -452,12 +725,13 @@ export default function GarageRegisterScreen() {
         <Text style={styles.checkboxLabel}>
           J'accepte les{" "}
           <Text style={{ color: theme.primary }} onPress={() => router.push("/legal" as any)}>
-            conditions générales
+            conditions générales d'utilisation
           </Text>
           {" "}et la{" "}
           <Text style={{ color: theme.primary }} onPress={() => router.push("/privacy" as any)}>
             politique de confidentialité
           </Text>
+          {" "}<Text style={styles.required}>*</Text>
         </Text>
       </Pressable>
 
@@ -476,7 +750,7 @@ export default function GarageRegisterScreen() {
         )}
       </Pressable>
 
-      <Pressable style={styles.backStepBtn} onPress={() => setStep("siret")}>
+      <Pressable style={styles.backStepBtn} onPress={() => { setStep("siret"); setCertificationConsent(false); }}>
         <Ionicons name="arrow-back" size={16} color={theme.textSecondary} />
         <Text style={styles.backStepText}>Modifier l'entreprise</Text>
       </Pressable>
@@ -582,92 +856,125 @@ const getStyles = (theme: ThemeColors) => StyleSheet.create({
   headerTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", color: theme.text },
   stepIndicator: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    paddingHorizontal: 60, paddingBottom: 16, gap: 0,
+    paddingHorizontal: 40, paddingBottom: 8,
   },
   stepDot: {
-    width: 12, height: 12, borderRadius: 6,
-    backgroundColor: theme.surface, borderWidth: 2, borderColor: theme.border,
+    width: 10, height: 10, borderRadius: 5,
+    backgroundColor: theme.border,
   },
-  stepDotActive: { borderColor: theme.primary, backgroundColor: theme.primary },
-  stepDotDone: { borderColor: "#10B981", backgroundColor: "#10B981" },
-  stepLine: { flex: 1, height: 2, backgroundColor: theme.border },
+  stepDotActive: { backgroundColor: theme.primary, width: 12, height: 12, borderRadius: 6 },
+  stepDotDone: { backgroundColor: "#10B981" },
+  stepLine: { flex: 1, height: 2, backgroundColor: theme.border, marginHorizontal: 4 },
   stepLineDone: { backgroundColor: "#10B981" },
   scroll: { paddingHorizontal: 20, paddingTop: 8 },
-  stepHeader: { alignItems: "center", gap: 10, marginBottom: 24 },
+  stepHeader: { alignItems: "center", marginBottom: 24 },
   stepIcon: {
     width: 64, height: 64, borderRadius: 20,
-    justifyContent: "center", alignItems: "center",
+    alignItems: "center", justifyContent: "center", marginBottom: 12,
   },
-  stepTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: theme.text },
-  stepDesc: {
-    fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary,
-    textAlign: "center", lineHeight: 20,
-  },
-  label: {
-    fontSize: 13, fontFamily: "Inter_600SemiBold", color: theme.textSecondary,
-    marginBottom: 6, marginTop: 12,
-  },
+  stepTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: theme.text, marginBottom: 6 },
+  stepDesc: { fontSize: 14, color: theme.textSecondary, textAlign: "center", lineHeight: 20 },
+  label: { fontSize: 13, fontFamily: "Inter_500Medium", color: theme.textSecondary, marginBottom: 6, marginTop: 12 },
+  required: { color: "#EF4444", fontSize: 13 },
   input: {
-    backgroundColor: theme.surface, borderRadius: 12,
-    borderWidth: 1, borderColor: theme.border,
-    paddingHorizontal: 14, height: 48,
-    fontSize: 15, fontFamily: "Inter_400Regular", color: theme.text,
-    marginBottom: 4,
+    backgroundColor: theme.surface,
+    borderWidth: 1, borderColor: theme.border, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 15, color: theme.text,
+    fontFamily: "Inter_400Regular",
+    marginBottom: 0,
   },
-  siretHint: {
-    fontSize: 11, fontFamily: "Inter_400Regular", color: theme.textTertiary,
-    marginTop: 2, marginLeft: 4,
-  },
-  orRow: { flexDirection: "row", alignItems: "center", marginVertical: 12, gap: 10 },
+  fieldError: { fontSize: 12, color: "#EF4444", marginTop: 4, fontFamily: "Inter_400Regular" },
+  row: { flexDirection: "row", gap: 10 },
+  orRow: { flexDirection: "row", alignItems: "center", marginVertical: 12 },
   orLine: { flex: 1, height: 1, backgroundColor: theme.border },
-  orText: { fontSize: 12, fontFamily: "Inter_500Medium", color: theme.textTertiary },
+  orText: { fontSize: 13, color: theme.textTertiary, marginHorizontal: 12, fontFamily: "Inter_400Regular" },
+  siretHint: { fontSize: 11, color: theme.textTertiary, marginTop: 4, fontFamily: "Inter_400Regular" },
   primaryBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: theme.primary, borderRadius: 14,
-    height: 52, marginTop: 20,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    backgroundColor: theme.primary, borderRadius: 12,
+    paddingVertical: 14, gap: 8, marginTop: 16,
   },
   primaryBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  companyCard: {
-    backgroundColor: theme.surface, borderRadius: 14,
-    borderWidth: 1, borderColor: theme.primary + "40",
-    padding: 16, marginTop: 20, gap: 8,
+  manualEntryBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 12, marginTop: 8,
   },
-  companyName: { fontSize: 16, fontFamily: "Inter_700Bold", color: theme.text },
-  companyRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  companyDetail: { fontSize: 13, fontFamily: "Inter_400Regular", color: theme.textSecondary, flex: 1 },
+  manualEntryBtnText: { fontSize: 14, fontFamily: "Inter_500Medium", color: theme.primary },
+  companyCard: {
+    backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
+    borderRadius: 12, padding: 16, marginTop: 16,
+  },
+  companyName: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: theme.text, marginBottom: 8 },
+  companyRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, marginBottom: 4 },
+  companyDetail: { fontSize: 13, color: theme.textSecondary, flex: 1, fontFamily: "Inter_400Regular" },
   confirmBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#10B981", borderRadius: 12,
-    height: 46, marginTop: 8,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#10B981", borderRadius: 10,
+    paddingVertical: 12, gap: 8, marginTop: 12,
   },
   confirmBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  row: { flexDirection: "row", gap: 12 },
   companyBadge: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: theme.primary + "15", borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 10, marginBottom: 8,
+    backgroundColor: theme.primary + "15",
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 4,
+    flexWrap: "wrap",
   },
-  companyBadgeText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: theme.primary },
-  passwordRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  eyeBtn: { padding: 12 },
-  switchRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 },
-  switchLabel: { fontSize: 14, fontFamily: "Inter_400Regular", color: theme.text, flex: 1 },
-  checkboxRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginTop: 12 },
+  companyBadgeText: { fontSize: 13, fontFamily: "Inter_500Medium", color: theme.primary, flex: 1 },
+  manualBadge: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+  },
+  certRow: {
+    flexDirection: "row", alignItems: "flex-start", gap: 12,
+    backgroundColor: theme.surface,
+    borderWidth: 1.5, borderColor: theme.border,
+    borderRadius: 10, padding: 14, marginTop: 16,
+  },
+  certCheckbox: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 2, borderColor: theme.border,
+    alignItems: "center", justifyContent: "center",
+    flexShrink: 0, marginTop: 1,
+  },
+  certLabel: {
+    flex: 1, fontSize: 13, color: theme.textSecondary,
+    lineHeight: 19, fontFamily: "Inter_400Regular",
+  },
+  manualContainer: { marginTop: 4 },
+  manualHeader: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+    marginBottom: 4,
+  },
+  manualHeaderText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  passwordRow: { flexDirection: "row", alignItems: "center", gap: 0, marginBottom: 0 },
+  eyeBtn: { padding: 12, marginLeft: -50 },
+  strengthRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, marginBottom: 4 },
+  strengthBar: { flex: 1, height: 4, borderRadius: 2 },
+  strengthLabel: { fontSize: 11, fontFamily: "Inter_500Medium", marginLeft: 4 },
+  switchRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 12, marginTop: 8,
+  },
+  switchLabel: { flex: 1, fontSize: 14, color: theme.textSecondary, fontFamily: "Inter_400Regular" },
+  checkboxRow: {
+    flexDirection: "row", alignItems: "flex-start", gap: 12,
+    paddingVertical: 8,
+  },
   checkbox: {
     width: 22, height: 22, borderRadius: 6,
     borderWidth: 2, borderColor: theme.border,
-    justifyContent: "center", alignItems: "center", marginTop: 2,
+    alignItems: "center", justifyContent: "center",
+    flexShrink: 0, marginTop: 1,
   },
-  checkboxLabel: { fontSize: 13, fontFamily: "Inter_400Regular", color: theme.text, flex: 1, lineHeight: 20 },
+  checkboxLabel: { flex: 1, fontSize: 14, color: theme.textSecondary, lineHeight: 20, fontFamily: "Inter_400Regular" },
   backStepBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    marginTop: 16, paddingVertical: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 12, marginTop: 4,
   },
-  backStepText: { fontSize: 14, fontFamily: "Inter_500Medium", color: theme.textSecondary },
-  successContainer: { alignItems: "center", paddingTop: 40, gap: 16 },
-  successTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: theme.text },
-  successDesc: {
-    fontSize: 14, fontFamily: "Inter_400Regular", color: theme.textSecondary,
-    textAlign: "center", lineHeight: 22, paddingHorizontal: 10,
-  },
+  backStepText: { fontSize: 14, color: theme.textSecondary, fontFamily: "Inter_400Regular" },
+  successContainer: { alignItems: "center", paddingTop: 40, gap: 12 },
+  successTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: theme.text, textAlign: "center" },
+  successDesc: { fontSize: 15, color: theme.textSecondary, textAlign: "center", lineHeight: 22, fontFamily: "Inter_400Regular" },
 });
