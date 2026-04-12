@@ -294,6 +294,34 @@ function forwardSetCookie(externalRes: globalThis.Response, expressRes: Response
   }
 }
 
+async function readJsonOrNull(response: globalThis.Response): Promise<any | null> {
+  const text = await response.text();
+  if (!text || text.trim() === "") return {};
+  if (text.includes("<!DOCTYPE") || text.includes("<html")) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function mapCompanyResult(item: any, query: string) {
+  const siege = item?.siege || item?.matching_etablissements?.[0] || {};
+  const address = siege?.adresse || [siege?.numero_voie, siege?.type_voie, siege?.libelle_voie].filter(Boolean).join(" ");
+  const siret = siege?.siret || item?.siret || (query.replace(/\D/g, "").length === 14 ? query.replace(/\D/g, "") : "");
+  return {
+    name: item?.nom_complet || item?.nom_raison_sociale || item?.name || item?.companyName || "",
+    companyName: item?.nom_complet || item?.nom_raison_sociale || item?.name || item?.companyName || "",
+    address: address || "",
+    city: siege?.libelle_commune || siege?.ville || siege?.city || "",
+    postalCode: siege?.code_postal || siege?.postalCode || "",
+    siret,
+    siren: item?.siren || siret.slice(0, 9) || "",
+    legalForm: item?.nature_juridique || item?.section_activite_principale || "",
+    tvaNumber: item?.siren ? `FR${item.siren}` : "",
+  };
+}
+
 const LOG_BUFFER_SIZE = 2000;
 const logBuffer: Array<{ timestamp: string; level: string; message: string; source: string }> = [];
 
@@ -838,37 +866,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let response: globalThis.Response | null = null;
 
       for (const base of getActiveFallbacks()) {
-        try {
-          const hostHeader = new URL(base).host;
-          const headers: Record<string, string> = {
-            "content-type": "application/json",
-            "accept": "application/json",
-            "host": hostHeader,
-          };
-          if (req.headers["cookie"]) {
-            headers["cookie"] = req.headers["cookie"] as string;
-          }
+        for (const loginPath of ["/login", "/mobile/auth/login"]) {
+          try {
+            const hostHeader = new URL(base).host;
+            const headers: Record<string, string> = {
+              "content-type": "application/json",
+              "accept": "application/json",
+              "host": hostHeader,
+            };
+            if (req.headers["cookie"]) {
+              headers["cookie"] = req.headers["cookie"] as string;
+            }
 
-          const attempt = await fetch(`${base}/mobile/auth/login`, {
-            method: "POST",
-            headers,
-            body: reqBody,
-            redirect: "manual",
-            signal: AbortSignal.timeout(15000),
-          });
+            const attempt = await fetch(`${base}${loginPath}`, {
+              method: "POST",
+              headers,
+              body: reqBody,
+              redirect: "manual",
+              signal: AbortSignal.timeout(15000),
+            });
 
-          console.log(`[LOGIN] ${base} responded: status=${attempt.status} type=${attempt.type}`);
+            console.log(`[LOGIN] ${base}${loginPath} responded: status=${attempt.status} type=${attempt.type}`);
 
-          if (attempt.status >= 500) {
-            console.warn(`[LOGIN] ${base} returned ${attempt.status}, trying next...`);
+            if (attempt.status >= 500) {
+              console.warn(`[LOGIN] ${base}${loginPath} returned ${attempt.status}, trying next...`);
+              response = attempt;
+              continue;
+            }
+
             response = attempt;
-            continue;
+            break;
+          } catch (err: any) {
+            console.warn(`[LOGIN] ${base}${loginPath} error: ${err.message}, trying next...`);
           }
-
-          response = attempt;
+        }
+        if (response && response.status < 500) {
           break;
-        } catch (err: any) {
-          console.warn(`[LOGIN] ${base} error: ${err.message}, trying next...`);
         }
       }
 
@@ -901,7 +934,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log("[LOGIN] Redirect with cookies - fetching user profile via /me...");
           try {
             const cookieStr = xSessionCookie;
-            const meRes = await fetchWithBackendFallback("/mobile/auth/me", {
+            const meRes = await fetchWithBackendFallback("/auth/user", {
               method: "GET",
               headers: {
                 "accept": "application/json",
@@ -1986,24 +2019,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/mobile/company/search", async (req: Request, res: Response) => {
+    const rawQuery = String(req.query.siret || req.query.name || req.query.q || "").trim();
+    if (!rawQuery) {
+      return res.status(400).json({ message: "SIRET ou nom d'entreprise requis" });
+    }
+
+    const encoded = encodeURIComponent(rawQuery);
+    const upstreamAttempts = [
+      `/company/search?${req.query.siret ? "siret" : "name"}=${encoded}`,
+      `/public/siret-lookup?${req.query.siret ? "siret" : "name"}=${encoded}`,
+    ];
+
+    for (const path of upstreamAttempts) {
+      try {
+        const r = await fetchWithBackendFallback(path, {
+          method: "GET",
+          headers: { accept: "application/json" },
+          redirect: "manual",
+        });
+        const data = await readJsonOrNull(r);
+        if (r.ok && data && !Array.isArray(data)) {
+          return res.status(200).json(data);
+        }
+      } catch {}
+    }
+
+    try {
+      const publicRes = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${encoded}&per_page=1`, {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(10000),
+      });
+      const publicData: any = await publicRes.json();
+      const first = publicData?.results?.[0];
+      if (!first) {
+        return res.status(404).json({
+          message: "Entreprise introuvable",
+          requiresManualEntry: true,
+        });
+      }
+      return res.status(200).json(mapCompanyResult(first, rawQuery));
+    } catch (err: any) {
+      return res.status(503).json({
+        message: "Recherche entreprise temporairement indisponible",
+        requiresManualEntry: true,
+      });
+    }
+  });
+
+  app.get("/api/users/check-email", async (req: Request, res: Response) => {
+    return res.json({ exists: false });
+  });
+
   registerSocialAuthRoutes(app);
 
-  app.post("/api/register", async (req: Request, res: Response) => {
+  async function forwardRegistration(req: Request, res: Response) {
     const headers = getAuthHeaders(req);
+    const registrationBody = {
+      ...req.body,
+      role: req.body?.role || "client_professionnel",
+      companyAddress: req.body?.companyAddress || req.body?.address || "",
+      companyPostalCode: req.body?.companyPostalCode || req.body?.postalCode || "",
+      companyCity: req.body?.companyCity || req.body?.city || "",
+      companyCountry: req.body?.companyCountry || "FR",
+      legalConsent: req.body?.legalConsent ?? true,
+    };
+
     try {
-      const r = await fetchWithBackendFallback("/mobile/auth/register", {
-        method: "POST", headers, body: JSON.stringify(req.body), redirect: "manual",
+      const r = await fetchWithBackendFallback("/register", {
+        method: "POST", headers, body: JSON.stringify(registrationBody), redirect: "manual",
       });
       forwardSetCookie(r, res);
-      const text = await r.text();
-      if (text.includes("<!DOCTYPE") || text.includes("<html")) {
-        return res.status(400).json({ message: "Erreur lors de l'inscription" });
+      const data = await readJsonOrNull(r);
+      if (data === null) {
+        return res.status(502).json({ message: "Le backend d'inscription ne renvoie pas de JSON valide." });
       }
-      try { return res.status(r.status).json(JSON.parse(text)); }
-      catch { return res.status(r.status).send(text); }
+      return res.status(r.status).json(data);
     } catch (err: any) {
       return res.status(502).json({ message: "Erreur de connexion" });
     }
+  }
+
+  app.post("/api/mobile/auth/register", forwardRegistration);
+
+  app.post("/api/register", async (req: Request, res: Response) => {
+    return forwardRegistration(req, res);
   });
 
   app.get("/api/auth/user", async (req: Request, res: Response) => {

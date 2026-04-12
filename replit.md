@@ -81,7 +81,7 @@ Table principale : `document_amounts` — stocke les lignes (items) et montants 
 
 ### Email / Mot de passe
 
-- Login : `POST /api/mobile/auth/login` → retourne `{accessToken, refreshToken, user}`
+- Login : `POST /api/login` via le proxy local, avec fallback hérité vers `/api/mobile/auth/login` si nécessaire
 - Rafraîchissement : `POST /api/mobile/auth/refresh` avec `{refreshToken}`
 - Réinitialisation : envoi d'un email de reset (pas de saisie de token dans l'app)
 
@@ -89,7 +89,7 @@ Table principale : `document_amounts` — stocke les lignes (items) et montants 
 
 - **Google** : Firebase `signInWithPopup` (web) ou `expo-auth-session` (natif)
 - **Apple** : `expo-apple-authentication` avec nonce via `expo-crypto`
-- Le token Firebase ID est envoyé à `POST /api/auth/social` (proxy local) qui transmet à `POST /api/mobile/auth/login-with-firebase` (API externe)
+- Le token Firebase ID est envoyé à `POST /api/auth/social` (proxy local) qui essaie les endpoints JSON disponibles côté backend SaaS (`/auth/social`, `/login-with-firebase`, puis fallback hérité `/mobile/auth/login-with-firebase`)
 
 **Résultats possibles :**
 - `200` → utilisateur existant → `{accessToken, refreshToken, user}` → navigation admin/main
@@ -97,9 +97,9 @@ Table principale : `document_amounts` — stocke les lignes (items) et montants 
 
 ### Inscription (multi-étapes)
 
-1. **Recherche SIRET** : saisie du SIRET (14 chiffres, lookup automatique) ou du nom de société → `GET /api/mobile/public/siret-lookup`
+1. **Recherche SIRET** : saisie du SIRET (14 chiffres, lookup automatique) ou du nom de société → `GET /api/mobile/company/search`, avec fallback vers `recherche-entreprises.api.gouv.fr`
 2. **Formulaire** : informations entreprise pré-remplies depuis le SIRET + informations personnelles. Mot de passe uniquement pour l'inscription email (pas Google)
-3. **Soumission** : `POST /api/mobile/auth/register` avec tous les champs à la racine (`siret`, `companyName`, `address`, etc.)
+3. **Soumission** : `POST /api/mobile/auth/register` côté app, proxifié vers `/api/register` du backend SaaS avec normalisation des champs entreprise
 4. **Après inscription Google** : auto-login via `POST /api/mobile/auth/login-with-firebase`
 
 ### Tokens et stockage

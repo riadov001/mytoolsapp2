@@ -26,22 +26,26 @@ async function fetchExternalWithFallback(path: string, options: RequestInit): Pr
   let lastErr: any;
   let lastResponse: globalThis.Response | null = null;
   for (const base of EXTERNAL_APIS) {
-    try {
-      const hostHeader = new URL(base).host;
-      const updatedHeaders = { ...(options.headers as any), host: hostHeader };
-      const res = await fetch(`${base}${path}`, { ...options, headers: updatedHeaders });
-      if (res.status >= 500) {
-        console.warn(`[SocialAuth] ${base} returned ${res.status}, trying next...`);
-        lastResponse = res;
-        continue;
+    const paths = [path, "/auth/social", "/login-with-firebase", "/mobile/auth/login-with-firebase"].filter((v, i, a) => a.indexOf(v) === i);
+    for (const candidatePath of paths) {
+      try {
+        const hostHeader = new URL(base).host;
+        const updatedHeaders = { ...(options.headers as any), host: hostHeader };
+        const res = await fetch(`${base}${candidatePath}`, { ...options, headers: updatedHeaders });
+        const contentType = res.headers.get("content-type") || "";
+        if (res.status >= 500 || (res.ok && !contentType.includes("application/json"))) {
+          console.warn(`[SocialAuth] ${base}${candidatePath} returned unusable response, trying next...`);
+          lastResponse = res;
+          continue;
+        }
+        return res;
+      } catch (err: any) {
+        lastErr = err;
+        const isNet = err?.code === "ECONNREFUSED" || err?.code === "ENOTFOUND" ||
+          err?.code === "ETIMEDOUT" || err?.message?.includes("fetch");
+        if (!isNet) throw err;
+        console.warn(`[SocialAuth] Backend ${base}${candidatePath} unreachable, trying fallback...`);
       }
-      return res;
-    } catch (err: any) {
-      lastErr = err;
-      const isNet = err?.code === "ECONNREFUSED" || err?.code === "ENOTFOUND" ||
-        err?.code === "ETIMEDOUT" || err?.message?.includes("fetch");
-      if (!isNet) throw err;
-      console.warn(`[SocialAuth] Backend ${base} unreachable, trying fallback...`);
     }
   }
   if (lastResponse) return lastResponse;

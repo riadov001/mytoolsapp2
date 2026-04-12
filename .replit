@@ -109,6 +109,8 @@ EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL = "https://backend-saas.mytoolsgroup.eu"
 EXPO_PUBLIC_EXTERNAL_API_URL = "https://backend-saas.mytoolsgroup.eu"
 EXTERNAL_API_FALLBACK_URL = "https://backend-saas.mytoolsgroup.eu/api"
 EXTERNAL_API_URL = "https://backend-saas.mytoolsgroup.eu/api"
+EXPO_PUBLIC_FIREBASE_API_KEY = "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc"
+EXPO_PUBLIC_FIREBASE_APP_ID = "1:129808585113:web:03c4b7847847bf4e9b4308"
 
 [userenv.production]
 PORT = "8081"
@@ -120,6 +122,8 @@ EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL = "https://backend-saas.mytoolsgroup.eu"
 EXPO_PUBLIC_EXTERNAL_API_URL = "https://backend-saas.mytoolsgroup.eu"
 EXTERNAL_API_FALLBACK_URL = "https://backend-saas.mytoolsgroup.eu/api"
 EXTERNAL_API_URL = "https://backend-saas.mytoolsgroup.eu/api"
+EXPO_PUBLIC_FIREBASE_API_KEY = "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc"
+EXPO_PUBLIC_FIREBASE_APP_ID = "1:129808585113:web:03c4b7847847bf4e9b4308"
 
 [userenv.shared]
 
