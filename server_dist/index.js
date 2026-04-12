@@ -164,8 +164,21 @@ function registerSocialAuthRoutes(app2) {
       } catch (err) {
         return res.status(401).json({ message: "Token Firebase invalide ou expir\xE9. Veuillez vous reconnecter." });
       }
+      let jwtPayload = null;
       if (!firebaseUser) {
-        console.log("[SocialAuth] Forwarding token to backend for verification (local Admin SDK not configured)");
+        try {
+          const parts = token.split(".");
+          if (parts.length === 3) {
+            const padded = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+            const padLen = (4 - padded.length % 4) % 4;
+            jwtPayload = JSON.parse(Buffer.from(padded + "=".repeat(padLen), "base64").toString("utf-8"));
+          }
+        } catch {
+        }
+        console.log(
+          "[SocialAuth] Forwarding token to backend for verification (local Admin SDK not configured)",
+          jwtPayload?.email ? `(email from JWT: ${jwtPayload.email})` : "(no email in JWT payload)"
+        );
       } else if (!firebaseUser.email) {
         return res.status(403).json({
           message: "Aucune adresse email associ\xE9e \xE0 ce compte. Veuillez utiliser un compte avec une adresse email v\xE9rifi\xE9e."
@@ -183,18 +196,23 @@ function registerSocialAuthRoutes(app2) {
           signal: AbortSignal.timeout(15e3)
         }
       );
+      const rawText = await externalRes.text();
       const contentType = externalRes.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        console.error("[SocialAuth] External API returned non-JSON response");
-        return res.status(503).json({
-          message: "Service temporairement indisponible. Veuillez r\xE9essayer dans quelques instants."
-        });
+      let externalData = {};
+      try {
+        externalData = JSON.parse(rawText);
+      } catch {
+        if (!contentType.includes("application/json")) {
+          console.error("[SocialAuth] External API returned non-JSON response:", rawText.substring(0, 200));
+          return res.status(503).json({
+            message: "Service temporairement indisponible. Veuillez r\xE9essayer dans quelques instants."
+          });
+        }
       }
-      const externalData = await externalRes.json();
       if (externalRes.status === 404) {
-        const email = firebaseUser?.email || externalData?.email;
-        const displayName = firebaseUser?.displayName || externalData?.displayName || null;
-        const uid = firebaseUser?.uid || externalData?.firebaseUid;
+        const email = firebaseUser?.email || externalData?.email || jwtPayload?.email;
+        const displayName = firebaseUser?.displayName || externalData?.displayName || jwtPayload?.name || null;
+        const uid = firebaseUser?.uid || externalData?.firebaseUid || jwtPayload?.user_id || jwtPayload?.uid || jwtPayload?.sub;
         console.log("[SocialAuth] User not found, needs registration:", { email, displayName, firebaseUid: uid });
         if (!email) {
           return res.status(403).json({
@@ -217,10 +235,14 @@ function registerSocialAuthRoutes(app2) {
       for (const cookie of setCookieHeaders) {
         res.appendHeader("set-cookie", cookie);
       }
+      const accessToken = externalData.accessToken || externalData.token || externalData.jwt || externalData.access_token || null;
+      const user = externalData.user || externalData.data?.user || externalData.profile || externalData.data || null;
+      const refreshToken = externalData.refreshToken || externalData.refresh_token || externalData.data?.refreshToken || null;
+      console.log("[SocialAuth] Login success, token present:", !!accessToken, "user present:", !!user);
       return res.json({
-        accessToken: externalData.accessToken,
-        refreshToken: externalData.refreshToken,
-        user: externalData.user,
+        accessToken,
+        refreshToken,
+        user,
         firebaseUid: firebaseUser?.uid || externalData?.firebaseUid
       });
     } catch (err) {
@@ -2500,12 +2522,17 @@ async function registerRoutes(app2) {
       console.log(`[PROXY] ${req.method} /api${req.url} => ${response.status} ${response.statusText}`);
       const upstreamContentType = response.headers.get("content-type") || "";
       const body = await response.arrayBuffer();
-      if (upstreamContentType.includes("application/pdf") || upstreamContentType.includes("octet-stream")) {
+      const bodyBuf = Buffer.from(body);
+      const isPdfByType = upstreamContentType.includes("application/pdf") || upstreamContentType.includes("octet-stream");
+      const isPdfByMagic = bodyBuf.length > 4 && bodyBuf.slice(0, 4).toString("ascii") === "%PDF";
+      const isPdfByUrl = req.url.endsWith("/pdf") || req.url.includes("/pdf?");
+      if (isPdfByType || isPdfByMagic || isPdfByUrl && response.status === 200) {
         res.status(response.status);
-        res.setHeader("content-type", upstreamContentType);
+        res.setHeader("content-type", "application/pdf");
         const disposition = response.headers.get("content-disposition");
         if (disposition) res.setHeader("content-disposition", disposition);
-        res.send(Buffer.from(body));
+        else res.setHeader("content-disposition", 'inline; filename="document.pdf"');
+        res.send(bodyBuf);
         return;
       }
       const text = Buffer.from(body).toString("utf-8");

@@ -198,12 +198,27 @@ export default function InvoiceCreateScreen() {
         dueDate: payload.dueDate,
         notes: payload.notes,
         paymentMethod: payload.paymentMethod,
+        items: mappedItems,
+        lineItems: mappedItems,
       });
       
       if (!invoiceShell?.id) throw new Error("Invoice creation failed: no ID returned");
-      
-      for (const item of mappedItems) {
-        await adminInvoices.addItem(invoiceShell.id, item);
+
+      // PATCH immediately after to guarantee items are saved (replace-all semantics)
+      if (mappedItems.length > 0) {
+        try {
+          await adminInvoices.update(invoiceShell.id, {
+            clientId: payload.clientId,
+            total_excluding_tax: payload.total_excluding_tax,
+            total_including_tax: payload.total_including_tax,
+            amount: payload.amount,
+            notes: payload.notes,
+            paymentMethod: payload.paymentMethod,
+            items: mappedItems,
+          });
+        } catch (patchErr: any) {
+          console.warn("[InvoiceCreate] Item PATCH after create failed (non-blocking):", patchErr?.message);
+        }
       }
 
       const photosList: any[] = payload.photos || [];

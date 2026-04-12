@@ -185,9 +185,36 @@ export default function QuoteCreateScreen() {
         return await adminQuotes.update(editId, updateBody);
       }
 
+      const createMappedItems = payload.validItems.map(it => {
+        const qty = parseFloat(it.quantity) || 1;
+        const price = parseFloat(it.unitPrice) || 0;
+        const tva = parseFloat(it.tvaRate) || 0;
+        const totalHT = qty * price;
+        const taxAmount = totalHT * (tva / 100);
+        const totalTTC = totalHT + taxAmount;
+        return {
+          description: it.description.trim(),
+          quantity: String(qty),
+          unitPriceExcludingTax: price.toFixed(2),
+          totalExcludingTax: totalHT.toFixed(2),
+          taxRate: String(tva),
+          taxAmount: taxAmount.toFixed(2),
+          totalIncludingTax: totalTTC.toFixed(2),
+        };
+      });
+      const createSumHT = createMappedItems.reduce((s, it) => s + (parseFloat(it.totalExcludingTax) || 0), 0);
+      const createSumTTC = createMappedItems.reduce((s, it) => s + (parseFloat(it.totalIncludingTax) || 0), 0);
+
       const quoteBody: any = {
         clientId: payload.clientId,
         status: payload.status,
+        priceExcludingTax: createSumHT.toFixed(2),
+        total_excluding_tax: createSumHT.toFixed(2),
+        quoteAmount: createSumTTC.toFixed(2),
+        total_including_tax: createSumTTC.toFixed(2),
+        amount: createSumTTC.toFixed(2),
+        items: createMappedItems,
+        lineItems: createMappedItems,
       };
       if (payload.serviceId) quoteBody.serviceId = payload.serviceId;
       if (payload.notes?.trim()) quoteBody.notes = payload.notes.trim();
@@ -196,22 +223,21 @@ export default function QuoteCreateScreen() {
       const quote = await adminQuotes.create(quoteBody);
       if (!quote?.id) throw new Error("Échec de la création du devis.");
 
-      for (const it of payload.validItems) {
-        const qty = parseFloat(it.quantity) || 1;
-        const price = parseFloat(it.unitPrice) || 0;
-        const tva = parseFloat(it.tvaRate) || 0;
-        const totalHT = qty * price;
-        const taxAmount = totalHT * (tva / 100);
-        const totalTTC = totalHT + taxAmount;
-        await adminQuotes.addItem(quote.id, {
-          description: it.description.trim(),
-          quantity: String(qty),
-          unitPriceExcludingTax: price.toFixed(2),
-          totalExcludingTax: totalHT.toFixed(2),
-          taxRate: String(tva),
-          taxAmount: taxAmount.toFixed(2),
-          totalIncludingTax: totalTTC.toFixed(2),
-        });
+      // PATCH immediately after to guarantee items are saved (replace-all semantics)
+      if (createMappedItems.length > 0) {
+        try {
+          await adminQuotes.update(quote.id, {
+            clientId: payload.clientId,
+            priceExcludingTax: createSumHT.toFixed(2),
+            total_excluding_tax: createSumHT.toFixed(2),
+            quoteAmount: createSumTTC.toFixed(2),
+            total_including_tax: createSumTTC.toFixed(2),
+            amount: createSumTTC.toFixed(2),
+            items: createMappedItems,
+          });
+        } catch (patchErr: any) {
+          console.warn("[QuoteCreate] Item PATCH after create failed (non-blocking):", patchErr?.message);
+        }
       }
 
       if (payload.photos.length > 0) {

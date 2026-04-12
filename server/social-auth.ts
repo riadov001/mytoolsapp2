@@ -142,10 +142,20 @@ export function registerSocialAuthRoutes(app: Express) {
         return res.status(401).json({ message: "Token Firebase invalide ou expiré. Veuillez vous reconnecter." });
       }
 
-      // If local Firebase Admin verification is unavailable, forward directly to backend
-      // The backend will perform its own token verification
+      // Decode JWT payload locally as fallback for when Admin SDK is unavailable
+      // (no verification — only used to extract email/uid for display, not for auth)
+      let jwtPayload: any = null;
       if (!firebaseUser) {
-        console.log("[SocialAuth] Forwarding token to backend for verification (local Admin SDK not configured)");
+        try {
+          const parts = token.split(".");
+          if (parts.length === 3) {
+            const padded = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+            const padLen = (4 - (padded.length % 4)) % 4;
+            jwtPayload = JSON.parse(Buffer.from(padded + "=".repeat(padLen), "base64").toString("utf-8"));
+          }
+        } catch {}
+        console.log("[SocialAuth] Forwarding token to backend for verification (local Admin SDK not configured)",
+          jwtPayload?.email ? `(email from JWT: ${jwtPayload.email})` : "(no email in JWT payload)");
       } else if (!firebaseUser.email) {
         return res.status(403).json({
           message: "Aucune adresse email associée à ce compte. Veuillez utiliser un compte avec une adresse email vérifiée.",
@@ -181,9 +191,9 @@ export function registerSocialAuthRoutes(app: Express) {
       }
 
       if (externalRes.status === 404) {
-        const email = firebaseUser?.email || externalData?.email;
-        const displayName = firebaseUser?.displayName || externalData?.displayName || null;
-        const uid = firebaseUser?.uid || externalData?.firebaseUid;
+        const email = firebaseUser?.email || externalData?.email || jwtPayload?.email;
+        const displayName = firebaseUser?.displayName || externalData?.displayName || jwtPayload?.name || null;
+        const uid = firebaseUser?.uid || externalData?.firebaseUid || jwtPayload?.user_id || jwtPayload?.uid || jwtPayload?.sub;
 
         console.log("[SocialAuth] User not found, needs registration:", { email, displayName, firebaseUid: uid });
 
