@@ -60,7 +60,7 @@ import fs from "node:fs";
 import Busboy from "busboy";
 
 // server/social-auth.ts
-var ALLOWED_API_DOMAIN = "backend.mytoolsgroup.eu";
+var ALLOWED_API_DOMAIN = "backend-saas.mytoolsgroup.eu";
 function sanitizeSocialApiUrl(raw, fallback) {
   if (!raw) return fallback;
   try {
@@ -267,7 +267,7 @@ function registerSocialAuthRoutes(app2) {
 }
 
 // server/routes.ts
-var SEED_DOMAIN = "backend.mytoolsgroup.eu";
+var SEED_DOMAIN = "backend-saas.mytoolsgroup.eu";
 var REMOTE_CONFIG_ENDPOINT = `https://${SEED_DOMAIN}/api/public/mobile-api-url`;
 function normalizeApiUrl(raw) {
   let url = raw.trim();

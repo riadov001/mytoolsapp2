@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 
-const ALLOWED_API_DOMAIN = "backend.mytoolsgroup.eu";
+const ALLOWED_API_DOMAIN = "backend-saas.mytoolsgroup.eu";
 
 function sanitizeSocialApiUrl(raw: string | undefined, fallback: string): string {
   if (!raw) return fallback;

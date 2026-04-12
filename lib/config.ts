@@ -1,15 +1,15 @@
 import { Platform } from "react-native";
 
-const CONFIG_ENDPOINT = "https://backend.mytoolsgroup.eu/api/public/mobile-api-url";
+const CONFIG_ENDPOINT = "https://backend-saas.mytoolsgroup.eu/api/public/mobile-api-url";
 
 const DEFAULT_MOBILE_API_URL =
-  process.env.EXPO_PUBLIC_EXTERNAL_API_URL || "https://backend.mytoolsgroup.eu";
+  process.env.EXPO_PUBLIC_EXTERNAL_API_URL || "https://backend-saas.mytoolsgroup.eu";
 const DEFAULT_FALLBACK_URL =
-  process.env.EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL || "https://backend.mytoolsgroup.eu";
+  process.env.EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL || "https://backend-saas.mytoolsgroup.eu";
 
 let _mobileApiUrl: string = DEFAULT_MOBILE_API_URL;
 
-const ALLOWED_MOBILE_API_DOMAIN = "backend.mytoolsgroup.eu";
+const ALLOWED_MOBILE_API_DOMAIN = "backend-saas.mytoolsgroup.eu";
 
 export async function initApiConfig(): Promise<void> {
   try {

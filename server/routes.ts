@@ -6,7 +6,7 @@ import fs from "node:fs";
 import Busboy from "busboy";
 import { registerSocialAuthRoutes } from "./social-auth";
 
-const SEED_DOMAIN = "backend.mytoolsgroup.eu";
+const SEED_DOMAIN = "backend-saas.mytoolsgroup.eu";
 const REMOTE_CONFIG_ENDPOINT = `https://${SEED_DOMAIN}/api/public/mobile-api-url`;
 
 function normalizeApiUrl(raw: string): string {
@@ -376,7 +376,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { api_url, api_fallback_url } = req.body || {};
     try {
       if (api_url) {
-        const normalized = normalizeApiUrl(api_url);
+        const normalized = sanitizeApiUrlEnv(api_url, "api_url");
         new URL(normalized);
         await pool.query(
           "INSERT INTO app_config (key, value, updated_at) VALUES ('api_url', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()",
@@ -385,7 +385,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         _dynamicApiUrl = normalized;
       }
       if (api_fallback_url) {
-        const normalized = normalizeApiUrl(api_fallback_url);
+        const normalized = sanitizeApiUrlEnv(api_fallback_url, "api_fallback_url");
         new URL(normalized);
         await pool.query(
           "INSERT INTO app_config (key, value, updated_at) VALUES ('api_fallback_url', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()",

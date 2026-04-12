@@ -39,10 +39,10 @@ App mobile
    │
    ├── Web (navigateur) → proxy local (port 5000) → API externe
    └── Native (iOS/Android) → API externe directement
-                              backend.mytoolsgroup.eu
+                             backend-saas.mytoolsgroup.eu
 ```
 
-> **Important** : Sur mobile natif, les appels API passent directement par `backend.mytoolsgroup.eu`, sans passer par le proxy local. Les enrichissements locaux (items) ne s'appliquent donc qu'en Web.
+> **Important** : Sur mobile natif, les appels API passent directement par `backend-saas.mytoolsgroup.eu`, sans passer par le proxy local. Les enrichissements locaux (items) ne s'appliquent donc qu'en Web.
 
 ### Base de données locale (PostgreSQL)
 
@@ -134,7 +134,7 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
 ```
 FIREBASE_SERVICE_ACCOUNT_KEY   ← variable principale (JSON du compte de service Firebase Admin)
 FIREBASE_SERVICE_ACCOUNT_JSON  ← alias secondaire, synchronisé automatiquement au démarrage
-EXTERNAL_API_URL               ← URL de l'API externe (défaut: https://backend.mytoolsgroup.eu/api)
+EXTERNAL_API_URL               ← URL de l'API externe (défaut: https://backend-saas.mytoolsgroup.eu/api)
 ```
 
 > `parse-dev-secrets.js` est exécuté au démarrage du serveur. Il synchronise `FIREBASE_SERVICE_ACCOUNT_KEY` et `FIREBASE_SERVICE_ACCOUNT_JSON` dans les deux sens si l'un est absent.
@@ -262,9 +262,9 @@ Fonction `viewPdf()` dans `lib/pdf-download.ts`.
 ## Configuration dynamique de l'API
 
 Le backend peut mettre à jour dynamiquement l'URL de l'API externe via :
-- `GET https://backend.mytoolsgroup.eu/api/public/mobile-api-url` (remote config)
+- `GET https://backend-saas.mytoolsgroup.eu/api/public/mobile-api-url` (remote config)
 - Cache TTL : 30 secondes
-- Sécurité : seules les URLs pointant vers `backend.mytoolsgroup.eu` sont acceptées
+- Sécurité : seules les URLs pointant vers `backend-saas.mytoolsgroup.eu` sont acceptées
 
 ---
 
@@ -318,7 +318,7 @@ Le SDK Firebase Admin est initialisé au premier appel de vérification de token
 
 | Service | Usage |
 |---------|-------|
-| `backend.mytoolsgroup.eu` | API de production — toutes les données métier |
+| `backend-saas.mytoolsgroup.eu` | API de production — toutes les données métier |
 | Firebase (projet `crud-ae9d9`) | Authentification sociale Google / Apple |
 | `saas.mytoolsgroup.eu` | URLs publiques pour les PDFs |
 | PostgreSQL (Replit) | Persistance locale des items et logs |
