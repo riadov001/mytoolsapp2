@@ -56,9 +56,9 @@ async function getAdminAuth(): Promise<any | null> {
   if (adminInitFailed) return null;
   if (adminApp) return adminApp;
 
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) {
-    console.warn("[SocialAuth] FIREBASE_SERVICE_ACCOUNT_JSON not set — local token verification disabled, forwarding to backend.");
+    console.warn("[SocialAuth] FIREBASE_SERVICE_ACCOUNT_KEY not set — local token verification disabled, forwarding to backend.");
     adminInitFailed = true;
     return null;
   }

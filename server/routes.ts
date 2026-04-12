@@ -1699,14 +1699,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (isMutationSuccess && docType && (data?.id || (req.method !== "POST" && routePath.match(/\/(quotes|invoices)\/([^/]+)$/))) && (bodyTTC > 0 || Array.isArray(bodyItems))) {
           const docId = data?.id || routePath.match(/\/(quotes|invoices)\/([^/]+)$/)?.[2] || "";
           const taxAmt = bodyTTC - bodyHT;
+          const hasItems = Array.isArray(bodyItems) && bodyItems.length > 0;
           try {
-            await pool.query(
-              `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
-               VALUES ($1, $2, $3, $4, $5, $6)
-               ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, items=$6, updated_at=NOW()`,
-              [docId, docType, bodyHT, bodyTTC, taxAmt, JSON.stringify(bodyItems || [])]
-            );
-            console.log(`[AMOUNTS] Saved ${docType} ${docId}: HT=${bodyHT} TTC=${bodyTTC} items=${Array.isArray(bodyItems) ? bodyItems.length : 0}`);
+            if (hasItems) {
+              // Items present: save everything including items
+              await pool.query(
+                `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, items=$6, updated_at=NOW()`,
+                [docId, docType, bodyHT, bodyTTC, taxAmt, JSON.stringify(bodyItems)]
+              );
+            } else {
+              // No items in this request (e.g. status-only PATCH): preserve existing items
+              await pool.query(
+                `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
+                 VALUES ($1, $2, $3, $4, $5, '[]')
+                 ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, updated_at=NOW()`,
+                [docId, docType, bodyHT, bodyTTC, taxAmt]
+              );
+            }
+            console.log(`[AMOUNTS] Saved ${docType} ${docId}: HT=${bodyHT} TTC=${bodyTTC} items=${hasItems ? bodyItems.length : "(preserved)"}`);
           } catch (e: any) {
             console.warn("[AMOUNTS] save failed:", e.message);
           }

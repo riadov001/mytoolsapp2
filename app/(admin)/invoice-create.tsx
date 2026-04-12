@@ -97,7 +97,12 @@ export default function InvoiceCreateScreen() {
     if (editInvoice.notes) setNotes(editInvoice.notes);
     if (editInvoice.description) setNotes(editInvoice.description);
     if (editInvoice.paymentMethod) setPaymentMethod(editInvoice.paymentMethod);
-    const existingItems: any[] = editInvoice.items || editInvoice.lineItems || editInvoice.lines || editInvoice.invoice_lines || [];
+    const rawItems: any[] = editInvoice.items || editInvoice.lineItems || editInvoice.lines || editInvoice.invoice_lines || [];
+    const existingItems = rawItems.filter((it: any) => {
+      const desc = String(it.description || it.name || "").trim();
+      const price = parseFloat(String(it.unit_price_excluding_tax ?? it.unitPriceExcludingTax ?? it.unitPrice ?? it.unit_price ?? it.price ?? 0)) || 0;
+      return desc.length > 0 || price > 0;
+    });
     if (existingItems.length > 0) {
       setLineItems(existingItems.map((it: any) => ({
         id: uid(),

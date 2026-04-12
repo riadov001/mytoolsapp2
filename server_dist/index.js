@@ -27,7 +27,8 @@ var require_parse_dev_secrets = __commonJS({
         setIfPresent("EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN", secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN);
         setIfPresent("EXPO_PUBLIC_FIREBASE_PROJECT_ID", secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID);
         setIfPresent("EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET", secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET);
-        setIfPresent("FIREBASE_SERVICE_ACCOUNT_JSON", secrets.FIREBASE_SERVICE_ACCOUNT_JSON);
+        setIfPresent("FIREBASE_SERVICE_ACCOUNT_KEY", secrets.FIREBASE_SERVICE_ACCOUNT_KEY || secrets.FIREBASE_SERVICE_ACCOUNT_JSON);
+        setIfPresent("FIREBASE_SERVICE_ACCOUNT_JSON", secrets.FIREBASE_SERVICE_ACCOUNT_JSON || secrets.FIREBASE_SERVICE_ACCOUNT_KEY);
         setIfPresent("SOCIAL_JWT_SECRET", secrets.SOCIAL_JWT_SECRET);
         console.log(`[DEV-SECRETS] Loaded ${keys.length} keys from DEV_SECRETS_KEYS`);
       } else {
@@ -37,8 +38,14 @@ var require_parse_dev_secrets = __commonJS({
       console.warn("[DEV-SECRETS] Could not parse DEV_SECRETS_KEYS:", err.message);
       console.log("[DEV-SECRETS] Falling back to individual Replit secrets");
     }
-    var firebaseOk = !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-    console.log(`[SECRETS-CHECK] FIREBASE_SERVICE_ACCOUNT_JSON: ${firebaseOk ? "OK" : "MISSING"}`);
+    var firebaseOk = !!(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    if (firebaseOk && !process.env.FIREBASE_SERVICE_ACCOUNT_KEY && process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      process.env.FIREBASE_SERVICE_ACCOUNT_KEY = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    }
+    if (firebaseOk && !process.env.FIREBASE_SERVICE_ACCOUNT_JSON && process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    }
+    console.log(`[SECRETS-CHECK] FIREBASE_SERVICE_ACCOUNT_KEY: ${firebaseOk ? "OK" : "MISSING"}`);
   }
 });
 
@@ -102,9 +109,9 @@ var adminInitFailed = false;
 async function getAdminAuth() {
   if (adminInitFailed) return null;
   if (adminApp) return adminApp;
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) {
-    console.warn("[SocialAuth] FIREBASE_SERVICE_ACCOUNT_JSON not set \u2014 local token verification disabled, forwarding to backend.");
+    console.warn("[SocialAuth] FIREBASE_SERVICE_ACCOUNT_KEY not set \u2014 local token verification disabled, forwarding to backend.");
     adminInitFailed = true;
     return null;
   }
@@ -1940,14 +1947,24 @@ async function registerRoutes(app2) {
         if (isMutationSuccess && docType && (data?.id || req.method !== "POST" && routePath.match(/\/(quotes|invoices)\/([^/]+)$/)) && (bodyTTC > 0 || Array.isArray(bodyItems))) {
           const docId = data?.id || routePath.match(/\/(quotes|invoices)\/([^/]+)$/)?.[2] || "";
           const taxAmt = bodyTTC - bodyHT;
+          const hasItems = Array.isArray(bodyItems) && bodyItems.length > 0;
           try {
-            await pool.query(
-              `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
-               VALUES ($1, $2, $3, $4, $5, $6)
-               ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, items=$6, updated_at=NOW()`,
-              [docId, docType, bodyHT, bodyTTC, taxAmt, JSON.stringify(bodyItems || [])]
-            );
-            console.log(`[AMOUNTS] Saved ${docType} ${docId}: HT=${bodyHT} TTC=${bodyTTC} items=${Array.isArray(bodyItems) ? bodyItems.length : 0}`);
+            if (hasItems) {
+              await pool.query(
+                `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, items=$6, updated_at=NOW()`,
+                [docId, docType, bodyHT, bodyTTC, taxAmt, JSON.stringify(bodyItems)]
+              );
+            } else {
+              await pool.query(
+                `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
+                 VALUES ($1, $2, $3, $4, $5, '[]')
+                 ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, updated_at=NOW()`,
+                [docId, docType, bodyHT, bodyTTC, taxAmt]
+              );
+            }
+            console.log(`[AMOUNTS] Saved ${docType} ${docId}: HT=${bodyHT} TTC=${bodyTTC} items=${hasItems ? bodyItems.length : "(preserved)"}`);
           } catch (e) {
             console.warn("[AMOUNTS] save failed:", e.message);
           }

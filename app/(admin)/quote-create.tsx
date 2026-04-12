@@ -92,7 +92,12 @@ export default function QuoteCreateScreen() {
       setVehicleModel(editQuote.vehicleInfo.model || "");
       setVehiclePlate(editQuote.vehicleInfo.plate || "");
     }
-    const existingItems: any[] = editQuote.items || editQuote.lineItems || editQuote.lines || editQuote.quote_items || [];
+    const rawItems: any[] = editQuote.items || editQuote.lineItems || editQuote.lines || editQuote.quote_items || [];
+    const existingItems = rawItems.filter((it: any) => {
+      const desc = String(it.description || it.name || "").trim();
+      const price = parseFloat(String(it.unit_price_excluding_tax ?? it.unitPriceExcludingTax ?? it.unitPrice ?? it.unit_price ?? it.price ?? 0)) || 0;
+      return desc.length > 0 || price > 0;
+    });
     if (existingItems.length > 0) {
       setLineItems(existingItems.map((it: any) => ({
         id: uid(),

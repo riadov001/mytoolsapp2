@@ -15,7 +15,8 @@ try {
     setIfPresent("EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN", secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN);
     setIfPresent("EXPO_PUBLIC_FIREBASE_PROJECT_ID", secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID);
     setIfPresent("EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET", secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET);
-    setIfPresent("FIREBASE_SERVICE_ACCOUNT_JSON", secrets.FIREBASE_SERVICE_ACCOUNT_JSON);
+    setIfPresent("FIREBASE_SERVICE_ACCOUNT_KEY", secrets.FIREBASE_SERVICE_ACCOUNT_KEY || secrets.FIREBASE_SERVICE_ACCOUNT_JSON);
+    setIfPresent("FIREBASE_SERVICE_ACCOUNT_JSON", secrets.FIREBASE_SERVICE_ACCOUNT_JSON || secrets.FIREBASE_SERVICE_ACCOUNT_KEY);
     setIfPresent("SOCIAL_JWT_SECRET", secrets.SOCIAL_JWT_SECRET);
     console.log(`[DEV-SECRETS] Loaded ${keys.length} keys from DEV_SECRETS_KEYS`);
   } else {
@@ -26,5 +27,11 @@ try {
   console.log("[DEV-SECRETS] Falling back to individual Replit secrets");
 }
 
-const firebaseOk = !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-console.log(`[SECRETS-CHECK] FIREBASE_SERVICE_ACCOUNT_JSON: ${firebaseOk ? "OK" : "MISSING"}`);
+const firebaseOk = !!(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+if (firebaseOk && !process.env.FIREBASE_SERVICE_ACCOUNT_KEY && process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  process.env.FIREBASE_SERVICE_ACCOUNT_KEY = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+}
+if (firebaseOk && !process.env.FIREBASE_SERVICE_ACCOUNT_JSON && process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+  process.env.FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+}
+console.log(`[SECRETS-CHECK] FIREBASE_SERVICE_ACCOUNT_KEY: ${firebaseOk ? "OK" : "MISSING"}`);
