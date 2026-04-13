@@ -300,17 +300,19 @@ export default function GarageRegisterScreen() {
 
     setLoading(true);
     try {
-      const checkRes = await fetch(`${apiBase}/api/users/check-email?email=${encodeURIComponent(email.trim().toLowerCase())}`, {
-        headers: { Accept: "application/json" },
-      });
-      if (checkRes.ok) {
-        const checkData = await checkRes.json();
-        if (checkData?.exists) {
-          showAlert({ type: "info", title: "Compte existant", message: "Un compte existe déjà avec cette adresse email. Veuillez vous connecter.", buttons: [{ text: "Se connecter", style: "primary", onPress: () => router.replace("/(auth)/login") }] });
-          setLoading(false);
-          return;
+      try {
+        const checkRes = await fetch(`${apiBase}/api/users/check-email?email=${encodeURIComponent(email.trim().toLowerCase())}`, {
+          headers: { Accept: "application/json" },
+        });
+        if (checkRes.ok) {
+          const checkData = await safeParseJson(checkRes);
+          if (checkData?.exists) {
+            showAlert({ type: "info", title: "Compte existant", message: "Un compte existe déjà avec cette adresse email. Veuillez vous connecter.", buttons: [{ text: "Se connecter", style: "primary", onPress: () => router.replace("/(auth)/login") }] });
+            setLoading(false);
+            return;
+          }
         }
-      }
+      } catch {}
 
       const body: any = {
         email: email.trim(),
@@ -341,7 +343,7 @@ export default function GarageRegisterScreen() {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+        const err = await safeParseJson(res) ?? {};
         console.error("[Register] API error:", res.status, JSON.stringify(err));
         throw new Error(err?.message || err?.error || "Inscription échouée. Veuillez réessayer.");
       }
@@ -380,7 +382,7 @@ export default function GarageRegisterScreen() {
     } finally {
       setLoading(false);
     }
-  }, [firstName, lastName, email, password, confirmPassword, garageName, smsConsent, legalConsent, company, firebaseUid, isGoogleFlow, idToken, socialLogin, apiBase]);
+  }, [firstName, lastName, email, password, confirmPassword, garageName, smsConsent, legalConsent, company, firebaseUid, isGoogleFlow, idToken, socialLogin, apiBase, safeParseJson]);
 
   const renderCertificationCheckbox = () => (
     <Pressable
