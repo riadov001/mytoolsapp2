@@ -83,6 +83,7 @@ export default function LoginScreen() {
     try {
       const success = await biometricLogin();
       if (success) {
+        setLoading(false);
         setTimeout(() => router.replace("/(admin)" as any), 100);
       } else {
         setBiometricAvailable(false);

@@ -462,7 +462,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       biometricLogin,
       socialLogin,
     }),
-    [user, isLoading, storedAccessToken]
+    [user, isLoading, storedAccessToken, login, register, logout, refreshUser, biometricLogin, socialLogin]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

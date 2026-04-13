@@ -7,6 +7,8 @@ import Busboy from "busboy";
 import { registerSocialAuthRoutes } from "./social-auth";
 
 const SEED_DOMAIN = "backend-saas.mytoolsgroup.eu";
+const BACKUP_DOMAIN = "backend.mytoolsgroup.eu";
+const ALLOWED_PARENT_DOMAIN = "mytoolsgroup.eu";
 const REMOTE_CONFIG_ENDPOINT = `https://${SEED_DOMAIN}/api/public/mobile-api-url`;
 
 function normalizeApiUrl(raw: string): string {
@@ -17,17 +19,18 @@ function normalizeApiUrl(raw: string): string {
   return url.replace(/\/+$/, "");
 }
 
-function sanitizeApiUrlEnv(raw: string | undefined, label: string): string {
-  if (!raw) return `https://${SEED_DOMAIN}/api`;
+function sanitizeApiUrlEnv(raw: string | undefined, label: string, fallback?: string): string {
+  const defaultUrl = fallback || `https://${SEED_DOMAIN}/api`;
+  if (!raw) return defaultUrl;
   let normalized = normalizeApiUrl(raw);
   try {
     const host = new URL(normalized).hostname.toLowerCase();
-    if (!host.includes(SEED_DOMAIN)) {
+    if (!host.endsWith(ALLOWED_PARENT_DOMAIN)) {
       console.warn(`[CONFIG] ${label} rejected non-production domain (${host}), using default`);
-      return `https://${SEED_DOMAIN}/api`;
+      return defaultUrl;
     }
   } catch {
-    return `https://${SEED_DOMAIN}/api`;
+    return defaultUrl;
   }
   // Ensure /api suffix is present
   if (!normalized.endsWith("/api") && !normalized.includes("/api/")) {
@@ -37,7 +40,7 @@ function sanitizeApiUrlEnv(raw: string | undefined, label: string): string {
 }
 
 const DEFAULT_EXTERNAL_API = sanitizeApiUrlEnv(process.env.EXTERNAL_API_URL, "EXTERNAL_API_URL");
-const DEFAULT_EXTERNAL_FALLBACK = sanitizeApiUrlEnv(process.env.EXTERNAL_API_FALLBACK_URL, "EXTERNAL_API_FALLBACK_URL");
+const DEFAULT_EXTERNAL_FALLBACK = sanitizeApiUrlEnv(process.env.EXTERNAL_API_FALLBACK_URL, "EXTERNAL_API_FALLBACK_URL", `https://${BACKUP_DOMAIN}/api`);
 
 let _dynamicApiUrl: string = DEFAULT_EXTERNAL_API;
 let _dynamicApiFallback: string = DEFAULT_EXTERNAL_FALLBACK;
@@ -46,10 +49,10 @@ const URL_CACHE_TTL_MS = 30_000;
 
 function getActiveApiUrl(): string { return _dynamicApiUrl; }
 function getActiveFallbacks(): string[] {
-  return [_dynamicApiUrl, _dynamicApiFallback].filter((v, i, a) => a.indexOf(v) === i);
+  return [_dynamicApiUrl, _dynamicApiFallback, `https://${BACKUP_DOMAIN}/api`].filter((v, i, a) => a.indexOf(v) === i);
 }
 
-const ALLOWED_API_DOMAIN = SEED_DOMAIN; // Only trust URLs on the production domain
+const ALLOWED_API_DOMAIN = ALLOWED_PARENT_DOMAIN; // Trust any subdomain on the production parent domain
 
 async function fetchRemoteConfigUrl(): Promise<string | null> {
   try {

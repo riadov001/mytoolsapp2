@@ -5,11 +5,11 @@ const CONFIG_ENDPOINT = "https://backend-saas.mytoolsgroup.eu/api/public/mobile-
 const DEFAULT_MOBILE_API_URL =
   process.env.EXPO_PUBLIC_EXTERNAL_API_URL || "https://backend-saas.mytoolsgroup.eu";
 const DEFAULT_FALLBACK_URL =
-  process.env.EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL || "https://backend-saas.mytoolsgroup.eu";
+  process.env.EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL || "https://backend.mytoolsgroup.eu";
 
 let _mobileApiUrl: string = DEFAULT_MOBILE_API_URL;
 
-const ALLOWED_MOBILE_API_DOMAIN = "backend-saas.mytoolsgroup.eu";
+const ALLOWED_MOBILE_API_DOMAIN = "mytoolsgroup.eu";
 
 export async function initApiConfig(): Promise<void> {
   try {

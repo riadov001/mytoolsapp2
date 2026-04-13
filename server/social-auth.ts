@@ -1,13 +1,15 @@
 import type { Express, Request, Response } from "express";
 
-const ALLOWED_API_DOMAIN = "backend-saas.mytoolsgroup.eu";
+const ALLOWED_API_DOMAIN = "mytoolsgroup.eu";
+const SEED_DOMAIN = "backend-saas.mytoolsgroup.eu";
+const BACKUP_DOMAIN = "backend.mytoolsgroup.eu";
 
 function sanitizeSocialApiUrl(raw: string | undefined, fallback: string): string {
   if (!raw) return fallback;
   try {
     const normalized = raw.trim().replace(/\/+$/, "");
     const host = new URL(normalized).hostname.toLowerCase();
-    if (!host.includes(ALLOWED_API_DOMAIN)) {
+    if (!host.endsWith(ALLOWED_API_DOMAIN)) {
       console.warn(`[SocialAuth] Rejected non-production API domain: ${host}`);
       return fallback;
     }
@@ -17,10 +19,11 @@ function sanitizeSocialApiUrl(raw: string | undefined, fallback: string): string
   }
 }
 
-const DEFAULT_API = `https://${ALLOWED_API_DOMAIN}/api`;
+const DEFAULT_API = `https://${SEED_DOMAIN}/api`;
+const BACKUP_API = `https://${BACKUP_DOMAIN}/api`;
 const EXTERNAL_API = sanitizeSocialApiUrl(process.env.EXTERNAL_API_URL, DEFAULT_API);
-const EXTERNAL_API_FALLBACK = sanitizeSocialApiUrl(process.env.EXTERNAL_API_FALLBACK_URL, DEFAULT_API);
-const EXTERNAL_APIS = [EXTERNAL_API, EXTERNAL_API_FALLBACK].filter((v, i, a) => a.indexOf(v) === i);
+const EXTERNAL_API_FALLBACK = sanitizeSocialApiUrl(process.env.EXTERNAL_API_FALLBACK_URL, BACKUP_API);
+const EXTERNAL_APIS = [EXTERNAL_API, EXTERNAL_API_FALLBACK, BACKUP_API].filter((v, i, a) => a.indexOf(v) === i);
 
 async function fetchExternalWithFallback(path: string, options: RequestInit): Promise<globalThis.Response> {
   let lastErr: any;
