@@ -125,10 +125,17 @@ Table principale : `document_amounts` — stocke les lignes (items) et montants 
 ```
 EXPO_PUBLIC_FIREBASE_API_KEY
 EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
+EXPO_PUBLIC_FIREBASE_DATABASE_URL
 EXPO_PUBLIC_FIREBASE_PROJECT_ID
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 EXPO_PUBLIC_FIREBASE_APP_ID
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+EXPO_PUBLIC_EXTERNAL_API_URL
+EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL
 ```
+
+> Toutes ces valeurs sont définies dans les variables d'environnement Replit (dev + prod). `lib/firebase.ts` ne contient aucune valeur en dur — tout passe par les env vars.
 
 **Backend (secrets Replit) :**
 ```

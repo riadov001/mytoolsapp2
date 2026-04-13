@@ -111,6 +111,8 @@ EXTERNAL_API_FALLBACK_URL = "https://backend-saas.mytoolsgroup.eu/api"
 EXTERNAL_API_URL = "https://backend-saas.mytoolsgroup.eu/api"
 EXPO_PUBLIC_FIREBASE_API_KEY = "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc"
 EXPO_PUBLIC_FIREBASE_APP_ID = "1:129808585113:web:03c4b7847847bf4e9b4308"
+EXPO_PUBLIC_FIREBASE_DATABASE_URL = "https://crud-ae9d9.firebaseio.com"
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = "129808585113"
 
 [userenv.production]
 PORT = "8081"
@@ -124,6 +126,8 @@ EXTERNAL_API_FALLBACK_URL = "https://backend-saas.mytoolsgroup.eu/api"
 EXTERNAL_API_URL = "https://backend-saas.mytoolsgroup.eu/api"
 EXPO_PUBLIC_FIREBASE_API_KEY = "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc"
 EXPO_PUBLIC_FIREBASE_APP_ID = "1:129808585113:web:03c4b7847847bf4e9b4308"
+EXPO_PUBLIC_FIREBASE_DATABASE_URL = "https://crud-ae9d9.firebaseio.com"
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = "129808585113"
 
 [userenv.shared]
 

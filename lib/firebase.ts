@@ -6,13 +6,13 @@ let firebaseAuth: any = null;
 let initAttempted = false;
 
 const FIREBASE_CONFIG = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyCCjrfHzHimlgfPjJbrWdGME_AV7jh-gdc",
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "crud-ae9d9.firebaseapp.com",
-  databaseURL: "https://crud-ae9d9.firebaseio.com",
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "crud-ae9d9",
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || "crud-ae9d9.firebasestorage.app",
-  messagingSenderId: "129808585113",
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "1:129808585113:web:03c4b7847847bf4e9b4308",
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
 export function isFirebaseConfigured(): boolean {
