@@ -318,8 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Connexion impossible. Vérifiez votre connexion réseau.");
       }
     } else {
-      // Native (iOS/Android): /api/auth/social only exists on the proxy server.
-      // Call the external backend's Firebase login endpoint directly.
+      // Native (iOS/Android): call the external backend's Firebase login endpoint directly.
       const { getMobileApiUrl, EXTERNAL_API_FALLBACK } = require("./config");
       const bases: string[] = [getMobileApiUrl(), EXTERNAL_API_FALLBACK]
         .filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i);
@@ -331,17 +330,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             headers: { "Content-Type": "application/json", Accept: "application/json" },
             body: JSON.stringify({ idToken }),
           });
+          // If backend returns HTML (SPA catch-all — endpoint not implemented), mark as null
+          const ct = res.headers.get("content-type") || "";
+          if (res.ok && !ct.includes("application/json")) {
+            console.warn(`[SocialLogin] ${base} returned HTML — Firebase endpoint not available on backend`);
+            res = null as any;
+            continue;
+          }
           break;
         } catch (err: any) {
           lastErr = err;
           console.warn(`[SocialLogin] ${base} unreachable, trying next...`);
         }
       }
-      if (!res) throw lastErr || new Error("Authentification sociale échouée");
+
+      // Backend doesn't have the Firebase endpoint at all — fall back to JWT decode
+      if (!res) {
+        const decoded = decodeFirebaseJwt(idToken);
+        const email = decoded?.email || "";
+        const uid = decoded?.user_id || decoded?.uid || decoded?.sub || "";
+        if (!email) throw new Error("Impossible de récupérer votre email depuis le compte Google/Apple.");
+        console.warn("[SocialLogin] Backend Firebase endpoint unavailable — redirecting to registration");
+        return {
+          status: "needs_registration",
+          email,
+          displayName: decoded?.name || null,
+          firebaseUid: uid,
+        };
+      }
     }
 
+    // Read body as text first to detect HTML catch-all responses
     let data: any = {};
-    try { data = await res.json(); } catch {}
+    try {
+      const rawText = await res.text();
+      if (rawText.trim().startsWith("<")) {
+        // HTML response — backend SPA catch-all, endpoint not implemented
+        const decoded = decodeFirebaseJwt(idToken);
+        const email = decoded?.email || "";
+        const uid = decoded?.user_id || decoded?.uid || decoded?.sub || "";
+        if (!email) throw new Error("Impossible de récupérer votre email depuis le compte Google/Apple.");
+        return {
+          status: "needs_registration",
+          email,
+          displayName: decoded?.name || null,
+          firebaseUid: uid,
+        };
+      }
+      if (rawText && rawText.trim()) data = JSON.parse(rawText);
+    } catch (e: any) {
+      if ((e as Error).message?.includes("récupérer votre email")) throw e;
+    }
 
     // Handle "user not found — must register" (404)
     if (res.status === 404) {
@@ -368,7 +407,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!accessToken || !user) {
       console.warn("[SocialLogin] Incomplete response:", JSON.stringify(data).slice(0, 300));
-      throw new Error("Réponse d'authentification incomplète");
+      throw new Error("Connexion Google/Apple indisponible. Veuillez utiliser email et mot de passe ou contacter le support.");
     }
 
     await storeToken("access_token", accessToken);

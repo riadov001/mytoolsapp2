@@ -184,17 +184,36 @@ export function registerSocialAuthRoutes(app: Express) {
 
       const rawText = await externalRes.text();
       const contentType = externalRes.headers.get("content-type") || "";
+      const isHtml = rawText.trim().startsWith("<") || !contentType.includes("application/json");
 
       let externalData: any = {};
       try {
-        externalData = JSON.parse(rawText);
-      } catch {
-        if (!contentType.includes("application/json")) {
-          console.error("[SocialAuth] External API returned non-JSON response:", rawText.substring(0, 200));
-          return res.status(503).json({
-            message: "Service temporairement indisponible. Veuillez réessayer dans quelques instants.",
+        if (!isHtml) externalData = JSON.parse(rawText);
+      } catch {}
+
+      // Backend returned HTML (SPA catch-all) — endpoint not yet implemented on backend.
+      // If we have a verified Firebase user, treat as "needs registration" so the client
+      // can redirect to the registration form with the user's data pre-filled.
+      if (isHtml) {
+        const email = firebaseUser?.email || jwtPayload?.email;
+        const displayName = firebaseUser?.displayName || jwtPayload?.name || null;
+        const uid = firebaseUser?.uid || jwtPayload?.user_id || jwtPayload?.uid || jwtPayload?.sub;
+
+        if (email && uid) {
+          console.warn("[SocialAuth] Backend Firebase endpoint not implemented (HTML response). Returning 404 for registration flow.");
+          return res.status(404).json({
+            message: "Aucun compte trouvé avec cette adresse email.",
+            email,
+            displayName,
+            firebaseUid: uid,
+            needsRegistration: true,
           });
         }
+
+        console.error("[SocialAuth] Backend returned HTML and no verified Firebase user available.");
+        return res.status(503).json({
+          message: "La connexion sociale est temporairement indisponible. Veuillez utiliser email et mot de passe.",
+        });
       }
 
       if (externalRes.status === 404) {

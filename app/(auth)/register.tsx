@@ -355,10 +355,11 @@ export default function GarageRegisterScreen() {
             setStep("success");
             return;
           }
+          // Firebase login not available on backend — guide user to set a password via "forgot password"
           showAlert({
             type: "info",
             title: "Compte créé",
-            message: "Votre compte a été créé avec succès. Veuillez vous connecter.",
+            message: "Votre compte a été créé. La connexion Google n'est pas encore disponible — utilisez « Mot de passe oublié » sur l'écran de connexion pour définir un mot de passe.",
             buttons: [{ text: "Se connecter", style: "primary", onPress: () => router.replace("/(auth)/login") }],
           });
           setLoading(false);
@@ -368,7 +369,7 @@ export default function GarageRegisterScreen() {
           showAlert({
             type: "info",
             title: "Compte créé",
-            message: "Votre compte a été créé avec succès. Veuillez vous connecter.",
+            message: "Votre compte a été créé. Utilisez « Mot de passe oublié » sur l'écran de connexion pour définir un mot de passe et vous connecter.",
             buttons: [{ text: "Se connecter", style: "primary", onPress: () => router.replace("/(auth)/login") }],
           });
           setLoading(false);
@@ -378,7 +379,18 @@ export default function GarageRegisterScreen() {
 
       setStep("success");
     } catch (err: any) {
-      showAlert({ type: "error", title: "Erreur", message: err.message || "Inscription échouée.", buttons: [{ text: "OK", style: "primary" }] });
+      const msg: string = err.message || "Inscription échouée.";
+      const emailTaken = /déjà utilisé|already (exists|taken|registered)|email.*exist/i.test(msg);
+      if (emailTaken && isGoogleFlow) {
+        showAlert({
+          type: "info",
+          title: "Compte existant",
+          message: "Un compte existe déjà avec cette adresse email. Utilisez « Mot de passe oublié » sur l'écran de connexion si vous ne vous souvenez pas de votre mot de passe.",
+          buttons: [{ text: "Se connecter", style: "primary", onPress: () => router.replace("/(auth)/login") }],
+        });
+      } else {
+        showAlert({ type: "error", title: "Erreur", message: msg, buttons: [{ text: "OK", style: "primary" }] });
+      }
     } finally {
       setLoading(false);
     }
