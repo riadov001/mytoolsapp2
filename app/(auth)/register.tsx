@@ -92,6 +92,34 @@ export default function GarageRegisterScreen() {
   const topPad = Platform.OS === "web" ? 67 + 16 : insets.top + 16;
   const bottomPad = Platform.OS === "web" ? 34 + 24 : insets.bottom + 24;
 
+  const mapGovResult = useCallback((item: any, query: string): CompanyInfo => {
+    const siege = item?.siege || item?.matching_etablissements?.[0] || {};
+    const address = siege?.adresse || [siege?.numero_voie, siege?.type_voie, siege?.libelle_voie].filter(Boolean).join(" ");
+    const siret = siege?.siret || item?.siret || (query.replace(/\D/g, "").length === 14 ? query.replace(/\D/g, "") : "");
+    const siren = item?.siren || siret.slice(0, 9) || "";
+    return {
+      name: item?.nom_complet || item?.nom_raison_sociale || "",
+      address: address || "",
+      city: siege?.libelle_commune || siege?.ville || "",
+      postalCode: siege?.code_postal || "",
+      siret,
+      siren,
+      legalForm: item?.nature_juridique || "",
+      tvaNumber: siren ? `FR${siren}` : "",
+    };
+  }, []);
+
+  const safeParseJson = useCallback(async (res: Response): Promise<any | null> => {
+    try {
+      const text = await res.text();
+      if (!text || text.trim() === "") return null;
+      if (text.trim().startsWith("<")) return null;
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }, []);
+
   const doLookup = useCallback(async (query: string, isSiret: boolean) => {
     setLoading(true);
     setSearchAttempted(true);
@@ -99,14 +127,51 @@ export default function GarageRegisterScreen() {
       const param = isSiret ? `siret=${encodeURIComponent(query)}` : `name=${encodeURIComponent(query)}`;
       const reqHeaders: Record<string, string> = { Accept: "application/json" };
       if (idToken) reqHeaders["Authorization"] = `Bearer ${idToken}`;
-      const res = await fetch(`${apiBase}/api/mobile/company/search?${param}`, {
-        headers: reqHeaders,
-      });
-      if (res.status === 503) {
+
+      let data: any = null;
+
+      try {
+        const res = await fetch(`${apiBase}/api/mobile/company/search?${param}`, {
+          headers: reqHeaders,
+        });
+        if (res.ok) {
+          data = await safeParseJson(res);
+        } else if (res.status === 503) {
+          showAlert({
+            type: "error",
+            title: "Service indisponible",
+            message: "Le service de recherche d'entreprise est temporairement indisponible.\n\nVous pouvez saisir vos informations manuellement.",
+            buttons: [
+              { text: "Saisir manuellement", style: "primary", onPress: () => setManualEntry(true) },
+              { text: "Réessayer", style: "cancel" },
+            ],
+          });
+          return;
+        } else {
+          const err = await safeParseJson(res);
+          if (err?.requiresManualEntry) { setManualEntry(true); return; }
+        }
+      } catch {}
+
+      if (!data || (!data.name && !data.companyName)) {
+        try {
+          const govRes = await fetch(
+            `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=1`,
+            { headers: { Accept: "application/json" } }
+          );
+          if (govRes.ok) {
+            const govData = await govRes.json();
+            const first = govData?.results?.[0];
+            if (first) data = mapGovResult(first, query);
+          }
+        } catch {}
+      }
+
+      if (!data || (!data.name && !data.companyName)) {
         showAlert({
           type: "error",
-          title: "Service indisponible",
-          message: "Le service de recherche d'entreprise est temporairement indisponible.\n\nVous pouvez saisir vos informations manuellement.",
+          title: "Entreprise introuvable",
+          message: "Aucune entreprise trouvée pour cette recherche.\n\nVous pouvez saisir les informations manuellement.",
           buttons: [
             { text: "Saisir manuellement", style: "primary", onPress: () => setManualEntry(true) },
             { text: "Réessayer", style: "cancel" },
@@ -114,15 +179,7 @@ export default function GarageRegisterScreen() {
         });
         return;
       }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        if (err?.requiresManualEntry) {
-          setManualEntry(true);
-          return;
-        }
-        throw new Error(err?.message || "Entreprise introuvable");
-      }
-      const data = await res.json();
+
       setCompany({
         name: data.name || data.companyName || "",
         address: data.address || "",
@@ -149,7 +206,7 @@ export default function GarageRegisterScreen() {
     } finally {
       setLoading(false);
     }
-  }, [garageName, apiBase, idToken]);
+  }, [garageName, apiBase, idToken, mapGovResult, safeParseJson]);
 
   const handleSiretChange = useCallback((text: string) => {
     const digits = text.replace(/\D/g, "").slice(0, 14);
