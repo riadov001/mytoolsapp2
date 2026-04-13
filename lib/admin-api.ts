@@ -144,6 +144,10 @@ export async function adminApiCall<T = any>(
     setSessionCookie(xSessionCookie);
   }
 
+  if (res.status === 429) {
+    throw new Error("Trop de tentatives. Réessayez dans quelques minutes.");
+  }
+
   if (res.status === 401) {
     if (refreshTokenValue) {
       const refreshed = await tryRefreshToken();
@@ -172,7 +176,7 @@ export async function adminApiCall<T = any>(
 async function tryRefreshToken(): Promise<boolean> {
   if (!refreshTokenValue) return false;
   try {
-    const res = await fetchWithRetry(`${getNativeApiBase()}/api/refresh`, {
+    const res = await fetchWithRetry(`${getNativeApiBase()}/api/mobile/refresh-token`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ refreshToken: refreshTokenValue }),
@@ -217,7 +221,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
 }
 
 export async function adminLogin(email: string, password: string) {
-  const res = await fetchWithRetry(`${getNativeApiBase()}/api/login`, {
+  const res = await fetchWithRetry(`${getNativeApiBase()}/api/mobile/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -248,10 +252,13 @@ export async function adminLogin(email: string, password: string) {
   if (!user?.id && !user?.email) {
     if (data.accessToken) {
       try {
-        const meRes = await fetchWithRetry(`${getNativeApiBase()}/api/auth/me`, {
+        const meRes = await fetchWithRetry(`${getNativeApiBase()}/api/mobile/auth/me`, {
           headers: { Authorization: `Bearer ${data.accessToken}`, Accept: "application/json" },
         });
-        if (meRes.ok) user = await meRes.json();
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          user = meData.user || meData;
+        }
       } catch {}
     }
   }
@@ -262,18 +269,16 @@ export async function adminLogin(email: string, password: string) {
 export async function adminGetMe(): Promise<any> {
   if (!accessToken) return null;
   try {
-    const res = await fetchWithRetry(`${getNativeApiBase()}/api/auth/me`, {
+    const res = await fetchWithRetry(`${getNativeApiBase()}/api/mobile/auth/me`, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
     });
-    if (res.ok) return await res.json();
+    if (res.ok) {
+      const data = await res.json();
+      return data.user || data;
+    }
   } catch {}
   return null;
 }
-
-export const adminAnalytics = {
-  get: () => adminApiCall<any>("/api/admin/dashboard"),
-  getAdvanced: () => adminApiCall<any>("/api/admin/advanced-analytics"),
-};
 
 export async function getGaragePlan(): Promise<{ plan: string; features: string[] }> {
   try {
@@ -294,10 +299,24 @@ export async function getGaragePlan(): Promise<{ plan: string; features: string[
   }
 }
 
+export const adminAnalytics = {
+  get: () => adminApiCall<any>("/api/mobile/admin/dashboard"),
+  getAdvanced: () => adminApiCall<any>("/api/mobile/admin/stats"),
+  getStats: () => adminApiCall<any>("/api/mobile/admin/stats"),
+  getQuotas: () => adminApiCall<any>("/api/mobile/admin/quotas"),
+  syncQuotas: () => adminApiCall<any>("/api/mobile/admin/quota-sync"),
+};
+
 export const adminQuotes = {
-  getAll: () => adminApiCall<any[]>("/api/admin/quotes"),
-  getById: (id: string) => adminApiCall<any>(`/api/admin/quotes/${id}`),
-  create: (data: any) => adminApiCall<any>("/api/admin/quotes", { method: "POST", body: data }),
+  getAll: () => adminApiCall<any[]>("/api/mobile/admin/quotes"),
+  getById: (id: string) => adminApiCall<any>(`/api/mobile/admin/quotes/${id}`),
+  create: (data: any) => adminApiCall<any>("/api/mobile/admin/quotes", { method: "POST", body: data }),
+
+  update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/admin/quotes/${id}`, { method: "PATCH", body: data }),
+  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/mobile/admin/quotes/${id}/status`, { method: "PATCH", body: { status } }),
+  delete: (id: string) => adminApiCall<any>(`/api/mobile/admin/quotes/${id}`, { method: "DELETE" }),
+
+  getItems: (quoteId: string) => adminApiCall<any[]>(`/api/mobile/admin/quotes/${quoteId}/items`),
   addItem: (quoteId: string, item: {
     description: string;
     quantity: string;
@@ -306,20 +325,33 @@ export const adminQuotes = {
     taxRate: string;
     taxAmount: string;
     totalIncludingTax: string;
-  }) => adminApiCall<any>(`/api/admin/quotes/${quoteId}/items`, { method: "POST", body: item }),
-  addMedia: (quoteId: string, formData: FormData) => adminApiCall<any>(`/api/admin/quotes/${quoteId}/media`, { method: "POST", body: formData }),
-  update: (id: string, data: any) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "PATCH", body: data }),
-  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "PATCH", body: { status } }),
-  deleteItem: (itemId: string) => adminApiCall<any>(`/api/admin/quote-items/${itemId}`, { method: "DELETE" }),
-  delete: (id: string) => adminApiCall<any>(`/api/admin/quotes/${id}`, { method: "DELETE" }),
-  createReservationFromQuote: (id: string, data: any) => adminApiCall<any>(`/api/quotes/${id}/create-reservation`, { method: "POST", body: data }),
-  convertToInvoice: (id: string) => adminApiCall<any>(`/api/admin/quotes/${id}/convert-to-invoice`, { method: "POST", body: {} }),
+  }) => adminApiCall<any>(`/api/mobile/admin/quotes/${quoteId}/items`, { method: "POST", body: item }),
+  updateItem: (quoteId: string, itemId: string, data: any) =>
+    adminApiCall<any>(`/api/mobile/admin/quotes/${quoteId}/items/${itemId}`, { method: "PATCH", body: data }),
+  deleteItem: (quoteId: string, itemId: string) =>
+    adminApiCall<any>(`/api/mobile/admin/quotes/${quoteId}/items/${itemId}`, { method: "DELETE" }),
+
+  addMedia: (quoteId: string, formData: FormData) =>
+    adminApiCall<any>(`/api/mobile/admin/quotes/${quoteId}/media`, { method: "POST", body: formData }),
+  getMedia: (quoteId: string) => adminApiCall<any[]>(`/api/mobile/admin/quotes/${quoteId}/media`),
+
+  sendEmail: (id: string) => adminApiCall<any>(`/api/mobile/admin/quotes/${id}/send-email`, { method: "POST" }),
+  convertToInvoice: (id: string) => adminApiCall<any>(`/api/mobile/admin/quotes/${id}/convert-to-invoice`, { method: "POST", body: {} }),
+  createReservationFromQuote: (id: string, data: any) =>
+    adminApiCall<any>(`/api/mobile/admin/quotes/${id}/create-reservation`, { method: "POST", body: data }),
 };
 
 export const adminInvoices = {
-  getAll: () => adminApiCall<any[]>("/api/admin/invoices"),
-  getById: (id: string) => adminApiCall<any>(`/api/admin/invoices/${id}`),
-  create: (data: any) => adminApiCall<any>("/api/admin/invoices", { method: "POST", body: data }),
+  getAll: () => adminApiCall<any[]>("/api/mobile/admin/invoices"),
+  getById: (id: string) => adminApiCall<any>(`/api/mobile/admin/invoices/${id}`),
+  create: (data: any) => adminApiCall<any>("/api/mobile/admin/invoices", { method: "POST", body: data }),
+  createDirect: (data: any) => adminApiCall<any>("/api/mobile/admin/invoices/direct", { method: "POST", body: data }),
+
+  update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/admin/invoices/${id}`, { method: "PATCH", body: data }),
+  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/mobile/admin/invoices/${id}/status`, { method: "PATCH", body: { status } }),
+  delete: (id: string) => adminApiCall<any>(`/api/mobile/admin/invoices/${id}`, { method: "DELETE" }),
+
+  getItems: (invoiceId: string) => adminApiCall<any[]>(`/api/mobile/admin/invoices/${invoiceId}/items`),
   addItem: (invoiceId: string, item: {
     description: string;
     quantity: string;
@@ -328,43 +360,61 @@ export const adminInvoices = {
     taxRate: string;
     taxAmount: string;
     totalIncludingTax: string;
-  }) => adminApiCall<any>(`/api/admin/invoices/${invoiceId}/items`, { method: "POST", body: item }),
-  addMedia: (invoiceId: string, formData: FormData) => adminApiCall<any>(`/api/admin/invoices/${invoiceId}/media`, { method: "POST", body: formData }),
-  update: (id: string, data: any) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "PATCH", body: data }),
-  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "PATCH", body: { status } }),
-  deleteItem: (itemId: string) => adminApiCall<any>(`/api/admin/quote-items/${itemId}`, { method: "DELETE" }),
-  delete: (id: string) => adminApiCall<any>(`/api/admin/invoices/${id}`, { method: "DELETE" }),
+  }) => adminApiCall<any>(`/api/mobile/admin/invoices/${invoiceId}/items`, { method: "POST", body: item }),
+  updateItem: (invoiceId: string, itemId: string, data: any) =>
+    adminApiCall<any>(`/api/mobile/admin/invoices/${invoiceId}/items/${itemId}`, { method: "PATCH", body: data }),
+  deleteItem: (invoiceId: string, itemId: string) =>
+    adminApiCall<any>(`/api/mobile/admin/invoices/${invoiceId}/items/${itemId}`, { method: "DELETE" }),
+
+  addMedia: (invoiceId: string, formData: FormData) =>
+    adminApiCall<any>(`/api/mobile/admin/invoices/${invoiceId}/media`, { method: "POST", body: formData }),
+  getMedia: (invoiceId: string) => adminApiCall<any[]>(`/api/mobile/admin/invoices/${invoiceId}/media`),
+
+  sendEmail: (id: string) => adminApiCall<any>(`/api/mobile/admin/invoices/${id}/send-email`, { method: "POST" }),
 };
 
 export const adminReservations = {
-  getAll: () => adminApiCall<any[]>("/api/admin/reservations"),
-  getById: (id: string) => adminApiCall<any>(`/api/admin/reservations/${id}`),
-  create: (data: any) => adminApiCall<any>("/api/admin/reservations", { method: "POST", body: data }),
-  update: (id: string, data: any) => adminApiCall<any>(`/api/admin/reservations/${id}`, { method: "PATCH", body: data }),
-  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/admin/reservations/${id}`, { method: "PATCH", body: { status } }),
-  delete: (id: string) => adminApiCall<any>(`/api/admin/reservations/${id}`, { method: "DELETE" }),
-  getServices: (id: string) => adminApiCall<any[]>(`/api/admin/reservations/${id}/services`),
+  getAll: () => adminApiCall<any[]>("/api/mobile/admin/reservations"),
+  getById: (id: string) => adminApiCall<any>(`/api/mobile/admin/reservations/${id}`),
+  create: (data: any) => adminApiCall<any>("/api/mobile/admin/reservations", { method: "POST", body: data }),
+  update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/admin/reservations/${id}`, { method: "PATCH", body: data }),
+  updateStatus: (id: string, status: string) => adminApiCall<any>(`/api/mobile/admin/reservations/${id}/status`, { method: "PATCH", body: { status } }),
+  delete: (id: string) => adminApiCall<any>(`/api/mobile/admin/reservations/${id}`, { method: "DELETE" }),
+  getServices: (id: string) => adminApiCall<any[]>(`/api/mobile/admin/reservations/${id}/services`),
+};
+
+export const adminUsers = {
+  getAll: () => adminApiCall<any[]>("/api/mobile/admin/users"),
+  getById: (id: string) => adminApiCall<any>(`/api/mobile/admin/users/${id}`),
+  create: (data: any) => adminApiCall<any>("/api/mobile/admin/users", { method: "POST", body: data }),
+  update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/admin/users/${id}`, { method: "PATCH", body: data }),
+  delete: (id: string) => adminApiCall<any>(`/api/mobile/admin/users/${id}`, { method: "DELETE" }),
+  changePassword: (id: string, data: { password: string }) =>
+    adminApiCall<any>(`/api/mobile/admin/users/${id}/password`, { method: "PATCH", body: data }),
 };
 
 export const adminClients = {
-  getAll: () => adminApiCall<any[]>("/api/admin/users"),
-  getById: (id: string) => adminApiCall<any>(`/api/admin/users/${id}`),
-  create: (data: any) => adminApiCall<any>("/api/admin/users", { method: "POST", body: data }),
-  update: (id: string, data: any) => adminApiCall<any>(`/api/admin/users/${id}`, { method: "PATCH", body: data }),
-  delete: (id: string) => adminApiCall<any>(`/api/admin/users/${id}`, { method: "DELETE" }),
+  getAll: () => adminApiCall<any[]>("/api/mobile/admin/clients"),
+  getById: (id: string) => adminApiCall<any>(`/api/mobile/admin/clients/${id}`),
+  getQuotes: (id: string) => adminApiCall<any[]>(`/api/mobile/admin/clients/${id}/quotes`),
+  getInvoices: (id: string) => adminApiCall<any[]>(`/api/mobile/admin/clients/${id}/invoices`),
+  getReservations: (id: string) => adminApiCall<any[]>(`/api/mobile/admin/clients/${id}/reservations`),
+  create: (data: any) => adminApiCall<any>("/api/mobile/admin/users", { method: "POST", body: data }),
+  update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/admin/users/${id}`, { method: "PATCH", body: data }),
+  delete: (id: string) => adminApiCall<any>(`/api/mobile/admin/users/${id}`, { method: "DELETE" }),
 };
 
 export const adminServices = {
-  getAll: () => adminApiCall<any[]>("/api/admin/services"),
-  getById: (id: string) => adminApiCall<any>(`/api/admin/services/${id}`),
-  create: (data: any) => adminApiCall<any>("/api/admin/services", { method: "POST", body: data }),
-  update: (id: string, data: any) => adminApiCall<any>(`/api/admin/services/${id}`, { method: "PATCH", body: data }),
-  delete: (id: string) => adminApiCall<any>(`/api/admin/services/${id}`, { method: "DELETE" }),
+  getAll: () => adminApiCall<any[]>("/api/mobile/services"),
+  getById: (id: string) => adminApiCall<any>(`/api/mobile/services/${id}`),
+  create: (data: any) => adminApiCall<any>("/api/mobile/admin/services", { method: "POST", body: data }),
+  update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/admin/services/${id}`, { method: "PATCH", body: data }),
+  delete: (id: string) => adminApiCall<any>(`/api/mobile/admin/services/${id}`, { method: "DELETE" }),
 };
 
 export const adminProfile = {
-  get: () => adminApiCall<any>("/api/admin/settings"),
-  update: (data: any) => adminApiCall<any>("/api/admin/settings", { method: "PATCH", body: data }),
+  get: () => adminApiCall<any>("/api/mobile/admin/settings"),
+  update: (data: any) => adminApiCall<any>("/api/mobile/admin/settings", { method: "PATCH", body: data }),
 };
 
 export const adminLogs = {
@@ -376,10 +426,34 @@ export const adminLogs = {
 };
 
 export const adminNotifications = {
-  getAll: () => adminApiCall<any[]>("/api/notifications"),
-  getUnreadCount: () => adminApiCall<{ count: number }>("/api/notifications/unread-count"),
-  markRead: (id: string) => adminApiCall<any>(`/api/notifications/${id}/read`, { method: "PATCH" }),
-  markAllRead: () => adminApiCall<any>("/api/notifications/mark-all-read", { method: "POST" }),
+  getAll: () => adminApiCall<any[]>("/api/mobile/notifications"),
+  getUnreadCount: () => adminApiCall<{ count: number }>("/api/mobile/notifications/unread-count"),
+  markRead: (id: string) => adminApiCall<any>(`/api/mobile/notifications/${id}/read`, { method: "PATCH" }),
+  markAllRead: () => adminApiCall<any>("/api/mobile/notifications/mark-all-read", { method: "POST" }),
+};
+
+export const adminReviews = {
+  getAll: () => adminApiCall<any[]>("/api/mobile/admin/reviews"),
+  delete: (id: string) => adminApiCall<any>(`/api/mobile/admin/reviews/${id}`, { method: "DELETE" }),
+  approve: (id: string) => adminApiCall<any>(`/api/mobile/admin/reviews/${id}/approve`, { method: "PATCH" }),
+};
+
+export const adminSms = {
+  send: (data: any) => adminApiCall<any>("/api/mobile/admin/sms/send", { method: "POST", body: data }),
+  getLogs: () => adminApiCall<any[]>("/api/mobile/admin/sms/logs"),
+};
+
+export const adminExport = {
+  quotes: () => adminApiCall<any>("/api/mobile/admin/export/quotes"),
+  invoices: () => adminApiCall<any>("/api/mobile/admin/export/invoices"),
+};
+
+export const adminExpenses = {
+  getAll: () => adminApiCall<any[]>("/api/mobile/admin/expenses"),
+  getById: (id: string) => adminApiCall<any>(`/api/mobile/admin/expenses/${id}`),
+  create: (data: any) => adminApiCall<any>("/api/mobile/admin/expenses", { method: "POST", body: data }),
+  update: (id: string, data: any) => adminApiCall<any>(`/api/mobile/admin/expenses/${id}`, { method: "PATCH", body: data }),
+  delete: (id: string) => adminApiCall<any>(`/api/mobile/admin/expenses/${id}`, { method: "DELETE" }),
 };
 
 export function getMobilePdfUrl(type: "quotes" | "invoices", id: string): string {

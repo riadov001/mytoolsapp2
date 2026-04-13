@@ -185,7 +185,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         try {
           const { adminApiCall } = require("./admin-api");
-          const userData = await adminApiCall("/api/auth/user");
+          const res = await adminApiCall("/api/mobile/auth/me");
+          const userData = res?.user || res;
           if (userData && (userData.id || userData.email)) {
             setUser(userData);
             return;
@@ -275,7 +276,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (storedAccessToken) {
         const { adminApiCall } = require("./admin-api");
-        const userData = await adminApiCall("/api/auth/user");
+        const res = await adminApiCall("/api/mobile/auth/me");
+        const userData = res?.user || res;
         if (userData && (userData.id || userData.email)) {
           setUser(userData);
           return;

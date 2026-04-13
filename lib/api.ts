@@ -180,6 +180,10 @@ export async function apiCall<T = any>(
     }
   }
 
+  if (res.status === 429) {
+    throw new Error("Trop de tentatives. Réessayez dans quelques minutes.");
+  }
+
   if (!res.ok) {
     let errorMessage = `Erreur ${res.status}`;
     try {
@@ -316,13 +320,13 @@ export interface SupportContactData {
 
 export const authApi = {
   register: (data: RegisterData) =>
-    apiCall<{ message: string; userId: string }>("/api/register", {
+    apiCall<{ message: string; userId: string }>("/api/mobile/auth/register", {
       method: "POST",
       body: data,
     }),
 
   login: async (data: LoginData) => {
-    const result = await apiCall<any>("/api/login", {
+    const result = await apiCall<any>("/api/mobile/auth/login", {
       method: "POST",
       body: data,
     });
@@ -333,52 +337,86 @@ export const authApi = {
   },
 
   logout: () =>
-    apiCall("/api/logout", { method: "POST" }),
+    apiCall("/api/mobile/auth/logout", { method: "POST" }),
 
   getUser: async () => {
-    const result = await apiCall<any>("/api/auth/user");
-    if (result?.id || result?.email) return result as UserProfile;
+    const result = await apiCall<any>("/api/mobile/auth/me");
     if (result?.user) return result.user as UserProfile;
+    if (result?.id || result?.email) return result as UserProfile;
     if (result?.data) return result.data as UserProfile;
     return result as UserProfile;
   },
 
   updateUser: (data: Partial<UserProfile>) =>
-    apiCall<UserProfile>("/api/auth/user", {
-      method: "PUT",
+    apiCall<UserProfile>("/api/mobile/profile", {
+      method: "PATCH",
       body: data,
     }),
 
   forgotPassword: (email: string) =>
-    apiCall<{ message: string }>("/api/auth/forgot-password", {
+    apiCall<{ message: string; sent?: boolean }>("/api/mobile/auth/forgot-password", {
       method: "POST",
       body: { email },
     }),
 
-  resetPassword: (email: string, token: string, newPassword: string) =>
-    apiCall("/api/auth/reset-password", {
+  verifyResetCode: (email: string, code: string) =>
+    apiCall<{ valid: boolean; resetToken?: string; message?: string }>("/api/mobile/auth/verify-reset-code", {
       method: "POST",
-      body: { email, token, newPassword },
+      body: { email, code },
+    }),
+
+  resetPassword: (resetToken: string, newPassword: string) =>
+    apiCall("/api/mobile/auth/reset-password", {
+      method: "POST",
+      body: { resetToken, newPassword },
     }),
 
   changePassword: (currentPassword: string, newPassword: string) =>
-    apiCall("/api/auth/change-password", {
+    apiCall("/api/mobile/auth/change-password", {
       method: "POST",
       body: { currentPassword, newPassword },
     }),
 
+  resendVerification: (email: string) =>
+    apiCall<{ message: string }>("/api/mobile/auth/resend-verification", {
+      method: "POST",
+      body: { email },
+    }),
+
   updateNotificationPreferences: (preferences: { push?: boolean; email?: boolean; sms?: boolean }) =>
-    apiCall("/api/auth/notification-preferences", {
-      method: "PUT",
+    apiCall("/api/mobile/profile", {
+      method: "PATCH",
       body: preferences,
     }),
 
   getNotificationPreferences: () =>
-    apiCall<{ push: boolean; email: boolean; sms: boolean }>("/api/auth/notification-preferences"),
+    apiCall<{ push: boolean; email: boolean; sms: boolean }>("/api/mobile/profile"),
+};
+
+export const profileApi = {
+  get: async () => {
+    const result = await apiCall<any>("/api/mobile/profile");
+    if (result?.user) return result.user as UserProfile;
+    if (result?.id || result?.email) return result as UserProfile;
+    return result as UserProfile;
+  },
+  update: (data: Partial<UserProfile>) =>
+    apiCall<UserProfile>("/api/mobile/profile", { method: "PATCH", body: data }),
+  delete: () =>
+    apiCall("/api/mobile/profile", { method: "DELETE" }),
+  uploadAvatar: (formData: FormData) =>
+    apiCall<any>("/api/mobile/profile/avatar", { method: "POST", body: formData, isFormData: true }),
+};
+
+export const legalApi = {
+  getTerms: () => apiCall<any>("/api/mobile/legal/terms"),
+  getPrivacyPolicy: () => apiCall<any>("/api/mobile/public/privacy-policy"),
+  getPublicTerms: () => apiCall<any>("/api/mobile/public/terms"),
+  getLegalUrls: () => apiCall<{ privacyPolicyUrl: string; termsUrl: string; supportEmail: string; gdprCompliant: boolean }>("/api/mobile/public/legal"),
 };
 
 export const servicesApi = {
-  getAll: async () => unwrapList<Service>(await apiCall("/api/services")),
+  getAll: async () => unwrapList<Service>(await apiCall("/api/mobile/services")),
 };
 
 export interface Invoice {
@@ -452,33 +490,54 @@ function unwrapSingle<T>(result: any, idField?: string): T {
 }
 
 export const quotesApi = {
-  getAll: async () => unwrapList<Quote>(await apiCall("/api/quotes")),
-  getById: async (id: string) => unwrapSingle<Quote>(await apiCall(`/api/quotes/${id}`)),
+  getAll: async () => unwrapList<Quote>(await apiCall("/api/mobile/quotes")),
+  getById: async (id: string) => unwrapSingle<Quote>(await apiCall(`/api/mobile/quotes/${id}`)),
+  getMedia: (id: string) => apiCall<any[]>(`/api/mobile/quotes/${id}/media`),
+  getPdfData: (id: string) => apiCall<any>(`/api/mobile/quotes/${id}/pdf-data`),
 
   create: (data: any) =>
-    apiCall<Quote>("/api/quotes", {
-      method: "POST",
-      body: data,
-    }),
+    apiCall<Quote>("/api/mobile/quotes", { method: "POST", body: data }),
 
-  accept: async (id: string, viewToken?: string) => {
-    return apiCall(`/api/quotes/${id}/accept`, { method: "POST" });
-  },
+  update: (id: string, data: any) =>
+    apiCall<Quote>(`/api/mobile/quotes/${id}`, { method: "PATCH", body: data }),
 
-  reject: async (id: string, viewToken?: string) => {
-    return apiCall(`/api/quotes/${id}/reject`, { method: "POST" });
-  },
+  delete: (id: string) =>
+    apiCall(`/api/mobile/quotes/${id}`, { method: "DELETE" }),
+
+  convertToInvoice: (id: string) =>
+    apiCall(`/api/mobile/quotes/${id}/convert-to-invoice`, { method: "POST" }),
+
+  createReservation: (id: string, data: any) =>
+    apiCall(`/api/mobile/quotes/${id}/create-reservation`, { method: "POST", body: data }),
+
+  accept: async (id: string) =>
+    apiCall(`/api/mobile/quotes/${id}`, { method: "PATCH", body: { status: "accepted" } }),
+
+  reject: async (id: string) =>
+    apiCall(`/api/mobile/quotes/${id}`, { method: "PATCH", body: { status: "rejected" } }),
 };
 
 export const invoicesApi = {
-  getAll: async () => unwrapList<Invoice>(await apiCall("/api/invoices")),
-  getById: async (id: string) => unwrapSingle<Invoice>(await apiCall(`/api/invoices/${id}`)),
+  getAll: async () => unwrapList<Invoice>(await apiCall("/api/mobile/invoices")),
+  getById: async (id: string) => unwrapSingle<Invoice>(await apiCall(`/api/mobile/invoices/${id}`)),
+  getMedia: (id: string) => apiCall<any[]>(`/api/mobile/invoices/${id}/media`),
+  getPdfData: (id: string) => apiCall<any>(`/api/mobile/invoices/${id}/pdf-data`),
+
+  create: (data: any) =>
+    apiCall<Invoice>("/api/mobile/invoices", { method: "POST", body: data }),
+
+  update: (id: string, data: any) =>
+    apiCall<Invoice>(`/api/mobile/invoices/${id}`, { method: "PATCH", body: data }),
+
+  delete: (id: string) =>
+    apiCall(`/api/mobile/invoices/${id}`, { method: "DELETE" }),
 };
 
 export const reservationsApi = {
-  getAll: async () => unwrapList<Reservation>(await apiCall("/api/reservations")),
-  getById: async (id: string) => unwrapSingle<Reservation>(await apiCall(`/api/reservations/${id}`)),
-  getServices: async (id: string) => unwrapList<any>(await apiCall(`/api/reservations/${id}/services`)),
+  getAll: async () => unwrapList<Reservation>(await apiCall("/api/mobile/reservations")),
+  getById: async (id: string) => unwrapSingle<Reservation>(await apiCall(`/api/mobile/reservations/${id}`)),
+  getServices: async (id: string) => unwrapList<any>(await apiCall(`/api/mobile/reservations/${id}/services`)),
+
   create: (data: {
     quoteId?: string;
     serviceId?: string;
@@ -488,7 +547,13 @@ export const reservationsApi = {
     time_slot?: string;
     notes?: string;
     vehicleInfo?: any;
-  }) => apiCall<Reservation>("/api/reservations", { method: "POST", body: data }),
+  }) => apiCall<Reservation>("/api/mobile/reservations", { method: "POST", body: data }),
+
+  update: (id: string, data: any) =>
+    apiCall<Reservation>(`/api/mobile/reservations/${id}`, { method: "PATCH", body: data }),
+
+  delete: (id: string) =>
+    apiCall(`/api/mobile/reservations/${id}`, { method: "DELETE" }),
 };
 
 export interface Notification {
@@ -527,11 +592,13 @@ export interface ChatMessage {
 }
 
 export const notificationsApi = {
-  getAll: async () => unwrapList<Notification>(await apiCall("/api/notifications")),
+  getAll: async () => unwrapList<Notification>(await apiCall("/api/mobile/notifications")),
+  getUnreadCount: () =>
+    apiCall<{ count: number }>("/api/mobile/notifications/unread-count"),
   markRead: (id: string) =>
-    apiCall("/api/notifications/" + id + "/read", { method: "POST" }),
+    apiCall("/api/mobile/notifications/" + id + "/read", { method: "PATCH" }),
   markAllRead: () =>
-    apiCall("/api/notifications/read-all", { method: "POST" }),
+    apiCall("/api/mobile/notifications/mark-all-read", { method: "POST" }),
 };
 
 export const chatApi = {
@@ -547,20 +614,27 @@ export const chatApi = {
 };
 
 export const supportApi = {
-  contact: (data: SupportContactData) =>
-    apiCall<{ success: boolean; message: string }>("/api/support/contact", {
-      method: "POST",
-      body: data,
-    }),
+  sendMessage: (message: string) =>
+    apiCall<{ success: boolean; message: string; messageId?: string; conversationId?: string }>(
+      "/api/mobile/support/messages",
+      { method: "POST", body: { message } }
+    ),
   getHistory: async () => {
     try {
-      const result = await apiCall<any>("/api/support/tickets");
+      const result = await apiCall<any>("/api/mobile/support/messages");
       if (Array.isArray(result)) return result;
       if (result && Array.isArray(result.data)) return result.data;
-      if (result && Array.isArray(result.tickets)) return result.tickets;
+      if (result && Array.isArray(result.messages)) return result.messages;
       return [];
     } catch {
       return [];
     }
+  },
+  contact: (data: SupportContactData) => {
+    const formatted = `[${data.category}] ${data.subject}\n\nDe : ${data.name} (${data.email})\n\n${data.message}`;
+    return apiCall<{ success: boolean; message: string }>("/api/mobile/support/messages", {
+      method: "POST",
+      body: { message: formatted },
+    });
   },
 };
