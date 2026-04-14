@@ -325,26 +325,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let lastErr: any = null;
       for (const base of bases) {
         try {
-          res = await fetch(`${base}/api/mobile/auth/login-with-firebase`, {
+          const attempt = await fetch(`${base}/api/mobile/auth/login-with-firebase`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Accept: "application/json" },
             body: JSON.stringify({ idToken }),
           });
-          // If backend returns HTML (SPA catch-all — endpoint not implemented), mark as null
-          const ct = res.headers.get("content-type") || "";
-          if (res.ok && !ct.includes("application/json")) {
-            console.warn(`[SocialLogin] ${base} returned HTML — Firebase endpoint not available on backend`);
-            res = null as any;
+          // Skip HTML responses (SPA catch-all — endpoint not implemented on this backend)
+          const ct = attempt.headers.get("content-type") || "";
+          if (attempt.ok && !ct.includes("application/json")) {
+            console.warn(`[SocialLogin] ${base} returned non-JSON — Firebase endpoint unavailable, trying next`);
             continue;
           }
+          res = attempt;
           break;
         } catch (err: any) {
           lastErr = err;
-          console.warn(`[SocialLogin] ${base} unreachable, trying next...`);
+          console.warn(`[SocialLogin] ${base} unreachable:`, err.message);
         }
       }
 
-      // Backend doesn't have the Firebase endpoint at all — fall back to JWT decode
+      // Backend Firebase endpoint not available on any server — decode JWT locally
       if (!res) {
         const decoded = decodeFirebaseJwt(idToken);
         const email = decoded?.email || "";
@@ -360,12 +360,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Read body as text first to detect HTML catch-all responses
+    // Parse response body safely (backend may return JSON, HTML, or plain text)
     let data: any = {};
     try {
-      const rawText = await res.text();
-      if (rawText.trim().startsWith("<")) {
-        // HTML response — backend SPA catch-all, endpoint not implemented
+      const rawText = await res!.text();
+      const trimmed = rawText.trim();
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        data = JSON.parse(trimmed);
+      } else if (trimmed.startsWith("<")) {
+        // HTML catch-all — backend endpoint not implemented, treat as "no account found"
         const decoded = decodeFirebaseJwt(idToken);
         const email = decoded?.email || "";
         const uid = decoded?.user_id || decoded?.uid || decoded?.sub || "";
@@ -377,13 +380,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           firebaseUid: uid,
         };
       }
-      if (rawText && rawText.trim()) data = JSON.parse(rawText);
+      // Plain text error (e.g. "Internal Server Error") — leave data as {}
     } catch (e: any) {
+      // Re-throw our own explicit errors, ignore parse errors
       if ((e as Error).message?.includes("récupérer votre email")) throw e;
     }
 
     // Handle "user not found — must register" (404)
-    if (res.status === 404) {
+    if (res!.status === 404) {
       const decoded = decodeFirebaseJwt(idToken);
       return {
         status: "needs_registration",
@@ -393,11 +397,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    if (!res.ok) {
-      throw new Error(data?.message || "Authentification sociale échouée");
+    if (!res!.ok) {
+      // Map backend error codes to user-friendly French messages
+      const msg: string = data?.message || data?.error || "";
+      if (res!.status === 401 || res!.status === 403) {
+        throw new Error(msg || "Token Firebase invalide ou expiré. Veuillez réessayer.");
+      }
+      throw new Error(msg || "Authentification sociale échouée. Veuillez réessayer.");
     }
 
-    // Normalize response fields — different backends use different names
+    // Normalize response — different backends use different field names
     const accessToken =
       data.accessToken || data.token || data.jwt || data.access_token || null;
     const user =

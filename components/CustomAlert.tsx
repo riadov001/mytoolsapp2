@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
 
 type AlertType = 'success' | 'error' | 'warning' | 'info';
-type ButtonStyle = 'default' | 'primary';
+type ButtonStyle = 'default' | 'primary' | 'secondary' | 'cancel';
 
 interface AlertButton {
   text: string;
