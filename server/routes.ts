@@ -437,6 +437,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/settings/url-base-api", async (req: Request, res: Response) => {
+    if (!(await assertRootAdmin(req, res))) return;
+    try {
+      const r = await pool.query("SELECT value FROM app_config WHERE key = 'api_url' LIMIT 1");
+      const api_url = r.rows.length > 0 ? r.rows[0].value : _dynamicApiUrl;
+      return res.json({ api_url });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.put("/api/settings/url-base-api", async (req: Request, res: Response) => {
+    if (!(await assertRootAdmin(req, res))) return;
+    const { api_url } = req.body || {};
+    if (!api_url || typeof api_url !== "string") {
+      return res.status(400).json({ message: "Champ 'api_url' requis" });
+    }
+    try {
+      const normalized = sanitizeApiUrlEnv(api_url, "api_url");
+      new URL(normalized);
+      await pool.query(
+        "INSERT INTO app_config (key, value, updated_at) VALUES ('api_url', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()",
+        [normalized]
+      );
+      _dynamicApiUrl = normalized;
+      _urlLastRefreshed = Date.now();
+      console.log(`[CONFIG] api_url mis à jour via /api/settings/url-base-api : ${normalized}`);
+      return res.json({ api_url: _dynamicApiUrl, message: "URL de base API mise à jour avec succès" });
+    } catch (err: any) {
+      if (err instanceof TypeError) return res.status(400).json({ message: "URL invalide" });
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/admin/logs", async (req: Request, res: Response) => {
     const auth = req.headers["authorization"] || "";
     if (!auth) {
