@@ -6,8 +6,7 @@ import fs from "node:fs";
 import Busboy from "busboy";
 import { registerSocialAuthRoutes } from "./social-auth";
 
-const SEED_DOMAIN = "backend-saas.mytoolsgroup.eu";
-const BACKUP_DOMAIN = "backend.mytoolsgroup.eu";
+const SEED_DOMAIN = "back.mytoolsgroup.eu";
 const ALLOWED_PARENT_DOMAIN = "mytoolsgroup.eu";
 const REMOTE_CONFIG_ENDPOINT = `https://${SEED_DOMAIN}/api/public/mobile-api-url`;
 
@@ -25,7 +24,7 @@ function sanitizeApiUrlEnv(raw: string | undefined, label: string, fallback?: st
   let normalized = normalizeApiUrl(raw);
   try {
     const host = new URL(normalized).hostname.toLowerCase();
-    if (!host.endsWith(ALLOWED_PARENT_DOMAIN)) {
+    if (host !== ALLOWED_PARENT_DOMAIN && !host.endsWith(`.${ALLOWED_PARENT_DOMAIN}`)) {
       console.warn(`[CONFIG] ${label} rejected non-production domain (${host}), using default`);
       return defaultUrl;
     }
@@ -40,16 +39,14 @@ function sanitizeApiUrlEnv(raw: string | undefined, label: string, fallback?: st
 }
 
 const DEFAULT_EXTERNAL_API = sanitizeApiUrlEnv(process.env.EXTERNAL_API_URL, "EXTERNAL_API_URL");
-const DEFAULT_EXTERNAL_FALLBACK = sanitizeApiUrlEnv(process.env.EXTERNAL_API_FALLBACK_URL, "EXTERNAL_API_FALLBACK_URL", `https://${BACKUP_DOMAIN}/api`);
 
 let _dynamicApiUrl: string = DEFAULT_EXTERNAL_API;
-let _dynamicApiFallback: string = DEFAULT_EXTERNAL_FALLBACK;
 let _urlLastRefreshed = 0;
 const URL_CACHE_TTL_MS = 30_000;
 
 function getActiveApiUrl(): string { return _dynamicApiUrl; }
 function getActiveFallbacks(): string[] {
-  return [_dynamicApiUrl, _dynamicApiFallback, `https://${BACKUP_DOMAIN}/api`].filter((v, i, a) => a.indexOf(v) === i);
+  return [_dynamicApiUrl];
 }
 
 const ALLOWED_API_DOMAIN = ALLOWED_PARENT_DOMAIN; // Trust any subdomain on the production parent domain
@@ -86,11 +83,8 @@ async function fetchRemoteConfigUrl(): Promise<string | null> {
 async function refreshApiUrlFromDb(dbPool: pg.Pool): Promise<void> {
   try {
     let dbPrimary: string | null = null;
-    let dbFallback: string | null = null;
     const r1 = await dbPool.query("SELECT value FROM app_config WHERE key = 'api_url' LIMIT 1");
     if (r1.rows.length > 0 && r1.rows[0].value) dbPrimary = normalizeApiUrl(r1.rows[0].value);
-    const r2 = await dbPool.query("SELECT value FROM app_config WHERE key = 'api_fallback_url' LIMIT 1");
-    if (r2.rows.length > 0 && r2.rows[0].value) dbFallback = normalizeApiUrl(r2.rows[0].value);
 
     if (dbPrimary) {
       _dynamicApiUrl = dbPrimary;
@@ -101,12 +95,11 @@ async function refreshApiUrlFromDb(dbPool: pg.Pool): Promise<void> {
         console.log(`[CONFIG] API URL fetched from ${SEED_DOMAIN}: ${remote}`);
       }
     }
-    if (dbFallback) _dynamicApiFallback = dbFallback;
     _urlLastRefreshed = Date.now();
   } catch {}
 }
 
-console.log(`[CONFIG] External API seed: ${getActiveApiUrl()} (fallbacks: ${getActiveFallbacks().slice(1).join(", ")})`);
+console.log(`[CONFIG] External API seed: ${getActiveApiUrl()}`);
 
 async function fetchWithBackendFallback(
   path: string,
@@ -227,11 +220,8 @@ async function initDatabase() {
       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
       WHERE app_config.value NOT LIKE $2
     `, [productionApiUrl, `%${SEED_DOMAIN}%`]);
-    await pool.query(`
-      INSERT INTO app_config (key, value, updated_at) VALUES ('api_fallback_url', $1, NOW())
-      ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
-      WHERE app_config.value NOT LIKE $2
-    `, [productionApiUrl, `%${SEED_DOMAIN}%`]);
+    // Remove any legacy fallback URL stored in DB (no longer used — single discovery domain)
+    await pool.query("DELETE FROM app_config WHERE key = 'api_fallback_url'");
     console.log("[DB] Tables initialized");
   } catch (err: any) {
     console.warn("[DB] Init skipped:", err.message);
@@ -393,9 +383,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const r of rows.rows) config[r.key] = r.value;
       return res.json({
         api_url: config["api_url"] || _dynamicApiUrl,
-        api_fallback_url: config["api_fallback_url"] || _dynamicApiFallback,
         default_api_url: DEFAULT_EXTERNAL_API,
-        default_fallback_url: DEFAULT_EXTERNAL_FALLBACK,
       });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -404,7 +392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/admin/config", async (req: Request, res: Response) => {
     if (!(await assertRootAdmin(req, res))) return;
-    const { api_url, api_fallback_url } = req.body || {};
+    const { api_url } = req.body || {};
     try {
       if (api_url) {
         const normalized = sanitizeApiUrlEnv(api_url, "api_url");
@@ -415,20 +403,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         _dynamicApiUrl = normalized;
       }
-      if (api_fallback_url) {
-        const normalized = sanitizeApiUrlEnv(api_fallback_url, "api_fallback_url");
-        new URL(normalized);
-        await pool.query(
-          "INSERT INTO app_config (key, value, updated_at) VALUES ('api_fallback_url', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()",
-          [normalized]
-        );
-        _dynamicApiFallback = normalized;
-      }
       _urlLastRefreshed = Date.now();
       console.log(`[CONFIG] API URL updated by admin: ${getActiveApiUrl()}`);
       return res.json({
         api_url: _dynamicApiUrl,
-        api_fallback_url: _dynamicApiFallback,
         message: "Configuration mise à jour avec succès",
       });
     } catch (err: any) {

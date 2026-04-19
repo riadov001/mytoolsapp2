@@ -38,11 +38,12 @@ Le serveur local (`server/`) agit comme un **proxy intelligent** entre l'app et 
 App mobile
    │
    ├── Web (navigateur) → proxy local (port 5000) → API externe
-   └── Native (iOS/Android) → API externe directement
-                             backend-saas.mytoolsgroup.eu
+   └── Native (iOS/Android) → back.mytoolsgroup.eu/api/public/mobile-api-url
+                             ↓ (retourne l'URL réelle de l'API)
+                             API externe
 ```
 
-> **Important** : Sur mobile natif, les appels API passent directement par `backend-saas.mytoolsgroup.eu`, sans passer par le proxy local. Les enrichissements locaux (items) ne s'appliquent donc qu'en Web.
+> **Important** : Le seul domaine externe interrogé directement par l'app mobile est `back.mytoolsgroup.eu`. Au démarrage, l'app appelle `https://back.mytoolsgroup.eu/api/public/mobile-api-url` pour découvrir dynamiquement l'URL réelle de l'API à utiliser. Aucun fallback hardcodé.
 
 ### Base de données locale (PostgreSQL)
 

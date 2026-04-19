@@ -1,11 +1,9 @@
 import { Platform } from "react-native";
 
-const CONFIG_ENDPOINT = "https://backend-saas.mytoolsgroup.eu/api/public/mobile-api-url";
+const DISCOVERY_DOMAIN = "back.mytoolsgroup.eu";
+const CONFIG_ENDPOINT = `https://${DISCOVERY_DOMAIN}/api/public/mobile-api-url`;
 
-const DEFAULT_MOBILE_API_URL =
-  process.env.EXPO_PUBLIC_EXTERNAL_API_URL || "https://backend-saas.mytoolsgroup.eu";
-const DEFAULT_FALLBACK_URL =
-  process.env.EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL || "https://backend.mytoolsgroup.eu";
+const DEFAULT_MOBILE_API_URL = `https://${DISCOVERY_DOMAIN}`;
 
 let _mobileApiUrl: string = DEFAULT_MOBILE_API_URL;
 
@@ -19,7 +17,7 @@ export async function initApiConfig(): Promise<void> {
       const candidate = data.mobileApiUrl as string;
       try {
         const host = new URL(candidate).hostname.toLowerCase();
-        if (!host.includes(ALLOWED_MOBILE_API_DOMAIN)) {
+        if (host !== ALLOWED_MOBILE_API_DOMAIN && !host.endsWith(`.${ALLOWED_MOBILE_API_DOMAIN}`)) {
           console.warn("[CONFIG] Remote mobileApiUrl rejected (non-production domain):", host);
           return;
         }
@@ -38,9 +36,7 @@ export function getMobileApiUrl(): string {
   return _mobileApiUrl;
 }
 
-export const NATIVE_BACKEND_URLS = [DEFAULT_MOBILE_API_URL, DEFAULT_FALLBACK_URL].filter(
-  (v, i, a) => a.indexOf(v) === i,
-);
+export const NATIVE_BACKEND_URLS = [DEFAULT_MOBILE_API_URL];
 
 export function getNativeApiBase(): string {
   if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
@@ -55,4 +51,3 @@ export function getNativeApiBase(): string {
 }
 
 export const EXTERNAL_API_PRIMARY = DEFAULT_MOBILE_API_URL;
-export const EXTERNAL_API_FALLBACK = DEFAULT_FALLBACK_URL;

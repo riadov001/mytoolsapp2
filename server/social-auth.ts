@@ -1,8 +1,7 @@
 import type { Express, Request, Response } from "express";
 
 const ALLOWED_API_DOMAIN = "mytoolsgroup.eu";
-const SEED_DOMAIN = "backend-saas.mytoolsgroup.eu";
-const BACKUP_DOMAIN = "backend.mytoolsgroup.eu";
+const SEED_DOMAIN = "back.mytoolsgroup.eu";
 
 function sanitizeSocialApiUrl(raw: string | undefined, fallback: string): string {
   if (!raw) return fallback;
@@ -20,10 +19,8 @@ function sanitizeSocialApiUrl(raw: string | undefined, fallback: string): string
 }
 
 const DEFAULT_API = `https://${SEED_DOMAIN}/api`;
-const BACKUP_API = `https://${BACKUP_DOMAIN}/api`;
 const EXTERNAL_API = sanitizeSocialApiUrl(process.env.EXTERNAL_API_URL, DEFAULT_API);
-const EXTERNAL_API_FALLBACK = sanitizeSocialApiUrl(process.env.EXTERNAL_API_FALLBACK_URL, BACKUP_API);
-const EXTERNAL_APIS = [EXTERNAL_API, EXTERNAL_API_FALLBACK, BACKUP_API].filter((v, i, a) => a.indexOf(v) === i);
+const EXTERNAL_APIS = [EXTERNAL_API];
 
 async function fetchExternalWithFallback(path: string, options: RequestInit): Promise<globalThis.Response> {
   let lastErr: any;

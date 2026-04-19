@@ -45,7 +45,6 @@ function ApiConfigSection({ theme, styles }: { theme: ThemeColors; styles: any }
   const { showAlert, AlertComponent } = useCustomAlert();
   const queryClient = useQueryClient();
   const [apiUrl, setApiUrl] = useState("");
-  const [apiFallbackUrl, setApiFallbackUrl] = useState("");
   const [editing, setEditing] = useState(false);
 
   const { data: config, isLoading: configLoading } = useQuery({
@@ -58,12 +57,11 @@ function ApiConfigSection({ theme, styles }: { theme: ThemeColors; styles: any }
   useEffect(() => {
     if (config && !editing) {
       setApiUrl(config.api_url || "");
-      setApiFallbackUrl(config.api_fallback_url || "");
     }
   }, [config, editing]);
 
   const saveMutation = useMutation({
-    mutationFn: (body: { api_url: string; api_fallback_url: string }) =>
+    mutationFn: (body: { api_url: string }) =>
       adminApiCall<any>("/api/admin/config", { method: "PUT", body }),
     onSuccess: (data) => {
       setEditing(false);
@@ -83,13 +81,12 @@ function ApiConfigSection({ theme, styles }: { theme: ThemeColors; styles: any }
       showAlert({ type: "error", title: "URL invalide", message: "L'URL principale n'est pas valide.", buttons: [{ text: "OK" }] });
       return;
     }
-    saveMutation.mutate({ api_url: apiUrl.trim(), api_fallback_url: apiFallbackUrl.trim() });
+    saveMutation.mutate({ api_url: apiUrl.trim() });
   };
 
   const handleReset = () => {
     if (config) {
       setApiUrl(config.default_api_url || "");
-      setApiFallbackUrl(config.default_fallback_url || "");
       setEditing(true);
     }
   };
@@ -111,7 +108,7 @@ function ApiConfigSection({ theme, styles }: { theme: ThemeColors; styles: any }
               <Ionicons name="pencil-outline" size={16} color={theme.primary} />
             </Pressable>
           ) : (
-            <Pressable onPress={() => { setEditing(false); if (config) { setApiUrl(config.api_url); setApiFallbackUrl(config.api_fallback_url); } }} style={styles.editBtn}>
+            <Pressable onPress={() => { setEditing(false); if (config) { setApiUrl(config.api_url); } }} style={styles.editBtn}>
               <Ionicons name="close-outline" size={16} color={theme.textSecondary} />
             </Pressable>
           )}
@@ -121,25 +118,12 @@ function ApiConfigSection({ theme, styles }: { theme: ThemeColors; styles: any }
           <ActivityIndicator size="small" color={theme.primary} style={{ marginTop: 12 }} />
         ) : (
           <>
-            <Text style={styles.apiLabel}>URL principale</Text>
+            <Text style={styles.apiLabel}>URL de l'API</Text>
             <TextInput
               style={[styles.apiInput, { borderColor: editing ? theme.primary : theme.border, color: theme.text }]}
               value={apiUrl}
               onChangeText={(v) => { setApiUrl(v); setEditing(true); }}
-              placeholder="https://backend-saas.mytoolsgroup.eu/api"
-              placeholderTextColor={theme.textTertiary}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              editable={editing}
-            />
-
-            <Text style={[styles.apiLabel, { marginTop: 10 }]}>URL de secours</Text>
-            <TextInput
-              style={[styles.apiInput, { borderColor: editing ? theme.primary : theme.border, color: theme.text }]}
-              value={apiFallbackUrl}
-              onChangeText={(v) => { setApiFallbackUrl(v); setEditing(true); }}
-              placeholder="https://backend-saas.mytoolsgroup.eu/api"
+              placeholder="https://back.mytoolsgroup.eu/api"
               placeholderTextColor={theme.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}

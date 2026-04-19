@@ -319,9 +319,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } else {
       // Native (iOS/Android): call the external backend's Firebase login endpoint directly.
-      const { getMobileApiUrl, EXTERNAL_API_FALLBACK } = require("./config");
-      const bases: string[] = [getMobileApiUrl(), EXTERNAL_API_FALLBACK]
-        .filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i);
+      const { getMobileApiUrl } = require("./config");
+      const bases: string[] = [getMobileApiUrl()].filter((v: string) => !!v);
       let lastErr: any = null;
       for (const base of bases) {
         try {
