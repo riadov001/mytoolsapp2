@@ -12,11 +12,11 @@ run = ["node", "server_dist/index.js"]
 
 [[ports]]
 localPort = 5000
-externalPort = 5000
+externalPort = 80
 
 [[ports]]
 localPort = 8081
-externalPort = 80
+externalPort = 8081
 
 [[ports]]
 localPort = 8082
@@ -50,6 +50,10 @@ args = "Start Frontend"
 task = "workflow.run"
 args = "Build Android APK"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Backend"
+
 [[workflows.workflow]]
 name = "Start App"
 author = "agent"
@@ -73,6 +77,9 @@ task = "shell.exec"
 args = "npm run server:dev"
 waitForPort = 5000
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow]]
 name = "Start Frontend"
 author = "agent"
@@ -84,7 +91,6 @@ outputType = "console"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "fuser -k 8081/tcp 2>/dev/null; sleep 1; CI=1 npm run expo:dev"
-waitForPort = 8081
 
 [[workflows.workflow]]
 name = "Build Android APK"
@@ -115,7 +121,7 @@ EXPO_PUBLIC_FIREBASE_DATABASE_URL = "https://crud-ae9d9.firebaseio.com"
 EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = "129808585113"
 
 [userenv.production]
-PORT = "8081"
+PORT = "5000"
 EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN = "crud-ae9d9.firebaseapp.com"
 EXPO_PUBLIC_FIREBASE_PROJECT_ID = "crud-ae9d9"
 EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET = "crud-ae9d9.firebasestorage.app"
