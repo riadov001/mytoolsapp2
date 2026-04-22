@@ -3,7 +3,7 @@ modules = ["nodejs-20", "web", "bash", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["zip", "zulu11"]
+packages = ["zip", "zulu11", "eas-cli"]
 
 [deployment]
 deploymentTarget = "autoscale"
