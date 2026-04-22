@@ -1,6 +1,6 @@
 # Prompt de synchronisation — Agent Backend MyToolsApp
 
-> Ce fichier est un prompt structuré à copier-coller à un agent IA ou développeur backend pour synchroniser l'état de l'API externe (`back.mytoolsgroup.eu`) avec les besoins du frontend mobile MyToolsApp v2.
+> Ce fichier est un prompt structuré à copier-coller à un agent IA ou développeur backend pour synchroniser l'état de l'API externe (`app-backend.mytoolsgroup.eu`) avec les besoins du frontend mobile MyToolsApp v2.
 
 ---
 
@@ -8,7 +8,7 @@
 
 **Frontend :** Application mobile Expo React Native (iOS + Android), SDK 54, TypeScript.  
 **Backend proxy local :** Express.js sur port 5000 (`server/routes.ts`), sert de proxy vers l'API externe.  
-**API externe :** `https://back.mytoolsgroup.eu/api` — c'est le backend dont tu es responsable.  
+**API externe :** `https://app-backend.mytoolsgroup.eu/api` — c'est le backend dont tu es responsable.  
 **Utilisateurs :** Administrateurs de garages partenaires MyTools Group.  
 **Langue de l'interface :** Français professionnel.
 
@@ -21,7 +21,7 @@
        ↓  HTTP
 [Proxy Express :5000]   ← server/routes.ts
        ↓  HTTPS
-[back.mytoolsgroup.eu/api]  ← TON API
+[app-backend.mytoolsgroup.eu/api]  ← TON API
 ```
 
 Le proxy essaie toujours `/mobile/admin/{endpoint}` en premier, puis `/admin/{endpoint}` en fallback.  
@@ -304,7 +304,7 @@ Ces variables sont dans `server/routes.ts` / `lib/config.ts` :
 EXPO_PUBLIC_API_URL=       # Surchargé pour pointer vers une URL custom
 ```
 
-L'URL par défaut est `https://back.mytoolsgroup.eu`.
+L'URL par défaut est `https://app-backend.mytoolsgroup.eu`. Fallback statique : `https://mytoolsapp-backend.mytoolsgroup.eu`.
 
 ---
 

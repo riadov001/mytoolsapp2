@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 
 const ALLOWED_API_DOMAIN = "mytoolsgroup.eu";
-const SEED_DOMAIN = "back.mytoolsgroup.eu";
+const SEED_DOMAIN = "app-backend.mytoolsgroup.eu";
 
 function sanitizeSocialApiUrl(raw: string | undefined, fallback: string): string {
   if (!raw) return fallback;

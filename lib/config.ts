@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 
-const DISCOVERY_DOMAIN = "back.mytoolsgroup.eu";
+const DISCOVERY_DOMAIN = "app-backend.mytoolsgroup.eu";
 const CONFIG_ENDPOINT = `https://${DISCOVERY_DOMAIN}/api/public/mobile-api-url`;
 
 const DEFAULT_MOBILE_API_URL = `https://${DISCOVERY_DOMAIN}`;
@@ -36,7 +36,10 @@ export function getMobileApiUrl(): string {
   return _mobileApiUrl;
 }
 
-export const NATIVE_BACKEND_URLS = [DEFAULT_MOBILE_API_URL];
+export const NATIVE_BACKEND_URLS = [
+  DEFAULT_MOBILE_API_URL,
+  "https://mytoolsapp-backend.mytoolsgroup.eu",
+];
 
 export function getNativeApiBase(): string {
   if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;

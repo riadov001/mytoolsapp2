@@ -243,7 +243,7 @@ gestion garage,devis,facture,rendez-vous,administrateur,professionnel,atelier,r�
 - Les données doivent être préchargées (clients, devis, factures, RDV exemples)
 
 ### Compte à préparer
-Créer un compte administrateur sur `back.mytoolsgroup.eu` avec :
+Créer un compte administrateur sur `app-backend.mytoolsgroup.eu` avec :
 - Email : `reviewer@mytoolsgroup.eu` (ou similar)
 - Mot de passe : `AppleReview2026!` (exemple — à changer)
 - Garage de démo préchargé avec 3-5 clients fictifs, 2-3 devis, 2-3 factures, 2-3 RDV

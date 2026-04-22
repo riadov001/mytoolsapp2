@@ -123,7 +123,7 @@ function ApiConfigSection({ theme, styles }: { theme: ThemeColors; styles: any }
               style={[styles.apiInput, { borderColor: editing ? theme.primary : theme.border, color: theme.text }]}
               value={apiUrl}
               onChangeText={(v) => { setApiUrl(v); setEditing(true); }}
-              placeholder="https://back.mytoolsgroup.eu/api"
+              placeholder="https://app-backend.mytoolsgroup.eu/api"
               placeholderTextColor={theme.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}

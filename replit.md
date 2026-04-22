@@ -38,12 +38,12 @@ Le serveur local (`server/`) agit comme un **proxy intelligent** entre l'app et 
 App mobile
    │
    ├── Web (navigateur) → proxy local (port 5000) → API externe
-   └── Native (iOS/Android) → back.mytoolsgroup.eu/api/public/mobile-api-url
+   └── Native (iOS/Android) → app-backend.mytoolsgroup.eu/api/public/mobile-api-url
                              ↓ (retourne l'URL réelle de l'API)
                              API externe
 ```
 
-> **Important** : Le seul domaine externe interrogé directement par l'app mobile est `back.mytoolsgroup.eu`. Au démarrage, l'app appelle `https://back.mytoolsgroup.eu/api/public/mobile-api-url` pour découvrir dynamiquement l'URL réelle de l'API à utiliser. Aucun fallback hardcodé.
+> **Important** : Le seul domaine externe interrogé directement par l'app mobile est `app-backend.mytoolsgroup.eu`. Au démarrage, l'app appelle `https://app-backend.mytoolsgroup.eu/api/public/mobile-api-url` pour découvrir dynamiquement l'URL réelle de l'API à utiliser. Fallback statique : `mytoolsapp-backend.mytoolsgroup.eu`.
 
 ### Base de données locale (PostgreSQL)
 
@@ -142,7 +142,8 @@ EXPO_PUBLIC_EXTERNAL_API_FALLBACK_URL
 ```
 FIREBASE_SERVICE_ACCOUNT_KEY   ← variable principale (JSON du compte de service Firebase Admin)
 FIREBASE_SERVICE_ACCOUNT_JSON  ← alias secondaire, synchronisé automatiquement au démarrage
-EXTERNAL_API_URL               ← URL de l'API externe (défaut: https://backend-saas.mytoolsgroup.eu/api)
+EXTERNAL_API_URL               ← URL de l'API externe (défaut: https://app-backend.mytoolsgroup.eu/api)
+EXTERNAL_API_FALLBACK_URL      ← URL de fallback (défaut: https://mytoolsapp-backend.mytoolsgroup.eu/api)
 ```
 
 > `parse-dev-secrets.js` est exécuté au démarrage du serveur. Il synchronise `FIREBASE_SERVICE_ACCOUNT_KEY` et `FIREBASE_SERVICE_ACCOUNT_JSON` dans les deux sens si l'un est absent.
@@ -270,9 +271,9 @@ Fonction `viewPdf()` dans `lib/pdf-download.ts`.
 ## Configuration dynamique de l'API
 
 Le backend peut mettre à jour dynamiquement l'URL de l'API externe via :
-- `GET https://backend-saas.mytoolsgroup.eu/api/public/mobile-api-url` (remote config)
+- `GET https://app-backend.mytoolsgroup.eu/api/public/mobile-api-url` (remote config)
 - Cache TTL : 30 secondes
-- Sécurité : seules les URLs pointant vers `backend-saas.mytoolsgroup.eu` sont acceptées
+- Sécurité : seules les URLs pointant vers un sous-domaine de `mytoolsgroup.eu` sont acceptées
 
 ---
 
@@ -326,7 +327,8 @@ Le SDK Firebase Admin est initialisé au premier appel de vérification de token
 
 | Service | Usage |
 |---------|-------|
-| `backend-saas.mytoolsgroup.eu` | API de production — toutes les données métier |
+| `app-backend.mytoolsgroup.eu` | API de production — toutes les données métier (primaire) |
+| `mytoolsapp-backend.mytoolsgroup.eu` | API de production — fallback statique |
 | Firebase (projet `crud-ae9d9`) | Authentification sociale Google / Apple |
 | `saas.mytoolsgroup.eu` | URLs publiques pour les PDFs |
 | PostgreSQL (Replit) | Persistance locale des items et logs |

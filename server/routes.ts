@@ -6,7 +6,7 @@ import fs from "node:fs";
 import Busboy from "busboy";
 import { registerSocialAuthRoutes } from "./social-auth";
 
-const SEED_DOMAIN = "back.mytoolsgroup.eu";
+const SEED_DOMAIN = "app-backend.mytoolsgroup.eu";
 const ALLOWED_PARENT_DOMAIN = "mytoolsgroup.eu";
 const REMOTE_CONFIG_ENDPOINT = `https://${SEED_DOMAIN}/api/public/mobile-api-url`;
 
@@ -44,9 +44,12 @@ let _dynamicApiUrl: string = DEFAULT_EXTERNAL_API;
 let _urlLastRefreshed = 0;
 const URL_CACHE_TTL_MS = 30_000;
 
+const STATIC_FALLBACK_API = "https://mytoolsapp-backend.mytoolsgroup.eu/api";
+
 function getActiveApiUrl(): string { return _dynamicApiUrl; }
 function getActiveFallbacks(): string[] {
-  return [_dynamicApiUrl];
+  if (_dynamicApiUrl === STATIC_FALLBACK_API) return [_dynamicApiUrl];
+  return [_dynamicApiUrl, STATIC_FALLBACK_API];
 }
 
 const ALLOWED_API_DOMAIN = ALLOWED_PARENT_DOMAIN; // Trust any subdomain on the production parent domain
