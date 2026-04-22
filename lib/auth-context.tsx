@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useRef, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef, ReactNode } from "react";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -220,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (data: LoginData): Promise<UserProfile | null> => {
+  const login = useCallback(async (data: LoginData): Promise<UserProfile | null> => {
     try {
       const result = await adminLogin(data.email, data.password);
       const resolvedUser = result?.user;
@@ -249,14 +249,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Login error:", error instanceof Error ? error.message : error);
       throw error;
     }
-  };
+  }, []);
 
-  const register = async (data: RegisterData) => {
+  const register = useCallback(async (data: RegisterData) => {
     await authApi.register(data);
     await login({ email: data.email, password: data.password });
-  };
+  }, [login]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await authApi.logout();
     } catch {}
@@ -270,9 +270,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await removeToken("social_access_token");
     await removeToken("biometric_enabled");
     setSessionCookie(null);
-  };
+  }, []);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       if (storedAccessToken) {
         const { adminApiCall } = require("./admin-api");
@@ -286,9 +286,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = await authApi.getUser();
       setUser(userData);
     } catch {}
-  };
+  }, [storedAccessToken]);
 
-  const socialLogin = async (idToken: string, provider: string): Promise<SocialLoginResult> => {
+  const socialLogin = useCallback(async (idToken: string, provider: string): Promise<SocialLoginResult> => {
     // Decode Firebase JWT payload client-side (no verification — for extracting email/uid only)
     const decodeFirebaseJwt = (token: string): any => {
       try {
@@ -434,9 +434,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshToken,
       user: user as UserProfile,
     };
-  };
+  }, []);
 
-  const biometricLogin = async (): Promise<boolean> => {
+  const biometricLogin = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === "web" || !LocalAuthentication) return false;
     try {
       const biometricSetting = await getToken("biometric_enabled");
@@ -489,7 +489,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       return false;
     }
-  };
+  }, []);
 
   const isAdmin = detectIsAdmin(user);
   const isEmployee = detectIsEmployee(user);
