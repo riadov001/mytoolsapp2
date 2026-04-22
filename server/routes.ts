@@ -1714,59 +1714,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (lk === "set-cookie") { res.appendHeader("set-cookie", value); return; }
       });
 
-      try {
-        const data = JSON.parse(result.text);
-        const routePath = path.replace(/\/$/, "");
-        const isQuoteRoute = routePath === "/quotes" || routePath.startsWith("/quotes/");
-        const isInvoiceRoute = routePath === "/invoices" || routePath.startsWith("/invoices/");
-        const docType = isQuoteRoute ? "quote" : isInvoiceRoute ? "invoice" : null;
+      // Extraire les infos de route et body AVANT le JSON.parse
+      // Critique: permet de sauvegarder les items même si l'API retourne du non-JSON
+      const routePath = path.replace(/\/$/, "");
+      const isQuoteRoute = routePath === "/quotes" || routePath.startsWith("/quotes/");
+      const isInvoiceRoute = routePath === "/invoices" || routePath.startsWith("/invoices/");
+      const docType = isQuoteRoute ? "quote" : isInvoiceRoute ? "invoice" : null;
 
-        // Extraire les montants du body de la requête (source de vérité pour la création)
-        let bodyHT = parseFloat(String(req.body?.priceExcludingTax || req.body?.totalHT || req.body?.total_excluding_tax || 0)) || 0;
-        let bodyTTC = parseFloat(String(req.body?.quoteAmount || req.body?.amount || req.body?.total || req.body?.total_including_tax || 0)) || 0;
-        const bodyItems = req.body?.items || req.body?.lineItems;
+      // Extraire les montants du body de la requête (source de vérité pour la création)
+      let bodyHT = parseFloat(String(req.body?.priceExcludingTax || req.body?.totalHT || req.body?.total_excluding_tax || 0)) || 0;
+      let bodyTTC = parseFloat(String(req.body?.quoteAmount || req.body?.amount || req.body?.total || req.body?.total_including_tax || 0)) || 0;
+      const bodyItems = req.body?.items || req.body?.lineItems;
 
-        if ((bodyHT <= 0 || bodyTTC <= 0) && Array.isArray(bodyItems) && bodyItems.length > 0) {
-          let calcHT = 0, calcTTC = 0;
-          for (const it of bodyItems) {
-            const price = parseFloat(String(it.unitPriceExcludingTax || it.unit_price_excluding_tax || it.unitPrice || it.unit_price || it.price || 0)) || 0;
-            const qty = parseFloat(String(it.quantity || 1)) || 1;
-            const tax = parseFloat(String(it.taxRate || it.tax_rate || it.tvaRate || 0)) || 0;
-            const lineHT = parseFloat(String(it.totalExcludingTax || it.total_excluding_tax || 0)) || qty * price;
-            const lineTTC = parseFloat(String(it.totalIncludingTax || it.total_including_tax || 0)) || lineHT * (1 + tax / 100);
-            calcHT += lineHT;
-            calcTTC += lineTTC;
-          }
-          if (bodyHT <= 0) bodyHT = calcHT;
-          if (bodyTTC <= 0) bodyTTC = calcTTC;
-          console.log(`[AMOUNTS] Computed from ${bodyItems.length} items: HT=${bodyHT} TTC=${bodyTTC}`);
+      if ((bodyHT <= 0 || bodyTTC <= 0) && Array.isArray(bodyItems) && bodyItems.length > 0) {
+        let calcHT = 0, calcTTC = 0;
+        for (const it of bodyItems) {
+          const price = parseFloat(String(it.unitPriceExcludingTax || it.unit_price_excluding_tax || it.unitPrice || it.unit_price || it.price || 0)) || 0;
+          const qty = parseFloat(String(it.quantity || 1)) || 1;
+          const tax = parseFloat(String(it.taxRate || it.tax_rate || it.tvaRate || 0)) || 0;
+          const lineHT = parseFloat(String(it.totalExcludingTax || it.total_excluding_tax || 0)) || qty * price;
+          const lineTTC = parseFloat(String(it.totalIncludingTax || it.total_including_tax || 0)) || lineHT * (1 + tax / 100);
+          calcHT += lineHT;
+          calcTTC += lineTTC;
         }
+        if (bodyHT <= 0) bodyHT = calcHT;
+        if (bodyTTC <= 0) bodyTTC = calcTTC;
+        console.log(`[AMOUNTS] Computed from ${bodyItems.length} items: HT=${bodyHT} TTC=${bodyTTC}`);
+      }
 
-        // Sauvegarder les montants localement après création ou modification réussie
-        const isMutationSuccess = (req.method === "POST" || req.method === "PATCH" || req.method === "PUT") && result.status < 300;
-        if (isMutationSuccess && docType && (data?.id || (req.method !== "POST" && routePath.match(/\/(quotes|invoices)\/([^/]+)$/))) && (bodyTTC > 0 || Array.isArray(bodyItems))) {
-          const docId = data?.id || routePath.match(/\/(quotes|invoices)\/([^/]+)$/)?.[2] || "";
+      const isMutationSuccess = (req.method === "POST" || req.method === "PATCH" || req.method === "PUT") && result.status < 300;
+
+      // Pour PATCH/PUT: sauvegarder items AVANT le JSON.parse via l'ID de l'URL
+      // Évite la perte d'items si l'API externe retourne du texte non-JSON (ex: "Updated")
+      if (isMutationSuccess && docType && req.method !== "POST" && (bodyTTC > 0 || Array.isArray(bodyItems))) {
+        const urlDocId = routePath.match(/\/(quotes|invoices)\/([^/]+)$/)?.[2] || "";
+        if (urlDocId) {
           const taxAmt = bodyTTC - bodyHT;
           const hasItems = Array.isArray(bodyItems) && bodyItems.length > 0;
           try {
             if (hasItems) {
-              // Items present: save everything including items
               await pool.query(
                 `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
                  VALUES ($1, $2, $3, $4, $5, $6)
                  ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, items=$6, updated_at=NOW()`,
-                [docId, docType, bodyHT, bodyTTC, taxAmt, JSON.stringify(bodyItems)]
+                [urlDocId, docType, bodyHT, bodyTTC, taxAmt, JSON.stringify(bodyItems)]
               );
             } else {
-              // No items in this request (e.g. status-only PATCH): preserve existing items
               await pool.query(
                 `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
                  VALUES ($1, $2, $3, $4, $5, '[]')
                  ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, updated_at=NOW()`,
-                [docId, docType, bodyHT, bodyTTC, taxAmt]
+                [urlDocId, docType, bodyHT, bodyTTC, taxAmt]
               );
             }
-            console.log(`[AMOUNTS] Saved ${docType} ${docId}: HT=${bodyHT} TTC=${bodyTTC} items=${hasItems ? bodyItems.length : "(preserved)"}`);
+            console.log(`[AMOUNTS] Saved ${docType} ${urlDocId}: HT=${bodyHT} TTC=${bodyTTC} items=${hasItems ? bodyItems.length : "(preserved)"}`);
+          } catch (e: any) {
+            console.warn("[AMOUNTS] save failed:", e.message);
+          }
+        }
+      }
+
+      try {
+        const data = JSON.parse(result.text);
+
+        // Pour POST: sauvegarder items avec l'ID retourné dans la réponse de l'API
+        if (isMutationSuccess && docType && req.method === "POST" && data?.id && (bodyTTC > 0 || Array.isArray(bodyItems))) {
+          const taxAmt = bodyTTC - bodyHT;
+          const hasItems = Array.isArray(bodyItems) && bodyItems.length > 0;
+          try {
+            if (hasItems) {
+              await pool.query(
+                `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, items=$6, updated_at=NOW()`,
+                [data.id, docType, bodyHT, bodyTTC, taxAmt, JSON.stringify(bodyItems)]
+              );
+            } else {
+              await pool.query(
+                `INSERT INTO document_amounts (doc_id, doc_type, price_excluding_tax, total_including_tax, tax_amount, items)
+                 VALUES ($1, $2, $3, $4, $5, '[]')
+                 ON CONFLICT (doc_id) DO UPDATE SET price_excluding_tax=$3, total_including_tax=$4, tax_amount=$5, updated_at=NOW()`,
+                [data.id, docType, bodyHT, bodyTTC, taxAmt]
+              );
+            }
+            console.log(`[AMOUNTS] Saved ${docType} ${data.id}: HT=${bodyHT} TTC=${bodyTTC} items=${hasItems ? bodyItems.length : "(preserved)"}`);
           } catch (e: any) {
             console.warn("[AMOUNTS] save failed:", e.message);
           }

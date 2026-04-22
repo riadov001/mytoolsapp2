@@ -134,4 +134,4 @@ EXPO_PUBLIC_DOMAIN = "back.mytoolsgroup.eu"
 [userenv.shared]
 
 [objectStorage]
-defaultBucketID = "replit-objstore-744ef2e8-1b04-48ff-a81a-df6594af2930"
+defaultBucketID = "replit-objstore-6f0248cd-ddff-467a-9926-97ec6f955169"
