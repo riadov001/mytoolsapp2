@@ -124,9 +124,10 @@ export function DateTimePicker({ label, value, onChange, showTime = false, minDa
   const displayValue = formatDisplay(value, showTime);
 
   if (Platform.OS === "web") {
-    const webValue = value ? (showTime
-      ? new Date(value).toISOString().slice(0, 16)
-      : new Date(value).toISOString().slice(0, 10))
+    const webDt = value ? new Date(value) : null;
+    const webValue = (webDt && !isNaN(webDt.getTime())) ? (showTime
+      ? webDt.toISOString().slice(0, 16)
+      : webDt.toISOString().slice(0, 10))
       : "";
 
     return (
@@ -138,7 +139,8 @@ export function DateTimePicker({ label, value, onChange, showTime = false, minDa
           onChange={(e) => {
             const v = e.target.value;
             if (!v) return;
-            onChange(showTime ? new Date(v).toISOString() : new Date(v + "T00:00:00").toISOString());
+            const parsed = showTime ? new Date(v) : new Date(v + "T00:00:00");
+            if (!isNaN(parsed.getTime())) onChange(parsed.toISOString());
           }}
           style={{
             width: "100%", padding: "10px 12px", fontSize: 15, borderRadius: 10,

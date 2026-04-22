@@ -25,6 +25,7 @@
         "NSPhotoLibraryUsageDescription": "MyTools Admin accède à la galerie pour joindre des photos aux devis et demandes de service.",
         "NSPhotoLibraryAddUsageDescription": "MyTools Admin peut enregistrer des photos dans votre bibliothèque.",
         "NSCalendarsUsageDescription": "MyTools synchronise vos rendez-vous avec votre calendrier natif.",
+        "NSFaceIDUsageDescription": "MyTools utilise Face ID pour sécuriser l'accès à votre compte administrateur.",
         "ITSAppUsesNonExemptEncryption": "NO",
         "NSUserNotificationsUsageDescription": "MyTools vous envoie des notifications pour les mises à jour de devis, nouvelles factures et rappels de rendez-vous.",
         "CFBundleURLTypes": [
@@ -80,7 +81,13 @@
           "photosPermission": "MyTools Admin accède à la galerie pour joindre des photos aux devis et demandes de service."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "MyTools utilise Face ID pour sécuriser l'accès à votre compte administrateur."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

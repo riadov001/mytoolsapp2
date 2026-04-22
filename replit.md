@@ -167,7 +167,7 @@ Les items (lignes de devis/facture) suivent ce chemin :
 3. **Récupération (GET)** : la réponse de l'API externe est enrichie avec les items de `document_amounts` si disponibles
 4. **PATCH sans items** : les mises à jour de statut (sans items dans le corps) ne **jamais** écrasent les items existants
 
-> **Bug corrigé** : Avant, tout PATCH sans items (ex. changement de statut) écrasait les items en base locale avec `[]`. Désormais, le serveur utilise deux requêtes SQL distinctes selon la présence ou non d'items dans le corps de la requête.
+> **Bug corrigé v2 (critique)** : La sauvegarde des items sur PATCH/PUT se faisait à l'intérieur du bloc `try { JSON.parse(result.text) }`. Si l'API externe retourne du texte non-JSON (ex. `"Updated"`), le catch prenait le relais et les items n'étaient **jamais** persistés. Fix : la sauvegarde PATCH/PUT utilise maintenant l'ID de l'URL et s'exécute **avant** le JSON.parse. Seul le POST garde la sauvegarde dans le bloc JSON.parse (besoin de l'`id` de la réponse).
 
 ### Filtrage des items vides
 
