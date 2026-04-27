@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import { authApi, UserProfile, LoginData, RegisterData, setSessionCookie, getSessionCookie } from "./api";
+import { authApi, UserProfile, LoginData, RegisterData, setSessionCookie, getSessionCookie, setApiAccessToken } from "./api";
 import { adminLogin, adminGetMe, setAdminTokens, setOnTokenExpired, getAdminAccessToken } from "./admin-api";
 import { registerForPushNotificationsAsync, startNotificationPolling, stopNotificationPolling, addNotificationResponseListener, requestWebNotificationPermission } from "./push-notifications";
 import { adminNotifications } from "./admin-api";
@@ -64,6 +64,7 @@ interface AuthContextValue {
   refreshUser: () => Promise<void>;
   biometricLogin: () => Promise<boolean>;
   socialLogin: (idToken: string, provider: string) => Promise<SocialLoginResult>;
+  appleLogin: (idToken: string, rawNonce: string) => Promise<SocialLoginResult>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -115,7 +116,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (Platform.OS === "web") {
           requestWebNotificationPermission().catch(() => {});
         } else {
-          registerForPushNotificationsAsync().catch(() => {});
+          registerForPushNotificationsAsync().then(async (token) => {
+            if (token) {
+              const { registerDevice: regD, storePushToken } = require("./push-devices");
+              await storePushToken(token).catch(() => {});
+              regD(token).catch(() => {});
+            }
+          }).catch(() => {});
         }
         const fetchFn = isAdminOrEmp ? adminNotifications.getAll : undefined;
         startNotificationPolling(15000, fetchFn);
@@ -148,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setStoredAccessToken(null);
     setAdminTokens(null, null);
+    setApiAccessToken(null);
     await removeToken("access_token");
     await removeToken("refresh_token");
     await removeToken("session_cookie");
@@ -165,6 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (savedAccessToken) {
         setAdminTokens(savedAccessToken, savedRefreshToken);
         setStoredAccessToken(savedAccessToken);
+        setApiAccessToken(savedAccessToken);
       }
 
       const savedCookie = await getToken("session_cookie");
@@ -230,6 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (result.accessToken) {
           setStoredAccessToken(result.accessToken);
+          setApiAccessToken(result.accessToken);
           await storeToken("access_token", result.accessToken);
           if (result.refreshToken) {
             await storeToken("refresh_token", result.refreshToken);
@@ -240,6 +250,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cookie) {
           await storeToken("session_cookie", cookie);
         }
+
+        const { registerDevice, getStoredPushToken } = require("./push-devices");
+        const pushToken = await getStoredPushToken();
+        if (pushToken) registerDevice(pushToken).catch(() => {});
 
         return resolvedUser as UserProfile;
       }
@@ -258,12 +272,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
+      const { getStoredPushToken, unregisterDevice } = require("./push-devices");
+      const pushToken = await getStoredPushToken();
+      if (pushToken) await unregisterDevice(pushToken).catch(() => {});
+    } catch {}
+    try {
       await authApi.logout();
     } catch {}
     stopNotificationPolling();
     setUser(null);
     setStoredAccessToken(null);
     setAdminTokens(null, null);
+    setApiAccessToken(null);
     await removeToken("session_cookie");
     await removeToken("access_token");
     await removeToken("refresh_token");
@@ -421,12 +441,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await storeToken("access_token", accessToken);
     setStoredAccessToken(accessToken);
     setAdminTokens(accessToken, refreshToken);
+    setApiAccessToken(accessToken);
     if (refreshToken) {
       await storeToken("refresh_token", refreshToken);
     }
 
     await removeToken("social_access_token");
     setUser(user as UserProfile);
+
+    const { registerDevice: regDev, getStoredPushToken: getPushTok } = require("./push-devices");
+    const pushTok = await getPushTok();
+    if (pushTok) regDev(pushTok).catch(() => {});
+
+    return {
+      status: "authenticated",
+      accessToken,
+      refreshToken,
+      user: user as UserProfile,
+    };
+  };
+
+  const appleLogin = async (idToken: string, rawNonce: string): Promise<SocialLoginResult> => {
+    const { adminApiCall } = require("./admin-api");
+    let data: any = {};
+    try {
+      data = await adminApiCall<any>("/api/mobile/auth/apple", {
+        method: "POST",
+        body: { idToken, nonce: rawNonce },
+      });
+    } catch (err: any) {
+      throw new Error(err?.message || "Connexion Apple échouée. Veuillez réessayer.");
+    }
+
+    if (data?.status === "needs_registration" || data?.needsRegistration) {
+      return {
+        status: "needs_registration",
+        email: data.email || "",
+        displayName: data.displayName || null,
+        firebaseUid: data.uid || data.appleUid || data.sub || "",
+      };
+    }
+
+    const accessToken =
+      data.accessToken || data.token || data.jwt || data.access_token || null;
+    const user = data.user || data.data?.user || data.profile || data.data || null;
+    const refreshToken =
+      data.refreshToken || data.refresh_token || data.data?.refreshToken || null;
+
+    if (!accessToken || !user) {
+      throw new Error(
+        "Connexion Apple indisponible. Veuillez utiliser email et mot de passe."
+      );
+    }
+
+    await storeToken("access_token", accessToken);
+    setStoredAccessToken(accessToken);
+    setAdminTokens(accessToken, refreshToken);
+    setApiAccessToken(accessToken);
+    if (refreshToken) {
+      await storeToken("refresh_token", refreshToken);
+    }
+    await removeToken("social_access_token");
+    setUser(user as UserProfile);
+
+    const { registerDevice: regApple, getStoredPushToken: getApplePush } = require("./push-devices");
+    const applePush = await getApplePush();
+    if (applePush) regApple(applePush).catch(() => {});
 
     return {
       status: "authenticated",
@@ -457,6 +537,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const savedRefreshToken = await getToken("refresh_token");
           setAdminTokens(savedAccessToken, savedRefreshToken);
           setStoredAccessToken(savedAccessToken);
+          setApiAccessToken(savedAccessToken);
           try {
             const { adminApiCall } = require("./admin-api");
             const userData = await adminApiCall("/api/auth/user");
@@ -510,8 +591,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshUser,
       biometricLogin,
       socialLogin,
+      appleLogin,
     }),
-    [user, isLoading, storedAccessToken, login, register, logout, refreshUser, biometricLogin, socialLogin]
+    [user, isLoading, storedAccessToken, login, register, logout, refreshUser, biometricLogin, socialLogin, appleLogin]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

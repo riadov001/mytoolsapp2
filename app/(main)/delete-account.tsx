@@ -43,7 +43,7 @@ export default function DeleteAccountScreen() {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await apiCall("/api/mobile/profile", { method: "DELETE" });
+      await apiCall("/api/mobile/auth/account", { method: "DELETE" });
       await clearAllStorage();
       showAlert({
         type: "success",

@@ -26,6 +26,7 @@ const isExpoGo = Constants.appOwnership === "expo";
 export interface SocialLoginButtonsProps {
   onIdToken: (idToken: string, provider: string) => Promise<void>;
   onError: (message: string) => void;
+  onAppleAuth?: (idToken: string, rawNonce: string) => Promise<void>;
 }
 
 let AppleAuthentication: any = null;
@@ -52,7 +53,7 @@ function buildNativeRedirectUri() {
   return makeRedirectUri({});
 }
 
-function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps) {
+function SocialLoginButtonsInner({ onIdToken, onError, onAppleAuth }: SocialLoginButtonsProps) {
   const [loading, setLoading] = useState<string | null>(null);
   const theme = useTheme();
 
@@ -155,11 +156,6 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
     }
     setLoading("apple");
     try {
-      const { getFirebaseAuth } = require("@/lib/firebase");
-      const { signInWithCredential, OAuthProvider } = await import("firebase/auth");
-      const fbAuth = getFirebaseAuth();
-      if (!fbAuth) throw new Error("Firebase non configuré");
-
       const rawNonce = Crypto.randomUUID();
       const hashedNonce = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
@@ -175,13 +171,11 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
       });
       if (!appleCredential.identityToken) throw new Error("Aucun token Apple reçu");
 
-      const provider = new OAuthProvider("apple.com");
-      const firebaseCredential = provider.credential({
-        idToken: appleCredential.identityToken,
-        rawNonce,
-      });
-      const result = await signInWithCredential(fbAuth, firebaseCredential);
-      await onIdToken(await result.user.getIdToken(), "apple");
+      if (onAppleAuth) {
+        await onAppleAuth(appleCredential.identityToken, rawNonce);
+      } else {
+        await onIdToken(appleCredential.identityToken, "apple");
+      }
     } catch (err: any) {
       if (err?.code !== "ERR_REQUEST_CANCELED") {
         onError(err?.message || "Erreur Apple Sign-In");
@@ -257,8 +251,9 @@ function SocialLoginButtonsInner({ onIdToken, onError }: SocialLoginButtonsProps
 
 export function SocialLoginButtons(props: SocialLoginButtonsProps) {
   const isConfigured = isFirebaseConfigured();
+  const hasAppleDirect = !!props.onAppleAuth;
 
-  if (!isConfigured && Platform.OS !== "web") {
+  if (!isConfigured && !hasAppleDirect && Platform.OS !== "web") {
     return (
       <View style={styles.notConfigured}>
         <Ionicons name="information-circle-outline" size={14} color="#888" />

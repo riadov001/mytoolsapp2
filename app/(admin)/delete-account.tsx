@@ -30,7 +30,7 @@ export default function DeleteAccountScreen() {
     setLoading(true);
     try {
       const { apiCall } = await import("@/lib/api");
-      await apiCall("/api/users/me", { method: "DELETE" });
+      await apiCall("/api/mobile/auth/account", { method: "DELETE" });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await logout();

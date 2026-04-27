@@ -29,7 +29,7 @@ if (Platform.OS !== "web") {
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login, logout, biometricLogin, socialLogin } = useAuth();
+  const { login, logout, biometricLogin, socialLogin, appleLogin } = useAuth();
   const { showAlert, AlertComponent } = useCustomAlert();
   const theme = useTheme();
   const styles = useMemo(() => getStyles(theme), [theme]);
@@ -129,6 +129,48 @@ export default function LoginScreen() {
         type: "error",
         title: "Erreur de connexion",
         message: err.message || "Authentification sociale échouée.",
+        buttons: [{ text: "OK", style: "primary" }],
+      });
+      setLoading(false);
+    }
+  };
+
+  const handleAppleDirectLogin = async (idToken: string, rawNonce: string) => {
+    setLoading(true);
+    try {
+      const result = await appleLogin(idToken, rawNonce);
+
+      if (result.status === "needs_registration") {
+        setLoading(false);
+        setTimeout(() => {
+          router.push({
+            pathname: "/(auth)/register" as any,
+            params: {
+              email: result.email || "",
+              displayName: result.displayName || "",
+              firebaseUid: result.firebaseUid || "",
+              idToken,
+            },
+          });
+        }, 100);
+        return;
+      }
+
+      const u = result.user;
+      const role = ((u as any)?.role || "").toLowerCase();
+      const isAdminOrEmp =
+        ["admin", "super_admin", "superadmin", "root_admin", "root"].includes(role) ||
+        (u as any)?.isAdmin === true || (u as any)?.is_admin === true ||
+        ["employe", "employee", "manager"].includes(role) ||
+        (u as any)?.isEmployee === true || (u as any)?.is_employee === true;
+      setTimeout(() => {
+        router.replace(isAdminOrEmp ? "/(admin)" as any : "/(main)" as any);
+      }, 100);
+    } catch (err: any) {
+      showAlert({
+        type: "error",
+        title: "Erreur de connexion",
+        message: err.message || "Authentification Apple échouée.",
         buttons: [{ text: "OK", style: "primary" }],
       });
       setLoading(false);
@@ -256,6 +298,7 @@ export default function LoginScreen() {
 
           <SocialLoginButtons
             onIdToken={handleSocialLogin}
+            onAppleAuth={handleAppleDirectLogin}
             onError={(msg) =>
               showAlert({
                 type: "error",

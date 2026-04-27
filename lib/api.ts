@@ -96,6 +96,15 @@ interface ApiOptions {
 }
 
 let sessionCookie: string | null = null;
+let apiAccessToken: string | null = null;
+
+export function setApiAccessToken(token: string | null) {
+  apiAccessToken = token;
+}
+
+export function getApiAccessToken() {
+  return apiAccessToken;
+}
 
 export function setSessionCookie(cookie: string | null) {
   if (cookie) {
@@ -127,6 +136,10 @@ export async function apiCall<T = any>(
 
   if (!isFormData && body) {
     fetchHeaders["Content-Type"] = "application/json";
+  }
+
+  if (apiAccessToken) {
+    fetchHeaders["Authorization"] = `Bearer ${apiAccessToken}`;
   }
 
   if (sessionCookie) {
@@ -391,6 +404,20 @@ export const authApi = {
 
   getNotificationPreferences: () =>
     apiCall<{ push: boolean; email: boolean; sms: boolean }>("/api/mobile/profile"),
+
+  deleteAccount: () =>
+    apiCall("/api/mobile/auth/account", { method: "DELETE" }),
+};
+
+export const devicesApi = {
+  register: (token: string, platform: "ios" | "android") =>
+    apiCall("/api/mobile/devices", {
+      method: "POST",
+      body: { token, platform },
+    }),
+  unregister: (token: string) =>
+    apiCall(`/api/mobile/devices/${encodeURIComponent(token)}`, { method: "DELETE" }),
+  getAll: () => apiCall<any[]>("/api/mobile/devices"),
 };
 
 export const profileApi = {
@@ -403,13 +430,14 @@ export const profileApi = {
   update: (data: Partial<UserProfile>) =>
     apiCall<UserProfile>("/api/mobile/profile", { method: "PATCH", body: data }),
   delete: () =>
-    apiCall("/api/mobile/profile", { method: "DELETE" }),
+    apiCall("/api/mobile/auth/account", { method: "DELETE" }),
   uploadAvatar: (formData: FormData) =>
     apiCall<any>("/api/mobile/profile/avatar", { method: "POST", body: formData, isFormData: true }),
 };
 
 export const legalApi = {
   getTerms: () => apiCall<any>("/api/mobile/legal/terms"),
+  getCompliance: () => apiCall<any>("/api/mobile/legal/compliance"),
   getPrivacyPolicy: () => apiCall<any>("/api/mobile/public/privacy-policy"),
   getPublicTerms: () => apiCall<any>("/api/mobile/public/terms"),
   getLegalUrls: () => apiCall<{ privacyPolicyUrl: string; termsUrl: string; supportEmail: string; gdprCompliant: boolean }>("/api/mobile/public/legal"),
