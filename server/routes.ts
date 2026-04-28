@@ -6,7 +6,7 @@ import fs from "node:fs";
 import Busboy from "busboy";
 import { registerSocialAuthRoutes } from "./social-auth";
 
-const SEED_DOMAIN = "app-backend.mytoolsgroup.eu";
+const SEED_DOMAIN = "backend.mytoolsgroup.eu";
 const ALLOWED_PARENT_DOMAIN = "mytoolsgroup.eu";
 const REMOTE_CONFIG_ENDPOINT = `https://${SEED_DOMAIN}/api/public/mobile-api-url`;
 
