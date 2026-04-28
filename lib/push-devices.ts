@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { devicesApi } from "./api";
 
 const PUSH_TOKEN_KEY = "push_device_token";
 
@@ -21,25 +22,14 @@ export async function registerDevice(pushToken: string): Promise<void> {
   if (!pushToken || Platform.OS === "web") return;
   try {
     await storePushToken(pushToken);
-    const { adminApiCall } = require("./admin-api");
-    await adminApiCall("/api/mobile/devices", {
-      method: "POST",
-      body: {
-        token: pushToken,
-        platform: Platform.OS === "ios" ? "ios" : "android",
-      },
-    });
+    await devicesApi.register(pushToken, Platform.OS === "ios" ? "ios" : "android");
   } catch {}
 }
 
 export async function unregisterDevice(pushToken: string): Promise<void> {
   if (!pushToken || Platform.OS === "web") return;
   try {
-    const { adminApiCall } = require("./admin-api");
-    await adminApiCall(
-      `/api/mobile/devices/${encodeURIComponent(pushToken)}`,
-      { method: "DELETE" }
-    );
+    await devicesApi.unregister(pushToken);
   } catch {}
   try {
     await AsyncStorage.removeItem(PUSH_TOKEN_KEY);

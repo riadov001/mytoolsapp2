@@ -173,9 +173,7 @@ export async function apiCall<T = any>(
 
   if (apiAccessToken) {
     fetchHeaders["Authorization"] = `Bearer ${apiAccessToken}`;
-  }
-
-  if (sessionCookie) {
+  } else if (sessionCookie) {
     fetchHeaders["Cookie"] = sessionCookie;
   }
 
@@ -183,7 +181,9 @@ export async function apiCall<T = any>(
 
   if (isFormData) {
     const formHeaders: Record<string, string> = {};
-    if (sessionCookie) {
+    if (apiAccessToken) {
+      formHeaders["Authorization"] = `Bearer ${apiAccessToken}`;
+    } else if (sessionCookie) {
       formHeaders["Cookie"] = sessionCookie;
     }
 
