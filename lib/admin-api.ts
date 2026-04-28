@@ -166,9 +166,20 @@ export async function adminApiCall<T = any>(
   }
 
   if (!res.ok) {
+    if (res.status >= 500 && res.status < 600) {
+      try {
+        const { reportUpstreamError } = require("./upstream-status");
+        reportUpstreamError(res.status, endpoint);
+      } catch {}
+    }
     const errMsg = await parseError(res);
     throw new Error(errMsg);
   }
+
+  try {
+    const { reportUpstreamRecovered, isUpstreamDegraded } = require("./upstream-status");
+    if (isUpstreamDegraded()) reportUpstreamRecovered();
+  } catch {}
 
   return parseResponse<T>(res);
 }

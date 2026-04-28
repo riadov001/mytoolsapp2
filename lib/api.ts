@@ -259,6 +259,12 @@ export async function apiCall<T = any>(
   }
 
   if (!res.ok) {
+    if (res.status >= 500 && res.status < 600) {
+      try {
+        const { reportUpstreamError } = require("./upstream-status");
+        reportUpstreamError(res.status, endpoint);
+      } catch {}
+    }
     let errorMessage = `Erreur ${res.status}`;
     try {
       const text = await res.text();
@@ -270,6 +276,13 @@ export async function apiCall<T = any>(
       }
     } catch {}
     throw new Error(errorMessage);
+  }
+
+  if (res.ok) {
+    try {
+      const { reportUpstreamRecovered, isUpstreamDegraded } = require("./upstream-status");
+      if (isUpstreamDegraded()) reportUpstreamRecovered();
+    } catch {}
   }
 
   const text = await res.text();

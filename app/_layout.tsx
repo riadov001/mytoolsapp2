@@ -19,6 +19,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet, Text, Platform } from "react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { UpstreamErrorBanner } from "@/components/UpstreamErrorBanner";
 import { queryClient } from "@/lib/query-client";
 import { AuthProvider } from "@/lib/auth-context";
 import { ThemeProvider, useTheme } from "@/lib/theme";
@@ -168,6 +169,7 @@ export default function RootLayout() {
             <ThemeProvider>
               <AuthProvider>
                 <RootLayoutNav />
+                <UpstreamErrorBanner />
               </AuthProvider>
             </ThemeProvider>
           </KeyboardProvider>
