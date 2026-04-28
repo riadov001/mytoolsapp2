@@ -66,6 +66,18 @@ args = "Build iOS"
 task = "workflow.run"
 args = "Build iOS (App Store)"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Submit to Stores"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Submit Android (Play Store)"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Submit iOS (App Store)"
+
 [[workflows.workflow]]
 name = "Start App"
 author = "agent"
@@ -133,6 +145,39 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "EAS_PROFILE=production bash scripts/build-ios.sh"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Submit to Stores"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/submit-stores.sh"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Submit Android (Play Store)"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "SUBMIT_PLATFORM=android bash scripts/submit-stores.sh"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Submit iOS (App Store)"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "SUBMIT_PLATFORM=ios bash scripts/submit-stores.sh"
 
 [workflows.workflow.metadata]
 outputType = "console"
