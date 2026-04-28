@@ -58,6 +58,14 @@ args = "Build Android APK"
 task = "workflow.run"
 args = "Start Backend"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Build iOS"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Build iOS (App Store)"
+
 [[workflows.workflow]]
 name = "Start App"
 author = "agent"
@@ -106,6 +114,28 @@ outputType = "console"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "bash scripts/build-android.sh"
+
+[[workflows.workflow]]
+name = "Build iOS"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/build-ios.sh"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Build iOS (App Store)"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "EAS_PROFILE=production bash scripts/build-ios.sh"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [userenv]
 
