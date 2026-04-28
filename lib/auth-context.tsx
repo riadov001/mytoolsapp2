@@ -473,9 +473,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshToken,
       user: user as UserProfile,
     };
-  };
+  }, []);
 
-  const appleLogin = async (idToken: string, rawNonce: string): Promise<SocialLoginResult> => {
+  const appleLogin = useCallback(async (idToken: string, rawNonce: string): Promise<SocialLoginResult> => {
     const { adminApiCall } = require("./admin-api");
     let data: any = {};
     try {
