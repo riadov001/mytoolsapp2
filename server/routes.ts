@@ -575,6 +575,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "Logs vidés", total: 0 });
   });
 
+  app.get("/api/public/mobile-api-url", async (_req: Request, res: Response) => {
+    try {
+      const remote = await fetchRemoteConfigUrl();
+      const url = remote || getActiveApiUrl();
+      return res.json({
+        mobileApiUrl: url,
+        apiUrl: url,
+        url,
+      });
+    } catch {
+      const url = getActiveApiUrl();
+      return res.json({
+        mobileApiUrl: url,
+        apiUrl: url,
+        url,
+      });
+    }
+  });
+
   app.get("/api/public/garages", async (req: Request, res: Response) => {
     try {
       const endpoints = [
