@@ -39,7 +39,7 @@
     },
     "android": {
       "package": "app.mytoolsmobile.mytoolsgroup.eu",
-      "versionCode": 32,
+      "versionCode": 33,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0A0A0A",
