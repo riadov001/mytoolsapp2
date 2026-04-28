@@ -185,14 +185,20 @@ function SocialLoginButtonsInner({ onIdToken, onError, onAppleAuth }: SocialLogi
     }
   };
 
+  const isFirebaseReady = isFirebaseConfigured();
+
   const buttons = [
-    {
-      key: "google",
-      label: "Google",
-      icon: "logo-google" as const,
-      color: "#4285F4",
-      onPress: handleGoogle,
-    },
+    ...(isFirebaseReady
+      ? [
+          {
+            key: "google",
+            label: "Google",
+            icon: "logo-google" as const,
+            color: "#4285F4",
+            onPress: handleGoogle,
+          },
+        ]
+      : []),
     ...(Platform.OS === "ios"
       ? [
           {

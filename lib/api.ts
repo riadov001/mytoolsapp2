@@ -230,19 +230,31 @@ export async function apiCall<T = any>(
     throw new Error("Trop de tentatives. Réessayez dans quelques minutes.");
   }
 
-  if (res.status === 401 && !isFormData && apiRefreshToken) {
+  if (res.status === 401 && apiRefreshToken) {
     const refreshed = await tryRefreshApiToken();
     if (refreshed) {
-      fetchHeaders["Authorization"] = `Bearer ${apiAccessToken}`;
-      const retryOptions: any = {
-        method,
-        headers: fetchHeaders,
-        credentials: "include" as const,
-      };
-      if (body) {
-        retryOptions.body = typeof body === "object" ? JSON.stringify(body) : String(body);
+      if (isFormData) {
+        const retryFormHeaders: Record<string, string> = {
+          Authorization: `Bearer ${apiAccessToken}`,
+        };
+        res = await fetchWithNativeFallback(endpoint, {
+          method,
+          headers: retryFormHeaders,
+          body,
+          credentials: "include" as const,
+        }, true);
+      } else {
+        fetchHeaders["Authorization"] = `Bearer ${apiAccessToken}`;
+        const retryOptions: any = {
+          method,
+          headers: fetchHeaders,
+          credentials: "include" as const,
+        };
+        if (body) {
+          retryOptions.body = typeof body === "object" ? JSON.stringify(body) : String(body);
+        }
+        res = await fetchWithNativeFallback(endpoint, retryOptions, false);
       }
-      res = await fetchWithNativeFallback(endpoint, retryOptions, false);
     }
   }
 
