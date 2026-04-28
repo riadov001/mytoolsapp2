@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 
-const DISCOVERY_DOMAIN = "backend.mytoolsgroup.eu";
+const DISCOVERY_DOMAIN = "saas.mytoolsgroup.eu";
 const CONFIG_ENDPOINT = `https://${DISCOVERY_DOMAIN}/api/public/mobile-api-url`;
 
 const DEFAULT_MOBILE_API_URL = `https://${DISCOVERY_DOMAIN}`;
