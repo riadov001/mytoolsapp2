@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import { authApi, UserProfile, LoginData, RegisterData, setSessionCookie, getSessionCookie, setApiAccessToken } from "./api";
+import { authApi, UserProfile, LoginData, RegisterData, setSessionCookie, getSessionCookie, setApiAccessToken, setApiRefreshToken, setApiOnTokensRefreshed } from "./api";
 import { adminLogin, adminGetMe, setAdminTokens, setOnTokenExpired, getAdminAccessToken } from "./admin-api";
 import { registerForPushNotificationsAsync, startNotificationPolling, stopNotificationPolling, addNotificationResponseListener, requestWebNotificationPermission } from "./push-notifications";
 import { adminNotifications } from "./admin-api";
@@ -102,6 +102,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOnTokenExpired(() => {
       handleTokenExpired();
     });
+    setApiOnTokensRefreshed(async (access, refresh) => {
+      setStoredAccessToken(access);
+      setApiAccessToken(access);
+      if (refresh) setApiRefreshToken(refresh);
+      try {
+        await storeToken("access_token", access);
+        if (refresh) await storeToken("refresh_token", refresh);
+      } catch {}
+    });
     checkAuth();
   }, []);
 
@@ -156,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStoredAccessToken(null);
     setAdminTokens(null, null);
     setApiAccessToken(null);
+    setApiRefreshToken(null);
     await removeToken("access_token");
     await removeToken("refresh_token");
     await removeToken("session_cookie");
@@ -174,6 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAdminTokens(savedAccessToken, savedRefreshToken);
         setStoredAccessToken(savedAccessToken);
         setApiAccessToken(savedAccessToken);
+        setApiRefreshToken(savedRefreshToken);
       }
 
       const savedCookie = await getToken("session_cookie");
@@ -240,6 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (result.accessToken) {
           setStoredAccessToken(result.accessToken);
           setApiAccessToken(result.accessToken);
+          setApiRefreshToken(result.refreshToken || null);
           await storeToken("access_token", result.accessToken);
           if (result.refreshToken) {
             await storeToken("refresh_token", result.refreshToken);
@@ -284,6 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStoredAccessToken(null);
     setAdminTokens(null, null);
     setApiAccessToken(null);
+    setApiRefreshToken(null);
     await removeToken("session_cookie");
     await removeToken("access_token");
     await removeToken("refresh_token");
@@ -442,6 +455,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStoredAccessToken(accessToken);
     setAdminTokens(accessToken, refreshToken);
     setApiAccessToken(accessToken);
+    setApiRefreshToken(refreshToken);
     if (refreshToken) {
       await storeToken("refresh_token", refreshToken);
     }
@@ -498,6 +512,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStoredAccessToken(accessToken);
     setAdminTokens(accessToken, refreshToken);
     setApiAccessToken(accessToken);
+    setApiRefreshToken(refreshToken);
     if (refreshToken) {
       await storeToken("refresh_token", refreshToken);
     }

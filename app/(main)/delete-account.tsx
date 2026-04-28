@@ -15,10 +15,10 @@ import { ThemeColors } from "@/constants/theme";
 async function clearAllStorage() {
   try { await AsyncStorage.clear(); } catch {}
   if (Platform.OS !== "web") {
-    try {
-      await SecureStore.deleteItemAsync("session_cookie");
-      await SecureStore.deleteItemAsync("biometric_enabled");
-    } catch {}
+    const keys = ["session_cookie", "biometric_enabled", "access_token", "refresh_token", "social_access_token"];
+    for (const key of keys) {
+      try { await SecureStore.deleteItemAsync(key); } catch {}
+    }
   }
 }
 

@@ -97,6 +97,8 @@ interface ApiOptions {
 
 let sessionCookie: string | null = null;
 let apiAccessToken: string | null = null;
+let apiRefreshToken: string | null = null;
+let apiOnTokensRefreshed: ((access: string, refresh: string | null) => void) | null = null;
 
 export function setApiAccessToken(token: string | null) {
   apiAccessToken = token;
@@ -104,6 +106,37 @@ export function setApiAccessToken(token: string | null) {
 
 export function getApiAccessToken() {
   return apiAccessToken;
+}
+
+export function setApiRefreshToken(token: string | null) {
+  apiRefreshToken = token;
+}
+
+export function setApiOnTokensRefreshed(cb: (access: string, refresh: string | null) => void) {
+  apiOnTokensRefreshed = cb;
+}
+
+async function tryRefreshApiToken(): Promise<boolean> {
+  if (!apiRefreshToken) return false;
+  try {
+    const res = await fetchWithRetry(`${getNativeApiBase()}/api/mobile/refresh-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ refreshToken: apiRefreshToken }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.accessToken) {
+        apiAccessToken = data.accessToken;
+        if (data.refreshToken) apiRefreshToken = data.refreshToken;
+        if (apiOnTokensRefreshed) {
+          apiOnTokensRefreshed(data.accessToken, data.refreshToken || null);
+        }
+        return true;
+      }
+    }
+  } catch {}
+  return false;
 }
 
 export function setSessionCookie(cookie: string | null) {
@@ -195,6 +228,22 @@ export async function apiCall<T = any>(
 
   if (res.status === 429) {
     throw new Error("Trop de tentatives. Réessayez dans quelques minutes.");
+  }
+
+  if (res.status === 401 && !isFormData && apiRefreshToken) {
+    const refreshed = await tryRefreshApiToken();
+    if (refreshed) {
+      fetchHeaders["Authorization"] = `Bearer ${apiAccessToken}`;
+      const retryOptions: any = {
+        method,
+        headers: fetchHeaders,
+        credentials: "include" as const,
+      };
+      if (body) {
+        retryOptions.body = typeof body === "object" ? JSON.stringify(body) : String(body);
+      }
+      res = await fetchWithNativeFallback(endpoint, retryOptions, false);
+    }
   }
 
   if (!res.ok) {
